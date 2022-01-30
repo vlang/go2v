@@ -49,19 +49,19 @@ type Instruction = Assignment
 fn ast_constructor(tree Tree) VAST {
 	mut v_ast := VAST{}
 
-	package_name(tree, mut v_ast)
+	v_ast.create_module(tree)
 
 	for _, decl in tree.child['Decls'].tree.child.clone() {
 		match decl.tree.child['Tok'].val {
 			// package imports
 			'import' {
-				imports(decl.tree, mut v_ast)
+				v_ast.create_imports(decl.tree)
 			}
 			'type' {
 				if decl.tree.child['Specs'].tree.child['0'].tree.child['Type'].tree.name == '*ast.StructType' {
-					structs(decl.tree, mut v_ast)
+					v_ast.create_structs(decl.tree)
 				} else {
-					types(decl.tree, mut v_ast)
+					v_ast.create_types(decl.tree)
 				}
 			}
 			else {}
@@ -71,18 +71,18 @@ fn ast_constructor(tree Tree) VAST {
 	return v_ast
 }
 
-fn package_name(tree Tree, mut v_ast VAST) {
-	v_ast.@module = tree.child['Name'].tree.child['Name'].val#[1..-1]
+fn (mut v VAST) create_module(tree Tree) {
+	v.@module = tree.child['Name'].tree.child['Name'].val#[1..-1]
 }
 
-fn imports(decl Tree, mut v_ast VAST) {
-	for _, imp in decl.child['Specs'].tree.child {
-		v_ast.imports << imp.tree.child['Path'].tree.child['Value'].val#[3..-3]
+fn (mut v VAST) create_imports(tree Tree) {
+	for _, imp in tree.child['Specs'].tree.child {
+		v.imports << imp.tree.child['Path'].tree.child['Value'].val#[3..-3]
 	}
 }
 
-fn structs(decl Tree, mut v_ast VAST) {
-	base := decl.child['Specs'].tree.child['0']
+fn (mut v VAST) create_structs(tree Tree) {
+	base := tree.child['Specs'].tree.child['0']
 	mut @struct := StructLike{
 		name: base.tree.child['Name'].tree.child['Name'].val#[1..-1]
 	}
@@ -97,9 +97,9 @@ fn structs(decl Tree, mut v_ast VAST) {
 		}
 		@struct.fields[raw_field.tree.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1]] = val
 	}
-	v_ast.structs << @struct
+	v.structs << @struct
 }
 
-fn types(decl Tree, mut v_ast VAST) {
-	v_ast.types[decl.child['Specs'].tree.child['0'].tree.child['Name'].tree.child['Name'].val#[1..-1]] = decl.child['Specs'].tree.child['0'].tree.child['Type'].tree.child['Name'].val#[1..-1]
+fn (mut v VAST) create_types(tree Tree) {
+	v.types[tree.child['Specs'].tree.child['0'].tree.child['Name'].tree.child['Name'].val#[1..-1]] = tree.child['Specs'].tree.child['0'].tree.child['Type'].tree.child['Name'].val#[1..-1]
 }
