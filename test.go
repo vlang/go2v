@@ -1,6 +1,11 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"io"
+)
+
+type Ok = int
 
 type Oui struct {
 	a int
@@ -8,14 +13,15 @@ type Oui struct {
 }
 
 type Non struct {
-	c int
-	d string
+	c []int
+	d []Oui
 }
 
 const LOL = 123
 
 func main() {
 	fmt.Println("Hello, World!")
+	io.EOF
 	//println(ok())
 }
 
