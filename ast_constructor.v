@@ -42,8 +42,6 @@ type Instruction = Assignment
 	| Comment
 */
 
-const t = Tree{}
-
 fn ast_constructor(tree Tree) VAST {
 	mut v_ast := VAST{}
 
