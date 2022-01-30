@@ -1,3 +1,5 @@
+import strings
+
 // TODO: handle comments
 
 struct VAST {
@@ -11,6 +13,8 @@ mut:
 	enums      map[string]string
 	types      map[string]string
 	functions  []Function
+	//
+	out strings.Builder = strings.new_builder(200)
 }
 
 struct Function {
