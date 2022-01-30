@@ -14,7 +14,7 @@ struct Params {
 fn main() {
 	go_to_v(Params{
 		input_path: 'test.go'
-		outputs_file: true
+		// outputs_file: true
 	}) ?
 }
 
@@ -25,6 +25,8 @@ pub fn go_to_v(options Params) ?string {
 	}
 
 	mut str := ''
+	mut had_to_create_a_file := false
+	mut input_path := options.input_path
 
 	if options.input_path == '' && options.input_str == '' {
 		panic('Either the input_path or input_str parameter must be set')
@@ -34,13 +36,17 @@ pub fn go_to_v(options Params) ?string {
 		str = os.read_file(options.input_path) ?
 	} else {
 		str = options.input_str
+		input_path = 'temp'
+		had_to_create_a_file = true
+		os.write_file('temp', str) ?
 	}
 
-	os.write_file('temp', str) ?
-
-	os.execute('$options.go_path run ${os.resource_abs_path('/')}/get_ast.go -f $options.input_path -o $options.output_path')
+	os.execute('$options.go_path run ${os.resource_abs_path('/')}/get_ast.go -f $input_path -o $options.output_path')
 	raw_input := os.read_file(options.output_path) ?
-	os.rm('temp') ?
+	os.rm(options.output_path) ?
+	if had_to_create_a_file {
+		os.rm(input_path) ?
+	}
 
 	input := raw_input.runes()
 	tokens := tokenizer(input)
@@ -51,6 +57,12 @@ pub fn go_to_v(options Params) ?string {
 	if options.outputs_file {
 		os.write_file(options.output_path, v_file) ?
 	}
+
+	// TODO TEMP REMOVE
+	os.mkdir('test') or {}
+	os.write_file('test/tree', tree.str()) ?
+	os.write_file('test/ast', v_ast.str()) ?
+	os.write_file('test/file.v', v_file) ?
 
 	return v_file
 }

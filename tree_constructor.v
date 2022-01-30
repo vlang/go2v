@@ -1,4 +1,10 @@
-type Child = Tree | string
+// it's best to use a struct instead of a sumtype because for the ast construction stage it make the code extremly complex to write and read
+struct Child {
+mut:
+	// tree & val will never be both set
+	tree Tree
+	val  string
+}
 
 struct Tree {
 mut:
@@ -20,11 +26,11 @@ fn tree_constructor(tokens []Token) Tree {
 					current_tree.name = token.data
 				} else {
 					last_was_body_name = false
-					current_tree.child[temp_child_key] = &Tree{
+					current_tree.child[temp_child_key].tree = &Tree{
 						name: token.data
 						parent: current_tree
 					}
-					current_tree = &(current_tree.child[temp_child_key] or { tree } as Tree) // `or { tree }` here is just a trick to make the compiler happy, it will never be executed
+					current_tree = &current_tree.child[temp_child_key].tree // `or { tree }` here is just a trick to make the compiler happy, it will never be executed
 					temp_child_key = ''
 				}
 			}
@@ -34,7 +40,7 @@ fn tree_constructor(tokens []Token) Tree {
 			}
 			.body_value {
 				last_was_body_name = false
-				current_tree.child[temp_child_key] = token.data
+				current_tree.child[temp_child_key].val = token.data
 				temp_child_key = ''
 			}
 			.tree_close {

@@ -29,7 +29,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	f, err := os.OpenFile(outpathname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+	f, err := os.OpenFile(outpathname, os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		log.Fatal(err)
 	}
