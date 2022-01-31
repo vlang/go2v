@@ -5,26 +5,36 @@ import (
 	"io"
 )
 
-type Ok = int
+type Type1 = int
+type Type2 = []string
+type Type3 = []Struct1
 
-type Oui struct {
+type Struct1 struct {
 	a int
 	b string
 }
 
-type Non struct {
+type Struct2 struct {
 	c []int
-	d []Oui
+	d []Struct1
+	e Struct3
 }
 
-const LOL = 123
+type Struct3 struct {
+	f int
+}
+
+const STRUCT_UPPERCASE_TO_HANDLE = 123
+const struct1 = "dsfsdfs"
+const struct2 = 'a'
+const struct3 = true
 
 func main() {
 	fmt.Println("Hello, World!")
-	io.EOF
+	fmt.Println(io.EOF)
 	//println(ok())
 }
 
-func ok() int {
+func func1() int {
 	return 1
 }
