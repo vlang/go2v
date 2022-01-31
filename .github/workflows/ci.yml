@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: [main]
 
-concurrency:
-  group: build-ci-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: true
-
 jobs:
   build:
     strategy:
