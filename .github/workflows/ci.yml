@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: build-ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os:
+          - name: ubuntu-latest
+            vexe: v
+          - name: macos-latest
+            vexe: v
+          - name: windows-latest
+            vexe: .\v.exe
+    runs-on: ${{ matrix.os.name }}
+
+    steps:
+      - name: Checkout Latest V
+        uses: actions/checkout@v2
+        with:
+          repository: vlang/v
+
+      - name: Build V on Windows
+        if: ${{ matrix.os.name == 'windows-latest' }}
+        run: |
+          .\make.bat
+
+      - name: Build V on Ubuntu, MacOS
+        if: ${{ matrix.os.name != 'windows-latest' }}
+        run: |
+          make
+          sudo ./v symlink
+
+      - name: Checkout ${{ github.event.repository.name }}
+        uses: actions/checkout@v2
+        with:
+          path: ${{ github.event.repository.name }}
+
+      - name: Check if code is formatted
+        run: |
+          ${{ matrix.os.vexe }} fmt -diff ${{ github.event.repository.name }}
+          ${{ matrix.os.vexe }} fmt -verify ${{ github.event.repository.name }}
+
+      - name: Build ${{ github.event.repository.name }}
+        run: |
+          cd ${{ github.event.repository.name }}
+          ../${{ matrix.os.vexe }} -prod .
+
+      - name: Run Tests
+        run: |
+          cd ${{ github.event.repository.name }}
+          ../${{ matrix.os.vexe }} test .
