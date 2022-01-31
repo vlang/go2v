@@ -1,6 +1,5 @@
-*.v linguist-language=V text=auto eol=lf
-*.vv linguist-language=V text=auto eol=lf
-*.bat text=auto eol=crlf
- Dockerfile.* linguist-language=Dockerfile
-*.toml text eol=lf
-
+* text=auto eol=lf
+*.v linguist-language=V
+*.vv linguist-language=V
+*.bat eol=crlf
+ Dockerfile* linguist-language=Dockerfile
