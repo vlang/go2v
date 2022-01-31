@@ -54,4 +54,4 @@ jobs:
       - name: Run Tests
         run: |
           cd ${{ github.event.repository.name }}
-          ../${{ matrix.os.vexe }} test .
+          ../${{ matrix.os.vexe }} -stats test .
