@@ -35,6 +35,12 @@ fn test_v_works() {
 	// dump(tfolder)
 }
 
+fn test_go_works() {
+	res := os.execute('go version')
+	assert res.exit_code == 0
+	assert res.output.starts_with('go version ')
+}
+
 fn test_go2v_compiles() {
 	res := os.execute('$qvexe -o $test_g2v .')
 	assert res.exit_code == 0
