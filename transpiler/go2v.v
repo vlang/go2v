@@ -15,10 +15,6 @@ pub struct Params {
 pub fn go_to_v(input_path string, output_path string) ? {
 	mut out_path := output_path
 
-	if !os.exists_in_system_path('go') {
-		panic("Go is needed by the utility and it isn't installed or not present in your path, get it at https://golang.org.")
-	}
-
 	if !os.exists(input_path) {
 		panic("The input file/directory doesn't exist.")
 	}
