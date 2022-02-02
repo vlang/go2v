@@ -1,42 +1,25 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"go/parser"
 	"go/token"
 	"io"
-	"log"
 	"os"
 	"reflect"
 )
 
-//TODO: greatly simplify this code, for now I just copied the a piece of code given by *@JalonSolov#0531* on Discord
-
 func main() {
-	pathname := ""
-	outpathname := ""
-	flag.StringVar(&pathname, "f", "", "file to process")
-	flag.StringVar(&outpathname, "o", "", "file to output")
-	fmt.Println(pathname)
-	fmt.Println(outpathname)
-
-	flag.Parse()
+	path := os.Args[1]
 
 	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, pathname, nil, parser.ParseComments)
-	if err != nil {
-		log.Fatal(err)
-	}
+	node, _ := parser.ParseFile(fset, path, nil, parser.ParseComments)
 
-	f, err := os.OpenFile(outpathname, os.O_WRONLY|os.O_CREATE, 0600)
-	if err != nil {
-		log.Fatal(err)
-	}
+	f, _ := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0600)
 	defer f.Close()
 
 	fprint(f, fset, node, NotNilFilter)
-	//TODO: find if there is a way to just use the built-in ast.Print() function, the only differences are:
+	//TODO: find if there is a way to just use the built-in ast.Print() function as the only differences are:
 	/*
 		FROM ast/print.go:
 		86
@@ -51,7 +34,6 @@ func main() {
 		104 -	}
 		105  	for j := p.indent; j > 0; j-- {
 	*/
-	// Maybe find a way to overwrite the variable `indent` and the function `printer.Write`
 }
 
 // A FieldFilter may be provided to Fprint to control the output.

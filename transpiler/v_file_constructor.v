@@ -1,3 +1,5 @@
+module transpiler
+
 fn v_file_constructor(v_ast VAST) string {
 	mut v := v_ast
 	v.handle_module()

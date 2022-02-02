@@ -1,6 +1,6 @@
 # Go2V
 
-Go2V is a CLI utility with a function interface to transpile Go source code into V source code.
+Go2V is a CLI utility to transpile Go source code into V source code.
 
 ## Summary / steps
 

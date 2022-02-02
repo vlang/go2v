@@ -1,0 +1,6 @@
+Usage:
+  go2v [option] test
+    Go2V tests itself with its testing suite located in `tests`.
+
+Options:
+  -compact     - Run tets without the `-stats` option.
