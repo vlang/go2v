@@ -1,5 +1,4 @@
 import os
-import v.util.diff
 
 const (
 	v_exe     = @VEXE
@@ -15,7 +14,6 @@ fn test_all() ? {
 	}
 	for dir in os.ls('$go2v_path/tests') or { []string{} } {
 		os.execute('$go2v_exe $go2v_path/tests/$dir/${dir}.go -o /tests/$dir/out.vv')
-		assert diff.color_compare_files(diff.find_working_diff_command() ?, '$go2v_path/tests/$dir/out.vv',
-			'$go2v_path/tests/$dir/${dir}.vv').len == 0
+		assert os.read_file('$go2v_path/tests/$dir/out.vv') ? == os.read_file('$go2v_path/tests/$dir/${dir}.vv') ?
 	}
 }
