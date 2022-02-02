@@ -17,17 +17,21 @@ fn (mut v VAST) handle_module() {
 }
 
 fn (mut v VAST) handle_imports() {
-	for imp in v.imports {
-		v.out.writeln('import $imp')
+	if v.imports.len != 0 {
+		for imp in v.imports {
+			v.out.writeln('import $imp')
+		}
+		v.out.writeln('')
 	}
-	v.out.writeln('')
 }
 
 fn (mut v VAST) handle_types() {
-	for name, typ in v.types {
-		v.out.writeln('type $name = $typ')
+	if v.types.len != 0 {
+		for name, typ in v.types {
+			v.out.writeln('type $name = $typ')
+		}
+		v.out.writeln('')
 	}
-	v.out.writeln('')
 }
 
 fn (mut v VAST) handle_structs() {
@@ -42,15 +46,17 @@ fn (mut v VAST) handle_structs() {
 }
 
 fn (mut v VAST) handle_consts() {
-	if v.consts.len == 1 {
-		key := v.consts.keys()[0]
-		v.out.writeln('const $key = ${v.consts[key]}')
-	} else {
-		v.out.writeln('const (')
-		for key, val in v.consts {
-			v.out.writeln('\t$key = $val')
+	if v.consts.len != 0 {
+		if v.consts.len == 1 {
+			key := v.consts.keys()[0]
+			v.out.writeln('const $key = ${v.consts[key]}')
+		} else {
+			v.out.writeln('const (')
+			for key, val in v.consts {
+				v.out.writeln('\t$key = $val')
+			}
+			v.out.writeln(')')
 		}
-		v.out.writeln(')')
+		v.out.writeln('')
 	}
-	v.out.writeln('')
 }

@@ -73,11 +73,12 @@ fn convert_and_write(input string, output_file string, output_path string) ? {
 	v_file := v_file_constructor(v_ast)
 
 	// TODO TEMP REMOVE
+
 	/*
-	os.mkdir('test') or {}
-	os.write_file('test/tree', tree.str()) ?
-	os.write_file('test/ast', v_ast.str()) ?
-	os.write_file('test/file.v', v_file) ?
+	os.mkdir('temp') or {}
+	os.write_file('temp/tree', tree.str()) ?
+	os.write_file('temp/ast', v_ast.str()) ?
+	os.write_file('temp/file.v', v_file) ?
 	*/
 
 	os.write_file(output, v_file) ?

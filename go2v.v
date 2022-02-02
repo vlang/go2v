@@ -37,7 +37,7 @@ fn main() {
 						return
 					}
 
-					os.execvp('${@VEXE}', [stats, 'test', os.resource_abs_path('/tests')]) ?
+					os.execvp('${@VEXE}', [stats, 'test', os.resource_abs_path('.')]) ?
 					return
 				}
 			},
