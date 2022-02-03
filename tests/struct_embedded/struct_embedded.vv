@@ -1,0 +1,19 @@
+module main
+
+type Type3 = []Struct1
+
+struct Struct1 {
+	a int
+	b string
+}
+
+struct Struct3 {
+	f int
+}
+
+struct Struct2 {
+	c []int
+	d []Struct1
+	e Struct3
+}
+

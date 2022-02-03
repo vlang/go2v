@@ -1,0 +1,9 @@
+module main
+
+const (
+	STRUCT_UPPERCASE_TO_HANDLE = 123
+	struct1 = 'dsfsdfs'
+	struct2 = `a`
+	struct3 = true
+)
+
