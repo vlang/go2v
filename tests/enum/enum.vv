@@ -1,0 +1,17 @@
+module main
+
+import fmt
+import io
+
+enum EnumTest {
+	EnumTestZero
+	EnumTestOne
+	EnumTestTwo
+	EnumTestThree
+}
+
+enum EnumFieldTest {
+	EnumFieiZero
+	EnumFieldFive = 5
+	EnumFieldSix
+)
