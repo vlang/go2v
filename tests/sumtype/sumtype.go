@@ -1,0 +1,4 @@
+package main
+
+type Type1 = int
+type Type2 = []string
