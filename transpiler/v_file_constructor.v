@@ -7,6 +7,7 @@ fn v_file_constructor(v_ast VAST) string {
 	v.handle_types()
 	v.handle_structs()
 	v.handle_consts()
+	v.handle_enums()
 
 	return v.out.str()
 }
@@ -57,6 +58,21 @@ fn (mut v VAST) handle_consts() {
 			}
 			v.out.writeln(')')
 		}
+		v.out.writeln('')
+	}
+}
+
+fn (mut v VAST) handle_enums() {
+	for enm in v.enums {
+		v.out.writeln('enum $enm.name {')
+		for name, val in enm.fields {
+			if val.len == 0 {
+				v.out.writeln('\t$name')
+			} else {
+				v.out.writeln('\t$name = $val')
+			}
+		}
+		v.out.writeln('}')
 		v.out.writeln('')
 	}
 }

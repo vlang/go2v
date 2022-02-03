@@ -1,0 +1,8 @@
+module main
+
+enum EnumFieldTest {
+	EnumFieidZero
+	EnumFieldFive = 5
+	EnumFieldSix
+}
+

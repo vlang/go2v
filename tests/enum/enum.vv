@@ -1,0 +1,9 @@
+module main
+
+enum EnumTest {
+	EnumTestZero
+	EnumTestOne
+	EnumTestTwo
+	EnumTestThree
+}
+
