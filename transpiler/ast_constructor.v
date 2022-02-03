@@ -1,3 +1,5 @@
+module transpiler
+
 import strings
 
 // TODO: handle comments

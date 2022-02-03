@@ -22,8 +22,5 @@ trim_trailing_whitespace = false
 # `too_long_line_length_other     = 100`
 max_line_length = 100
 
-[*.{txt,out}]
+[*.txt]
 insert_final_newline = false
-
-[{Makefile,GNUmakefile}]
-indent_style = tab
