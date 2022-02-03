@@ -68,8 +68,7 @@ fn convert_and_write(input string, output_file string, output_path string) ? {
 	v_ast := ast_constructor(tree)
 	v_file := v_file_constructor(v_ast)
 
-	// TODO TEMP REMOVE
-
+	// TODO TEMP REMOVE / USE THIS FOR DEBUGGING
 	/*
 	os.mkdir('temp') or {}
 	os.write_file('temp/tree', tree.str()) ?

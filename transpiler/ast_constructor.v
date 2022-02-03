@@ -12,7 +12,7 @@ mut:
 	structs    []StructLike
 	unions     []StructLike
 	interfaces []StructLike
-	enums      map[string]string
+	enums      []StructLike
 	types      map[string]string
 	functions  []Function
 	//
@@ -61,8 +61,14 @@ fn ast_constructor(tree Tree) VAST {
 
 fn (mut v VAST) get_decl(tree Tree, embedded bool) {
 	// Go AST structure is different if embedded or not
-	base := if embedded { tree.child['Decl'].tree } else { tree.child['Specs'].tree.child['0'].tree }
-	type_field_name := if embedded { 'Kind' } else { 'Tok' }
+	consts_base := tree.child['Specs'].tree
+	mut base := consts_base.child['0'].tree
+	mut type_field_name := 'Tok'
+
+	if embedded {
+		base = tree.child['Decl'].tree
+		type_field_name = 'Kind'
+	}
 
 	match tree.child[type_field_name].val {
 		// Will never be embedded
@@ -77,7 +83,8 @@ fn (mut v VAST) get_decl(tree Tree, embedded bool) {
 			}
 		}
 		'const' {
-			v.get_consts(base)
+			// Enums will never be embedded
+			v.get_consts_and_enums(consts_base)
 		}
 		else {}
 	}
@@ -137,19 +144,52 @@ fn (mut v VAST) get_types(tree Tree) {
 	}
 }
 
-fn (mut v VAST) get_consts(tree Tree) {
-	base := tree.child['Values'].tree.child['0'].tree
-	mut raw_val := if base.child['Value'].val.len != 0 {
-		base.child['Value'].val // everything except bools
-	} else {
-		base.child['Name'].val // bools
+fn (mut v VAST) get_consts_and_enums(tree Tree) {
+	mut is_enum := false
+	mut temp_enum := StructLike{}
+
+	for _, @const in tree.child.clone() {
+		val_base := @const.tree.child['Values'].tree.child['0'].tree
+		name_base := @const.tree.child['Names'].tree.child['0'].tree
+
+		raw_val := if val_base.child['Value'].val.len != 0 {
+			val_base.child['Value'].val // everything except bools
+		} else {
+			val_base.child['Name'].val // bools & iotas (enums)
+		}
+		// Format the value
+		mut val := raw_val
+		if val.len != 0 {
+			val = match raw_val[1] {
+				`\\` { "'${raw_val#[3..-3]}'" } // strings
+				`'` { '`${raw_val#[2..-2]}`' } // runes
+				else { raw_val#[1..-1] } // numbers, bools, iotas (enums)
+			}
+		}
+
+		// Enums
+		if val == 'iota' && !is_enum {
+			// Begining of enum
+			is_enum = true
+			temp_enum.name = @const.tree.child['Type'].tree.child['Name'].val#[1..-1]
+			temp_enum.fields[name_base.child['Name'].val#[1..-1]] = ''
+			// Delete type used as enum name (Go enums implentation is so weird)
+			v.types.delete(temp_enum.name)
+		} else if is_enum {
+			// Inside of enum
+			val = match val {
+				'' { '' }
+				'iota' { '' }
+				else { val }
+			}
+			temp_enum.fields[name_base.child['Name'].val#[1..-1]] = val
+		} else {
+			// Consts
+			v.consts[name_base.child['Name'].val#[1..-1]] = val
+		}
 	}
 
-	raw_val = match raw_val[1] {
-		`\\` { "'${raw_val#[3..-3]}'" } // strings
-		`'` { '`${raw_val#[2..-2]}`' } // runes
-		else { raw_val#[1..-1] } // numbers & bools
+	if is_enum {
+		v.enums << temp_enum
 	}
-
-	v.consts[tree.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1]] = raw_val
 }
