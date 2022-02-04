@@ -41,6 +41,13 @@ fn main() {
 					return
 				}
 			},
+			cli.Command{
+				name: 'symlink'
+				execute: fn (cmd cli.Command) ? {
+					os.symlink(os.executable(), '/usr/local/bin/go2v') or {}
+					return
+				}
+			},
 		]
 	}
 	app.setup()
