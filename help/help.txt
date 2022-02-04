@@ -12,5 +12,5 @@ Examples:
 Go2V supports the following commands:
    test                   Go2V tests itself with its testing suite located in `tests`.
    symlink                Create a symbolic link for Go2V.
-
+   version                Displays the branch of the git project
 Use "go2v help <command>" for more information about a command.
