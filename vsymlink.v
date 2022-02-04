@@ -121,7 +121,7 @@ fn setup_symlink_windows(vexe string) {
 		C.RegCloseKey(reg_sys_env_handle)
 		println('Done.')
 		println('Note: Restart your shell/IDE to load the new %PATH%.')
-		println('After restarting your shell/IDE, give `go2v verion` a try in another directory!')
+		println('After restarting your shell/IDE, give `go2v version` a try in another directory!')
 	}
 }
 

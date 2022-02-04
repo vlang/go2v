@@ -45,11 +45,6 @@ fn main() {
 			cli.Command{
 				name: 'symlink'
 				execute: fn (cmd cli.Command) ? {
-//					link_path := '/usr/local/bin/go2v'
-//					os.symlink(os.executable(), link_path) or {
-//						eprintln('Failed to create symlink "$link_path". Try again with sudo.')
-//						exit(1)
-//					}
 					vsymlink.sym_main()
 					return
 				}
@@ -57,7 +52,7 @@ fn main() {
 			cli.Command{
 				name: 'version'
 				execute: fn (cmd cli.Command) ? {
-					println('go2v - ')
+					println('go2v - master branch')
 					return
 				}
 			},
