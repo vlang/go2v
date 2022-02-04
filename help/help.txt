@@ -6,8 +6,8 @@ Usage:
 	 Go must be in path.
 
 Examples:
-   v hello.go             Transpile the file `hello.go` and output it as `hello.v`.
-   v some_dir -o out_dir  (WIP) Transpile all files in the directory `some_dir` and output it in `out_dir`.
+   go2v hello.go             Transpile the file `hello.go` and output it as `hello.v`.
+   go2v some_dir -o out_dir  (WIP) Transpile all files in the directory `some_dir` and output it in `out_dir`.
 
 Go2V supports the following commands:
    test                   Go2V tests itself with its testing suite located in `tests`.
