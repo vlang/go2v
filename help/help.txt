@@ -11,6 +11,6 @@ Examples:
 
 Go2V supports the following commands:
    test                   Go2V tests itself with its testing suite located in `tests`.
-   symlink                (WIP) Create a symbolic link for Go2V.
+   symlink                Create a symbolic link for Go2V.
 
 Use "go2v help <command>" for more information about a command.
