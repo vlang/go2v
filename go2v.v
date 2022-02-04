@@ -3,6 +3,7 @@ module main
 import os
 import cli
 import transpiler
+import vsymlink
 
 fn main() {
 	mut app := cli.Command{
@@ -44,7 +45,19 @@ fn main() {
 			cli.Command{
 				name: 'symlink'
 				execute: fn (cmd cli.Command) ? {
-					os.symlink(os.executable(), '/usr/local/bin/go2v') or {}
+//					link_path := '/usr/local/bin/go2v'
+//					os.symlink(os.executable(), link_path) or {
+//						eprintln('Failed to create symlink "$link_path". Try again with sudo.')
+//						exit(1)
+//					}
+					vsymlink.sym_main()
+					return
+				}
+			},
+			cli.Command{
+				name: 'version'
+				execute: fn (cmd cli.Command) ? {
+					println('go2v - ')
 					return
 				}
 			},
