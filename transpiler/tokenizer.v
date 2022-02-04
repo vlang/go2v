@@ -5,6 +5,7 @@ enum State {
 	body_name
 	body_value
 	string
+	ignore
 }
 
 enum TokenType {
@@ -26,11 +27,28 @@ fn tokenizer(input []rune) []Token {
 	mut temp_token := Token{.tree_name, ''}
 	mut next_ch := `a`
 	mut next_next_ch := `a`
+	mut first_iter := true
+	mut space_count := 0
 
 	for i, ch in input {
 		next_ch = input[i + 1] or { ch }
 		next_next_ch = input[i + 2] or { ch }
 		match state {
+			.ignore {
+				match next_ch {
+					`.` {}
+					` ` {
+						// Counting spaces is a hack to know if we've passed the line count present at each line
+						space_count++
+					}
+					else {
+						if space_count > 5 {
+							space_count = 0
+							state = .body_name
+						}
+					}
+				}
+			}
 			.tree_name {
 				match ch {
 					` ` {}
@@ -40,14 +58,20 @@ fn tokenizer(input []rune) []Token {
 						temp_token = Token{.body_name, ''}
 					}
 					else {
-						temp_token.data += ch.str()
+						if first_iter {
+							first_iter = false
+						} else {
+							temp_token.data += ch.str()
+						}
 					}
 				}
 			}
 			.body_name {
 				match ch {
-					// TODO: check if \r is needed
-					` `, `\n`, `\r` {}
+					` ` {}
+					`\n` {
+						state = .ignore
+					}
 					`:` {
 						state = .body_value
 						tokens << temp_token
@@ -72,9 +96,8 @@ fn tokenizer(input []rune) []Token {
 			}
 			.string {
 				match ch {
-					// TODO: check if \r is needed
-					`\n`, `\r` {
-						state = .body_name
+					`\n` {
+						state = .ignore
 						tokens << temp_token
 						temp_token = Token{.body_name, ''}
 					}
@@ -85,6 +108,7 @@ fn tokenizer(input []rune) []Token {
 			}
 		}
 	}
+	tokens << Token{.tree_close, ''}
 
 	return tokens
 }
