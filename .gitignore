@@ -1,3 +1,7 @@
+#General
+go2v
+go2v.exe
+
 #Testing
 temp
 tests/**/out.vv
