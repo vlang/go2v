@@ -14,6 +14,6 @@ struct Efg {
 
 // func (t Test) Ouuu(abc string, ofk []int, c Test) (int, string) {
 // 	fmt.Println(\"hey\")
-// }\
+// }
 pub fn (a Abc) Ok(d int, b []Bcd, c rune) (int, []Efg, rune) {
 }

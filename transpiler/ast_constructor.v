@@ -210,7 +210,7 @@ fn (mut v VAST) get_functions(tree Tree) {
 	// Comments on top functions (docstrings)
 	if 'Doc' in tree.child.clone() {
 		func.comment = '//' +
-			tree.child['Doc'].tree.child['List'].tree.child['0'].tree.child['Text'].val#[3..-4].replace('\\n', '\n// ').replace('\\t', '\t')
+			tree.child['Doc'].tree.child['List'].tree.child['0'].tree.child['Text'].val#[3..-5].replace('\\n', '\n// ').replace('\\t', '\t')
 	}
 
 	// Public/private
