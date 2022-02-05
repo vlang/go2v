@@ -4,15 +4,9 @@ import os
 import v.pref
 import v.util
 
-$if windows {
-	$if tinyc {
-		#flag -ladvapi32
-		#flag -luser32
-	}
-}
 pub fn sym_main() {
 	C.atexit(cleanup_vtmp_folder)
-	vexe := os.real_path(pref.vexe_path())
+	vexe := os.executable()
 	$if windows {
 		setup_symlink_windows(vexe)
 	} $else {

@@ -1,6 +1,7 @@
 #Testing
 temp
 tests/**/out.vv
+go2v
 
 #MacOS
 .DS_Store

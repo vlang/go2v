@@ -49,13 +49,6 @@ fn main() {
 					return
 				}
 			},
-			cli.Command{
-				name: 'version'
-				execute: fn (cmd cli.Command) ? {
-					println('go2v - master branch')
-					return
-				}
-			},
 		]
 	}
 	app.setup()
