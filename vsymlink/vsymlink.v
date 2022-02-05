@@ -37,7 +37,7 @@ fn setup_symlink_unix(vexe string) {
 fn setup_symlink_windows(vexe string) {
 	$if windows {
 		// Create a symlink in a new local folder (.\.bin\.go2v.exe)
-		// Puts `go2v` in %PATH% without polluting it with anything else (like make.bat).
+		// Puts `go2v` in %PATH% without polluting it with anything else.
 		// This will make `go2v` available on cmd.exe, PowerShell, and MinGW(MSYS)/WSL/Cygwin
 		vdir := os.real_path(os.dir(vexe))
 		vsymlinkdir := os.join_path(vdir, '.bin')
