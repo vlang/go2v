@@ -10,7 +10,7 @@ fn main() {
 		name: 'go2v'
 		description: 'Go2V is a CLI utility to transpile Go source code into V source code.'
 		execute: fn (cmd cli.Command) ? {
-			if cmd.args.len == 0 { println('Wrong usage, see "go2v help"') } else { transpiler.go_to_v(cmd.args[0], cmd.args[2] or {
+			if cmd.args.len == 0 { println('At least one file or directory must be given, see "go2v help"') } else { transpiler.go_to_v(cmd.args[0], cmd.args[2] or {
 					''}) ? }
 			return
 		}
@@ -34,7 +34,7 @@ fn main() {
 					} else if cmd.args[0] == '-compact' {
 						stats = ''
 					} else {
-						println('Wrong usage, see "go2v help test"')
+						println('At least one file or directory must be given, see "go2v help test"')
 						return
 					}
 

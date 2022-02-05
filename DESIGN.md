@@ -6,10 +6,10 @@ Go2V is a CLI utility to transpile Go source code into V source code.
 
 - [x] Get the Go code
 	- `go2v.v`
-- [x] Get Go AST from Go code
+- [x] Generate Go AST
 	- `get_ast.go`
 	- `go2v.v`
-- [x] Tokenise the outputted Go AST
+- [x] Tokenise the Go AST
 	- `tokenizer.v`
 - [x] Pass the tokens into the Go AST tree constructor
 	- `tree_constructor.v`
