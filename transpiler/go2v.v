@@ -2,7 +2,7 @@ module transpiler
 
 import os
 
-// TODO: add a system with a watcher function to make the tree construction stage concurrent and possibly also to the other stages
+// TODO: add a system with a watcher function to make the tree construction stage and possibly other stages concurrent
 
 pub struct Params {
 	outputs_file bool
@@ -16,7 +16,8 @@ pub fn go_to_v(input_path string, output_path string) ? {
 	mut out_path := output_path
 
 	if !os.exists(input_path) {
-		panic("The input file/directory doesn't exist.")
+		eprintln("'$input_path' is not a valid file/directory.")
+		exit(1)
 	}
 
 	is_dir := os.is_dir(input_path)
@@ -27,37 +28,41 @@ pub fn go_to_v(input_path string, output_path string) ? {
 	}
 
 	mut inputs := []string{}
-	mut files_name := []string{}
+	mut file_names := []string{}
 	if !is_dir {
 		inputs << os.read_file(input_path) ?
-		files_name << input_path#[..-3] + '.v'
+		file_names << input_path#[..-3] + '.v'
 	} else {
 		for input in os.ls(input_path) or { []string{} } {
 			if input.ends_with('.go') {
-				inputs << os.read_file('$os.getwd()/$input_path/$input') ?
-				files_name << input#[..-3] + '.v'
+				inputs << os.read_file('$input_path/$input') ?
+				file_names << input#[..-3] + '.v'
 			}
 		}
 	}
 
+	if out_path == '' && file_names.len > 0 {
+		out_path = file_names[0]
+	}
+
 	// custom output file for file transpilation
 	if out_path != '' && !is_dir {
-		files_name[0] = out_path
+		file_names[0] = out_path
 		out_path = '.'
 	}
 
 	if !is_dir {
-		convert_and_write(inputs.first(), files_name.first(), out_path) ?
+		convert_and_write(inputs.first(), file_names.first(), out_path) ?
 	} else {
 		os.mkdir(out_path) or {}
 		for i, input in inputs {
-			convert_and_write(input, files_name[i], out_path) ?
+			convert_and_write(input, file_names[i], out_path) ?
 		}
 	}
 }
 
 fn convert_and_write(input string, output_file string, output_path string) ? {
-	output := '$os.getwd()/$output_path/$output_file'
+	output := '$output_path/$output_file'
 	os.write_file(output, input) ?
 	os.execute('go run "${os.resource_abs_path('transpiler')}/get_ast.go" "$output"')
 
