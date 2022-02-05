@@ -1,0 +1,8 @@
+module main
+
+struct Abc {
+	a int
+}
+
+fn (a Abc) ok(d int, b []string, c rune) string {
+}

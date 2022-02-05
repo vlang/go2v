@@ -6,4 +6,3 @@ const (
 	struct2 = `a`
 	struct3 = true
 )
-
