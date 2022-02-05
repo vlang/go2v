@@ -8,6 +8,8 @@ fn v_file_constructor(v_ast VAST) string {
 	v.handle_structs()
 	v.handle_consts()
 	v.handle_enums()
+	v.handle_functions()
+	v.out.cut_last(1) // remove last newline
 
 	return v.out.str()
 }
@@ -72,6 +74,58 @@ fn (mut v VAST) handle_enums() {
 				v.out.writeln('\t$name = $val')
 			}
 		}
+		v.out.writeln('}')
+		v.out.writeln('')
+	}
+}
+
+fn (mut v VAST) handle_functions() {
+	for func in v.functions {
+		// Comment
+		if func.comment != '' {
+			v.out.writeln(func.comment)
+		}
+		// Public/private
+		if func.public {
+			v.out.write_string('pub ')
+		}
+		// Keyword
+		v.out.write_string('fn ')
+		// Method
+		if func.method.len != 0 {
+			v.out.write_string('(${func.method[0]} ${func.method[1]}) ')
+		}
+		// Name
+		v.out.write_string('${func.name}(')
+		// Arguments
+		mut len := func.args.len
+		for name, @type in func.args {
+			len--
+			if len == 0 {
+				v.out.write_string('$name ${@type}')
+			} else {
+				v.out.write_string('$name ${@type}, ')
+			}
+		}
+		v.out.write_string(')')
+		// Return value(s)
+		if func.ret_vals.len == 1 {
+			v.out.write_string(' ${func.ret_vals[0]}')
+		} else if func.ret_vals.len != 0 {
+			v.out.write_string(' (')
+			len = func.ret_vals.len
+			for i, val in func.ret_vals {
+				if i != len - 1 {
+					v.out.write_string('$val, ')
+				} else {
+					v.out.write_string('$val')
+				}
+			}
+			v.out.write_string(')')
+		}
+		// Body
+		v.out.writeln(' {')
+		// write body
 		v.out.writeln('}')
 		v.out.writeln('')
 	}

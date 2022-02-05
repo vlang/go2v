@@ -6,4 +6,3 @@ enum EnumTest {
 	EnumTestTwo
 	EnumTestThree
 }
-

@@ -16,4 +16,3 @@ struct Struct2 {
 	d []Struct1
 	e Struct3
 }
-
