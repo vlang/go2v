@@ -65,8 +65,8 @@ fn ast_constructor(tree Tree) VAST {
 
 fn (mut v VAST) get_decl(tree Tree, embedded bool) {
 	// Go AST structure is different if embedded or not
-	consts_base := tree.child['Specs'].tree
-	mut base := consts_base.child['0'].tree
+	base1 := tree.child['Specs'].tree
+	mut base := base1.child['0'].tree
 	mut type_field_name := 'Tok'
 
 	if embedded {
@@ -81,14 +81,14 @@ fn (mut v VAST) get_decl(tree Tree, embedded bool) {
 		}
 		'type' {
 			if base.child['Type'].tree.name == '*ast.StructType' {
-				v.get_structs(base)
+				v.get_structs(base1)
 			} else if base.name != '' {
 				v.get_types(base)
 			}
 		}
 		'const' {
 			// Enums will never be embedded
-			v.get_consts_and_enums(consts_base)
+			v.get_consts_and_enums(base1)
 		}
 		else {
 			if tree.name == '*ast.FuncDecl' {
@@ -104,34 +104,37 @@ fn (mut v VAST) get_module(tree Tree) {
 
 fn (mut v VAST) get_imports(tree Tree) {
 	for _, imp in tree.child['Specs'].tree.child {
-		v.imports << imp.tree.child['Path'].tree.child['Value'].val#[3..-3]
+		v.imports << imp.tree.child['Path'].tree.child['Value'].val#[3..-3].replace('/',
+			'.')
 	}
 }
 
 fn (mut v VAST) get_structs(tree Tree) {
-	mut @struct := StructLike{
-		name: tree.child['Name'].tree.child['Name'].val#[1..-1]
-	}
-
-	for _, raw_field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
-		mut val := ''
-		mut temp := raw_field.tree.child['Type']
-
-		if raw_field.tree.child['Type'].tree.name == '*ast.ArrayType' {
-			val = '[]'
-			temp = raw_field.tree.child['Type'].tree.child['Elt']
+	for _, decl in tree.child.clone() {
+		mut @struct := StructLike{
+			name: decl.tree.child['Name'].tree.child['Name'].val#[1..-1]
 		}
 
-		@struct.fields[raw_field.tree.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1]] =
-			val + temp.tree.child['Name'].val#[1..-1]
+		for _, raw_field in decl.tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
+			mut val := ''
+			mut temp := raw_field.tree.child['Type']
 
-		// check if item embedded
-		if 'Obj' in temp.tree.child {
-			v.get_decl(temp.tree.child['Obj'].tree, true)
+			if raw_field.tree.child['Type'].tree.name == '*ast.ArrayType' {
+				val = '[]'
+				temp = raw_field.tree.child['Type'].tree.child['Elt']
+			}
+
+			@struct.fields[raw_field.tree.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1]] =
+				val + temp.tree.child['Name'].val#[1..-1]
+
+			// check if item embedded
+			if 'Obj' in temp.tree.child {
+				v.get_decl(temp.tree.child['Obj'].tree, true)
+			}
 		}
-	}
 
-	v.structs << @struct
+		v.structs << @struct
+	}
 }
 
 fn (mut v VAST) get_types(tree Tree) {
