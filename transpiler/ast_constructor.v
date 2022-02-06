@@ -65,12 +65,12 @@ fn ast_constructor(tree Tree) VAST {
 
 fn (mut v VAST) get_decl(tree Tree, embedded bool) {
 	// Go AST structure is different if embedded or not
-	base1 := tree.child['Specs'].tree
-	mut base := base1.child['0'].tree
+	base := tree.child['Specs'].tree
+	mut simplified_base := base.child['0'].tree
 	mut type_field_name := 'Tok'
 
 	if embedded {
-		base = tree.child['Decl'].tree
+		simplified_base = tree.child['Decl'].tree
 		type_field_name = 'Kind'
 	}
 
@@ -80,21 +80,21 @@ fn (mut v VAST) get_decl(tree Tree, embedded bool) {
 			v.get_imports(tree)
 		}
 		'type' {
-			if base.child['Type'].tree.name == '*ast.StructType' {
+			if simplified_base.child['Type'].tree.name == '*ast.StructType' {
 				if !embedded {
-					for _, decl in base1.child.clone() {
+					for _, decl in base.child.clone() {
 						v.structs << v.get_struct(decl.tree)
 					}
 				} else {
-					v.structs << v.get_struct(base)
+					v.structs << v.get_struct(simplified_base)
 				}
-			} else if base.name != '' {
-				v.get_types(base)
+			} else if simplified_base.name != '' {
+				v.get_types(simplified_base)
 			}
 		}
 		'const' {
 			// Enums will never be embedded
-			v.get_consts_and_enums(base1)
+			v.get_consts_and_enums(base)
 		}
 		else {
 			if tree.name == '*ast.FuncDecl' {
