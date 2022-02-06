@@ -81,7 +81,13 @@ fn (mut v VAST) get_decl(tree Tree, embedded bool) {
 		}
 		'type' {
 			if base.child['Type'].tree.name == '*ast.StructType' {
-				v.get_structs(base1)
+				if !embedded {
+					for _, decl in base1.child.clone() {
+						v.structs << v.get_struct(decl.tree)
+					}
+				} else {
+					v.structs << v.get_struct(base)
+				}
 			} else if base.name != '' {
 				v.get_types(base)
 			}
@@ -109,32 +115,29 @@ fn (mut v VAST) get_imports(tree Tree) {
 	}
 }
 
-fn (mut v VAST) get_structs(tree Tree) {
-	for _, decl in tree.child.clone() {
-		mut @struct := StructLike{
-			name: decl.tree.child['Name'].tree.child['Name'].val#[1..-1]
-		}
-
-		for _, raw_field in decl.tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
-			mut val := ''
-			mut temp := raw_field.tree.child['Type']
-
-			if raw_field.tree.child['Type'].tree.name == '*ast.ArrayType' {
-				val = '[]'
-				temp = raw_field.tree.child['Type'].tree.child['Elt']
-			}
-
-			@struct.fields[raw_field.tree.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1]] =
-				val + temp.tree.child['Name'].val#[1..-1]
-
-			// check if item embedded
-			if 'Obj' in temp.tree.child {
-				v.get_decl(temp.tree.child['Obj'].tree, true)
-			}
-		}
-
-		v.structs << @struct
+fn (mut v VAST) get_struct(tree Tree) StructLike {
+	mut @struct := StructLike{
+		name: tree.child['Name'].tree.child['Name'].val#[1..-1]
 	}
+
+	for _, raw_field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
+		mut val := ''
+		mut temp := raw_field.tree.child['Type']
+
+		if raw_field.tree.child['Type'].tree.name == '*ast.ArrayType' {
+			val = '[]'
+			temp = raw_field.tree.child['Type'].tree.child['Elt']
+		}
+
+		@struct.fields[raw_field.tree.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1]] =
+			val + temp.tree.child['Name'].val#[1..-1]
+
+		// check if item embedded
+		if 'Obj' in temp.tree.child {
+			v.get_decl(temp.tree.child['Obj'].tree, true)
+		}
+	}
+	return @struct
 }
 
 fn (mut v VAST) get_types(tree Tree) {
