@@ -83,12 +83,17 @@ fn main() {
 						} $else {
 							go2v_exe = '$go2v_path/go2v'
 						}
+						mut res := os.Result{}
 						if os.exists(go2v_exe) {
-							os.execute('$go2v_exe $go2v_path/tests/$out/${out}.go -o $go2v_path/tests/$out/${out}.vv')
+							res = os.execute('$go2v_exe $go2v_path/tests/$out/${out}.go -o $go2v_path/tests/$out/${out}.vv')
 						} else {
-							os.execute('${@VEXE} run $go2v_path $go2v_path/tests/$out/${out}.go -o $go2v_path/tests/$out/${out}.vv')
+							res = os.execute('${@VEXE} run $go2v_path $go2v_path/tests/$out/${out}.go -o $go2v_path/tests/$out/${out}.vv')
 						}
-						println('$go2v_path/tests/$out/${out}.vv saved')
+						if res.exit_code == 0 {
+							println('$go2v_path/tests/$out/${out}.vv saved')
+						} else {
+							println('.vv file creation failed - $res.output')
+						}
 					} else if compact {
 						os.execvp('${@VEXE}', [
 							'test',

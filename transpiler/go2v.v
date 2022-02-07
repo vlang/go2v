@@ -47,8 +47,14 @@ pub fn go_to_v(input_path string, output_path string) ? {
 
 	// custom output file for file transpilation
 	if out_path != '' && !is_dir {
-		file_names[0] = out_path
-		out_path = '.'
+		if os.exists(out_path.all_before_last('/')) {
+			file_names[0] = out_path.all_after_last('/')
+			out_path = out_path.all_before_last('/')
+
+		} else {
+			file_names[0] = out_path
+			out_path = '.'
+		}
 	}
 
 	if !is_dir {
