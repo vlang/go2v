@@ -66,7 +66,7 @@ pub fn go_to_v(input_path string, output_path string) ? {
 	}
 }
 
-fn convert_and_write(input string, output_file string, output_path string) ? {
+pub fn convert_and_write(input string, output_file string, output_path string) ? {
 	output := '$output_path/$output_file'
 	os.write_file(output, input) ?
 	os.execute('go run "${os.resource_abs_path('transpiler')}/get_ast.go" "$output"')

@@ -77,18 +77,8 @@ fn main() {
 							println('$go2v_path/tests/$out/${out}.vv is a directory - remove it before trying to save output')
 							return
 						}
-						mut go2v_exe := ''
-						$if windows {
-							go2v_exe = '$go2v_path/go2v.exe'
-						} $else {
-							go2v_exe = '$go2v_path/go2v'
-						}
-						res := os.execute('$go2v_exe $go2v_path/tests/$out/${out}.go -o $go2v_path/tests/$out/${out}.vv')
-						if res.exit_code == 0 {
-							println('$go2v_path/tests/$out/${out}.vv saved')
-						} else {
-							println('.vv file creation failed - $res.output')
-						}
+						transpiler.convert_and_write('$go2v_path/tests/$out/${out}.go', '${out}.vv', '$go2v_path/tests/$out') ?
+						println('$go2v_path/tests/$out/${out}.vv saved')
 					} else if compact {
 						os.execvp('${@VEXE}', [
 							'test',
