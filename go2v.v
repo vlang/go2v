@@ -83,12 +83,7 @@ fn main() {
 						} $else {
 							go2v_exe = '$go2v_path/go2v'
 						}
-						mut res := os.Result{}
-						if os.exists(go2v_exe) {
-							res = os.execute('$go2v_exe $go2v_path/tests/$out/${out}.go -o $go2v_path/tests/$out/${out}.vv')
-						} else {
-							res = os.execute('${@VEXE} run $go2v_path $go2v_path/tests/$out/${out}.go -o $go2v_path/tests/$out/${out}.vv')
-						}
+						res := os.execute('$go2v_exe $go2v_path/tests/$out/${out}.go -o $go2v_path/tests/$out/${out}.vv')
 						if res.exit_code == 0 {
 							println('$go2v_path/tests/$out/${out}.vv saved')
 						} else {
