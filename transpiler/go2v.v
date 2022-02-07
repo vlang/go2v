@@ -47,8 +47,13 @@ pub fn go_to_v(input_path string, output_path string) ? {
 
 	// custom output file for file transpilation
 	if out_path != '' && !is_dir {
-		file_names[0] = out_path
-		out_path = '.'
+		if os.exists(out_path.all_before_last('/')) {
+			file_names[0] = out_path.all_after_last('/')
+			out_path = out_path.all_before_last('/')
+		} else {
+			file_names[0] = out_path
+			out_path = '.'
+		}
 	}
 
 	if !is_dir {
@@ -61,7 +66,7 @@ pub fn go_to_v(input_path string, output_path string) ? {
 	}
 }
 
-fn convert_and_write(input string, output_file string, output_path string) ? {
+pub fn convert_and_write(input string, output_file string, output_path string) ? {
 	output := '$output_path/$output_file'
 	os.write_file(output, input) ?
 	os.execute('go run "${os.resource_abs_path('transpiler')}/get_ast.go" "$output"')
