@@ -50,7 +50,6 @@ pub fn go_to_v(input_path string, output_path string) ? {
 		if os.exists(out_path.all_before_last('/')) {
 			file_names[0] = out_path.all_after_last('/')
 			out_path = out_path.all_before_last('/')
-
 		} else {
 			file_names[0] = out_path
 			out_path = '.'
