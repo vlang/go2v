@@ -1,0 +1,4 @@
+module main
+
+import go.token
+import strings

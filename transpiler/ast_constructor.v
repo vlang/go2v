@@ -65,12 +65,12 @@ fn ast_constructor(tree Tree) VAST {
 
 fn (mut v VAST) get_decl(tree Tree, embedded bool) {
 	// Go AST structure is different if embedded or not
-	consts_base := tree.child['Specs'].tree
-	mut base := consts_base.child['0'].tree
+	base := tree.child['Specs'].tree
+	mut simplified_base := base.child['0'].tree
 	mut type_field_name := 'Tok'
 
 	if embedded {
-		base = tree.child['Decl'].tree
+		simplified_base = tree.child['Decl'].tree
 		type_field_name = 'Kind'
 	}
 
@@ -80,15 +80,21 @@ fn (mut v VAST) get_decl(tree Tree, embedded bool) {
 			v.get_imports(tree)
 		}
 		'type' {
-			if base.child['Type'].tree.name == '*ast.StructType' {
-				v.get_structs(base)
-			} else if base.name != '' {
-				v.get_types(base)
+			if simplified_base.child['Type'].tree.name == '*ast.StructType' {
+				if !embedded {
+					for _, decl in base.child.clone() {
+						v.structs << v.get_struct(decl.tree)
+					}
+				} else {
+					v.structs << v.get_struct(simplified_base)
+				}
+			} else if simplified_base.name != '' {
+				v.get_types(simplified_base)
 			}
 		}
 		'const' {
 			// Enums will never be embedded
-			v.get_consts_and_enums(consts_base)
+			v.get_consts_and_enums(base)
 		}
 		else {
 			if tree.name == '*ast.FuncDecl' {
@@ -104,11 +110,12 @@ fn (mut v VAST) get_module(tree Tree) {
 
 fn (mut v VAST) get_imports(tree Tree) {
 	for _, imp in tree.child['Specs'].tree.child {
-		v.imports << imp.tree.child['Path'].tree.child['Value'].val#[3..-3]
+		v.imports << imp.tree.child['Path'].tree.child['Value'].val#[3..-3].replace('/',
+			'.')
 	}
 }
 
-fn (mut v VAST) get_structs(tree Tree) {
+fn (mut v VAST) get_struct(tree Tree) StructLike {
 	mut @struct := StructLike{
 		name: tree.child['Name'].tree.child['Name'].val#[1..-1]
 	}
@@ -130,8 +137,7 @@ fn (mut v VAST) get_structs(tree Tree) {
 			v.get_decl(temp.tree.child['Obj'].tree, true)
 		}
 	}
-
-	v.structs << @struct
+	return @struct
 }
 
 fn (mut v VAST) get_types(tree Tree) {
