@@ -5,7 +5,6 @@ import cli
 import transpiler
 
 const (
-	v_exe     = @VEXE
 	go2v_path = @VMODROOT
 )
 
