@@ -129,8 +129,11 @@ fn (mut v VAST) get_struct(tree Tree) StructLike {
 			temp = raw_field.tree.child['Type'].tree.child['Elt']
 		}
 
-		@struct.fields[raw_field.tree.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1]] =
-			val + temp.tree.child['Name'].val#[1..-1]
+		// support `A, B int` syntax
+		for _, name in raw_field.tree.child['Names'].tree.child.clone() {
+			@struct.fields[name.tree.child['Name'].val#[1..-1]] = val +
+				temp.tree.child['Name'].val#[1..-1]
+		}
 
 		// check if item embedded
 		if 'Obj' in temp.tree.child {
