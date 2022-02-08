@@ -42,11 +42,8 @@ pub fn go_to_v(input_path string, output_path string) ? {
 	}
 
 	if out_path == '' && file_names.len > 0 {
-		out_path = file_names[0]
-	}
-
-	// custom output file for file transpilation
-	if out_path != '' && !is_dir {
+		out_path = '.'
+	} else if out_path != '' && !is_dir {
 		if os.exists(out_path.all_before_last('/')) {
 			file_names[0] = out_path.all_after_last('/')
 			out_path = out_path.all_before_last('/')
@@ -79,14 +76,14 @@ pub fn convert_and_write(input string, output_file string, output_path string) ?
 	v_file := v_file_constructor(v_ast)
 
 	// TODO TEMP REMOVE / USE THIS FOR DEBUGGING
-	/*
-	os.mkdir('temp') or {}
-	os.write_file('temp/raw', raw_input) ?
-	os.write_file('temp/tokens', tokens.str()) ?
-	os.write_file('temp/tree', tree.str()) ?
-	os.write_file('temp/ast', v_ast.str()) ?
-	os.write_file('temp/file.v', v_file) ?
-	*/
+	$if debug {
+		os.mkdir('temp') or {}
+		os.write_file('temp/raw', raw_input) ?
+		os.write_file('temp/tokens', tokens.str()) ?
+		os.write_file('temp/tree', tree.str()) ?
+		os.write_file('temp/ast', v_ast.str()) ?
+		os.write_file('temp/file.v', v_file) ?
+	}
 
 	os.write_file(output, v_file) ?
 }

@@ -76,8 +76,7 @@ fn main() {
 							println('$go2v_path/tests/$out/${out}.vv is a directory - remove it before trying to save output')
 							return
 						}
-						transpiler.convert_and_write('$go2v_path/tests/$out/${out}.go',
-							'${out}.vv', '$go2v_path/tests/$out') ?
+						transpiler.go_to_v('$go2v_path/tests/$out/${out}.go', '$go2v_path/tests/$out/${out}.vv') ?
 						println('$go2v_path/tests/$out/${out}.vv saved')
 					} else if compact {
 						os.execvp('${@VEXE}', [
