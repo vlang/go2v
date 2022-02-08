@@ -75,9 +75,10 @@ pub fn convert_and_write(input string, output_file string, output_path string) ?
 	v_ast := ast_constructor(tree)
 	v_file := v_file_constructor(v_ast)
 
-	// compile with -cg to enable this block.  Only works if convering single file.
+	// compile with -cg to enable this block
+	// only works properly if converting single file.
 	$if debug {
-		if os.is_file(input) {
+		if os.is_file(output) {
 			os.mkdir('temp') or {}
 			os.write_file('temp/raw', raw_input) ?
 			os.write_file('temp/tokens', tokens.str()) ?
