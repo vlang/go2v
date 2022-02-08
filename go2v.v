@@ -58,6 +58,7 @@ fn main() {
 					compact := cmd.flags.get_bool('compact') ?
 					create := cmd.flags.get_string('create') ?
 					out := cmd.flags.get_string('out') ?
+					test_to_run := if cmd.args.len > 0 { cmd.args[0] } else { '.' }
 					if create != '' && out != '' {
 						println('Cannot use -create and -out at the same time')
 						return
@@ -76,19 +77,18 @@ fn main() {
 							println('$go2v_path/tests/$out/${out}.vv is a directory - remove it before trying to save output')
 							return
 						}
-						transpiler.convert_and_write('$go2v_path/tests/$out/${out}.go',
-							'${out}.vv', '$go2v_path/tests/$out') ?
+						transpiler.go_to_v('$go2v_path/tests/$out/${out}.go', '$go2v_path/tests/$out/${out}.vv') ?
 						println('$go2v_path/tests/$out/${out}.vv saved')
 					} else if compact {
 						os.execvp('${@VEXE}', [
 							'test',
-							os.resource_abs_path(cmd.args[0]),
+							os.resource_abs_path(test_to_run),
 						]) ?
 					} else {
 						os.execvp('${@VEXE}', [
 							'-stats',
 							'test',
-							os.resource_abs_path(cmd.args[0]),
+							os.resource_abs_path(test_to_run),
 						]) ?
 					}
 					return
