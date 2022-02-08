@@ -75,14 +75,16 @@ pub fn convert_and_write(input string, output_file string, output_path string) ?
 	v_ast := ast_constructor(tree)
 	v_file := v_file_constructor(v_ast)
 
-	// TODO TEMP REMOVE / USE THIS FOR DEBUGGING
+	// compile with -cg to enable this block.  Only works if convering single file.
 	$if debug {
-		os.mkdir('temp') or {}
-		os.write_file('temp/raw', raw_input) ?
-		os.write_file('temp/tokens', tokens.str()) ?
-		os.write_file('temp/tree', tree.str()) ?
-		os.write_file('temp/ast', v_ast.str()) ?
-		os.write_file('temp/file.v', v_file) ?
+		if os.is_file(input) {
+			os.mkdir('temp') or {}
+			os.write_file('temp/raw', raw_input) ?
+			os.write_file('temp/tokens', tokens.str()) ?
+			os.write_file('temp/tree', tree.str()) ?
+			os.write_file('temp/ast', v_ast.str()) ?
+			os.write_file('temp/file.v', v_file) ?
+		}
 	}
 
 	os.write_file(output, v_file) ?
