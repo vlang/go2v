@@ -58,6 +58,7 @@ fn main() {
 					compact := cmd.flags.get_bool('compact') ?
 					create := cmd.flags.get_string('create') ?
 					out := cmd.flags.get_string('out') ?
+					test_to_run := if cmd.args.len > 0 { cmd.args[0] } else { '.' }
 					if create != '' && out != '' {
 						println('Cannot use -create and -out at the same time')
 						return
@@ -81,13 +82,13 @@ fn main() {
 					} else if compact {
 						os.execvp('${@VEXE}', [
 							'test',
-							os.resource_abs_path(cmd.args[0]),
+							os.resource_abs_path(test_to_run),
 						]) ?
 					} else {
 						os.execvp('${@VEXE}', [
 							'-stats',
 							'test',
-							os.resource_abs_path(cmd.args[0]),
+							os.resource_abs_path(test_to_run),
 						]) ?
 					}
 					return
