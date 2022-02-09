@@ -22,14 +22,21 @@ pub fn go_to_v(input_path string, output_path string) ? {
 	mut inputs := []string{}
 	mut file_names := []string{}
 	if !is_dir {
-		inputs << os.read_file(input_path) ?
-		file_names << input_path#[..-3] + '.v'
+		if input_path.ends_with('.go') {
+			inputs << os.read_file(input_path) ?
+			file_names << input_path#[..-3] + '.v'
+		} else {
+			return error('"$input_path" isn\'t a `.go` file')
+		}
 	} else {
 		for input in os.ls(input_path) or { []string{} } {
 			if input.ends_with('.go') {
 				inputs << os.read_file('$input_path/$input') ?
 				file_names << input#[..-3] + '.v'
 			}
+		}
+		if inputs.len == 0 {
+			return error('"$input_path" doesn\'t contain any `.go` file')
 		}
 	}
 
