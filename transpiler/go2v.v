@@ -13,7 +13,7 @@ pub struct Params {
 }
 
 pub fn go_to_v(input_path string, output_path string) ? {
-	mut out_path := output_path
+	mut out_path := '.'
 
 	if !os.exists(input_path) {
 		eprintln("'$input_path' is not a valid file/directory.")
@@ -41,22 +41,43 @@ pub fn go_to_v(input_path string, output_path string) ? {
 		}
 	}
 
-	if out_path == '' && file_names.len > 0 {
-		out_path = '.'
-	} else if out_path != '' && !is_dir {
-		if os.exists(out_path.all_before_last('/')) {
-			file_names[0] = out_path.all_after_last('/')
-			out_path = out_path.all_before_last('/')
+	if output_path != '' {
+		if os.exists(output_path) {
+			if is_dir && !os.is_dir(output_path) {
+				return error('"$input_path" is a directory, but "$output_path" is not')
+			}
+		}
+
+		path_separator := $if windows { '\\' } $else { '/' }
+		if output_path.contains(path_separator) {
+			if !is_dir {
+				out_path = output_path.all_before_last(path_separator)
+				if !output_path.ends_with('/') {
+					file_names[0] = output_path.all_after_last(path_separator)
+				}
+			} else {
+				out_path = output_path
+			}
 		} else {
-			file_names[0] = out_path
-			out_path = '.'
+			if !is_dir {
+				file_names[0] = output_path
+			} else {
+				out_path = output_path
+			}
 		}
 	}
 
 	if !is_dir {
+		if out_path != '.' {
+			if !os.exists(out_path) {
+				os.mkdir_all(out_path) ?
+			} else if os.is_file(out_path) {
+				return error('"$out_path" is a file, not a directory')
+			}
+		}
 		convert_and_write(inputs.first(), file_names.first(), out_path) ?
 	} else {
-		os.mkdir(out_path) or {}
+		os.mkdir_all(out_path) ?
 		for i, input in inputs {
 			convert_and_write(input, file_names[i], out_path) ?
 		}
