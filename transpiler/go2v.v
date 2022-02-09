@@ -56,10 +56,14 @@ pub fn go_to_v(input_path string, output_path string) ? {
 					file_names[0] = output_path.all_after_last(path_separator)
 				}
 			} else {
-				file_names[0] = output_path
+				out_path = output_path
 			}
 		} else {
-			file_names[0] = output_path
+			if !is_dir {
+				file_names[0] = output_path
+			} else {
+				out_path = output_path
+			}
 		}
 	}
 
