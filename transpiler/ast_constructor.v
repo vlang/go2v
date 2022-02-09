@@ -101,7 +101,7 @@ fn (mut v VAST) get_decl(tree Tree, embedded bool) {
 }
 
 fn (mut v VAST) get_module(tree Tree) {
-	v.@module = tree.child['Name'].tree.child['Name'].val#[1..-1]
+	v.@module = get_name(tree)
 }
 
 fn (mut v VAST) get_imports(tree Tree) {
@@ -113,48 +113,20 @@ fn (mut v VAST) get_imports(tree Tree) {
 
 fn (mut v VAST) get_struct(tree Tree) StructLike {
 	mut @struct := StructLike{
-		name: tree.child['Name'].tree.child['Name'].val#[1..-1]
+		name: get_name(tree)
 	}
 
-	for _, raw_field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
-		mut val := ''
-		mut temp := raw_field.tree.child['Type']
-
-		if raw_field.tree.child['Type'].tree.name == '*ast.ArrayType' {
-			val = '[]'
-			temp = raw_field.tree.child['Type'].tree.child['Elt']
-		}
-
+	for _, field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
 		// support `A, B int` syntax
-		for _, name in raw_field.tree.child['Names'].tree.child.clone() {
-			@struct.fields[name.tree.child['Name'].val#[1..-1]] = val +
-				temp.tree.child['Name'].val#[1..-1]
-		}
-
-		// check if item embedded
-		if 'Obj' in temp.tree.child {
-			v.get_decl(temp.tree.child['Obj'].tree, true)
+		for _, name in field.tree.child['Names'].tree.child.clone() {
+			@struct.fields[name.tree.child['Name'].val#[1..-1]] = v.get_type(field.tree)
 		}
 	}
 	return @struct
 }
 
 fn (mut v VAST) get_types(tree Tree) {
-	mut val := ''
-	mut temp := tree.child['Type']
-
-	if tree.child['Type'].tree.name == '*ast.ArrayType' {
-		val = '[]'
-		temp = tree.child['Type'].tree.child['Elt']
-	}
-
-	v.types[tree.child['Name'].tree.child['Name'].val#[1..-1]] = val +
-		temp.tree.child['Name'].val#[1..-1]
-
-	// check if item embedded
-	if 'Obj' in temp.tree.child {
-		v.get_decl(temp.tree.child['Obj'].tree, true)
-	}
+	v.types[get_name(tree)] = v.get_type(tree)
 }
 
 fn (mut v VAST) get_consts_and_enums(tree Tree) {
@@ -162,23 +134,9 @@ fn (mut v VAST) get_consts_and_enums(tree Tree) {
 	mut temp_enum := StructLike{}
 
 	for _, @const in tree.child.clone() {
-		val_base := @const.tree.child['Values'].tree.child['0'].tree
 		name_base := @const.tree.child['Names'].tree.child['0'].tree
 
-		raw_val := if val_base.child['Value'].val.len != 0 {
-			val_base.child['Value'].val // everything except bools
-		} else {
-			val_base.child['Name'].val // bools & iotas (enums)
-		}
-		// Format the value
-		mut val := raw_val
-		if val.len != 0 {
-			val = match raw_val[1] {
-				`\\` { "'${raw_val#[3..-3]}'" } // strings
-				`'` { '`${raw_val#[2..-2]}`' } // runes
-				else { raw_val#[1..-1] } // numbers, bools, iotas (enums)
-			}
-		}
+		mut val := get_value(@const.tree.child['Values'].tree.child['0'].tree)
 
 		// Enums
 		if val == 'iota' && !is_enum {
@@ -209,7 +167,7 @@ fn (mut v VAST) get_consts_and_enums(tree Tree) {
 
 fn (mut v VAST) get_functions(tree Tree) {
 	mut func := Function{
-		name: tree.child['Name'].tree.child['Name'].val#[1..-1]
+		name: get_name(tree)
 	}
 
 	// Comments on top functions (docstrings)
@@ -225,22 +183,7 @@ fn (mut v VAST) get_functions(tree Tree) {
 
 	// Arguments
 	for _, arg in tree.child['Type'].tree.child['Params'].tree.child['List'].tree.child.clone() {
-		// Get the type
-		// TODO: create a reusuable function for this
-		mut @type := ''
-		mut temp := arg.tree.child['Type']
-		if temp.tree.name == '*ast.ArrayType' {
-			@type = '[]'
-			temp = temp.tree.child['Elt']
-		}
-		@type += temp.tree.child['Name'].val#[1..-1]
-
-		func.args[arg.tree.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1]] = @type
-
-		// check if item embedded
-		if 'Obj' in temp.tree.child {
-			v.get_decl(temp.tree.child['Obj'].tree, true)
-		}
+		func.args[arg.tree.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1]] = v.get_type(arg.tree)
 	}
 
 	// Method
@@ -248,29 +191,13 @@ fn (mut v VAST) get_functions(tree Tree) {
 		base := tree.child['Recv'].tree.child['List'].tree.child['0'].tree
 		func.method = [
 			base.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1],
-			base.child['Type'].tree.child['Name'].val#[1..-1],
+			v.get_type(base),
 		]
-
-		// check if item embedded
-		if base.child['Type'].tree.child['Obj'].val == '' {
-			v.get_decl(base.child['Type'].tree.child['Obj'].tree, true)
-		}
 	}
 
 	// Return value(s)
 	for _, arg in tree.child['Type'].tree.child['Results'].tree.child['List'].tree.child.clone() {
-		mut @type := ''
-		mut temp := arg.tree.child['Type']
-		if temp.tree.name == '*ast.ArrayType' {
-			@type = '[]'
-			temp = temp.tree.child['Elt']
-		}
-		func.ret_vals << @type + temp.tree.child['Name'].val#[1..-1]
-
-		// check if item embedded
-		if 'Obj' in temp.tree.child {
-			v.get_decl(temp.tree.child['Obj'].tree, true)
-		}
+		func.ret_vals << v.get_type(arg.tree)
 	}
 
 	// Body
@@ -293,11 +220,7 @@ fn (mut v VAST) get_functions(tree Tree) {
 					names << var.tree.child['Name'].val#[1..-1]
 				}
 				for _, var in stmt.tree.child['Rhs'].tree.child.clone() {
-					if 'Value' in var.tree.child.clone() {
-						values << var.tree.child['Value'].val#[1..-1]
-					} else {
-						values << var.tree.child['Name'].val#[1..-1]
-					}
+					values << get_value(var.tree)
 				}
 
 				func.body << VariableStmt{

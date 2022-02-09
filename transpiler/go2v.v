@@ -4,14 +4,6 @@ import os
 
 // TODO: add a system with a watcher function to make the tree construction stage and possibly other stages concurrent
 
-pub struct Params {
-	outputs_file bool
-	input_str    string
-	input_path   string
-	output_path  string = 'out.v'
-	go_path      string = 'go'
-}
-
 pub fn go_to_v(input_path string, output_path string) ? {
 	mut out_path := '.'
 
