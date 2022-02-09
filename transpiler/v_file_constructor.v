@@ -135,9 +135,20 @@ fn (mut v VAST) handle_function_body(body []Statement) {
 	for stmt in body {
 		match stmt {
 			VariableStmt {
-				println('hhf')
+				stop := stmt.names.len - 1
+				v.out.write_rune(`\t`)
+
+				for i, name in stmt.names {
+					comma := if i != stop { ',' } else { '' }
+					v.out.write_string('$name$comma ')
+				}
 				middle := if stmt.declaration { ':=' } else { '=' }
-				v.out.writeln('\t$stmt.name $middle $stmt.value')
+				v.out.write_string(middle)
+				for i, value in stmt.values {
+					comma := if i != stop { ',' } else { '' }
+					v.out.write_string(' $value$comma')
+				}
+				v.out.writeln('')
 			}
 			else {}
 		}

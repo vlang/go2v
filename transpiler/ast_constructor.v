@@ -41,8 +41,8 @@ type Statement = Temp | VariableStmt
 struct VariableStmt {
 mut:
 	comment     string
-	name        string
-	value       string
+	names       []string
+	values      []string
 	declaration bool
 }
 
@@ -280,15 +280,29 @@ fn (mut v VAST) get_functions(tree Tree) {
 				base := stmt.tree.child['Decl'].tree.child['Specs'].tree.child['0'].tree
 
 				func.body << VariableStmt{
-					name: base.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1]
-					value: base.child['Values'].tree.child['0'].tree.child['Value'].val#[1..-1]
+					names: [base.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1]]
+					values: [base.child['Values'].tree.child['0'].tree.child['Value'].val#[1..-1]]
 					declaration: true
 				}
 			}
 			'*ast.AssignStmt' {
+				mut names := []string{}
+				mut values := []string{}
+
+				for _, var in stmt.tree.child['Lhs'].tree.child.clone() {
+					names << var.tree.child['Name'].val#[1..-1]
+				}
+				for _, var in stmt.tree.child['Rhs'].tree.child.clone() {
+					if 'Value' in var.tree.child.clone() {
+						values << var.tree.child['Value'].val#[1..-1]
+					} else {
+						values << var.tree.child['Name'].val#[1..-1]
+					}
+				}
+
 				func.body << VariableStmt{
-					name: stmt.tree.child['Lhs'].tree.child['0'].tree.child['Name'].val#[1..-1]
-					value: stmt.tree.child['Rhs'].tree.child['0'].tree.child['Value'].val#[1..-1]
+					names: names
+					values: values
 					declaration: stmt.tree.child['Tok'].val == ':='
 				}
 			}
