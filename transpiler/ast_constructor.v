@@ -27,7 +27,7 @@ mut:
 	name     string
 	args     map[string]string
 	ret_vals []string
-	// body     []Instruction
+	body     []Statement
 }
 
 struct StructLike {
@@ -36,21 +36,17 @@ mut:
 	fields map[string]string
 }
 
-// TODO: will change as we need to set this list according to Go AST
-// like we may group different similar in syntax instructions
-/*
-type Instruction = Assignment
-	| Break
-	| Continue
-	| Else
-	| Expression
-	| For
-	| FunctionCall
-	| If
-	| Return
-	| Match
-	| Comment
-*/
+type Statement = Temp | VariableStmt
+
+struct VariableStmt {
+mut:
+	comment     string
+	names       []string
+	values      []string
+	declaration bool
+}
+
+struct Temp {}
 
 fn ast_constructor(tree Tree) VAST {
 	mut v_ast := VAST{}
@@ -274,6 +270,43 @@ fn (mut v VAST) get_functions(tree Tree) {
 		// check if item embedded
 		if 'Obj' in temp.tree.child {
 			v.get_decl(temp.tree.child['Obj'].tree, true)
+		}
+	}
+
+	// Body
+	for _, stmt in tree.child['Body'].tree.child['List'].tree.child.clone() {
+		match stmt.tree.name {
+			'*ast.DeclStmt' {
+				base := stmt.tree.child['Decl'].tree.child['Specs'].tree.child['0'].tree
+
+				func.body << VariableStmt{
+					names: [base.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1]]
+					values: [base.child['Values'].tree.child['0'].tree.child['Value'].val#[1..-1]]
+					declaration: true
+				}
+			}
+			'*ast.AssignStmt' {
+				mut names := []string{}
+				mut values := []string{}
+
+				for _, var in stmt.tree.child['Lhs'].tree.child.clone() {
+					names << var.tree.child['Name'].val#[1..-1]
+				}
+				for _, var in stmt.tree.child['Rhs'].tree.child.clone() {
+					if 'Value' in var.tree.child.clone() {
+						values << var.tree.child['Value'].val#[1..-1]
+					} else {
+						values << var.tree.child['Name'].val#[1..-1]
+					}
+				}
+
+				func.body << VariableStmt{
+					names: names
+					values: values
+					declaration: stmt.tree.child['Tok'].val == ':='
+				}
+			}
+			else {}
 		}
 	}
 

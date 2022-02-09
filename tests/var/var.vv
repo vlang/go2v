@@ -1,0 +1,7 @@
+module main
+
+fn main() {
+	i := 42
+	i = 24
+	j := 24
+}

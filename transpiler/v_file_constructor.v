@@ -125,8 +125,32 @@ fn (mut v VAST) handle_functions() {
 		}
 		// Body
 		v.out.writeln(' {')
-		// write body
+		v.handle_function_body(func.body)
 		v.out.writeln('}')
 		v.out.writeln('')
+	}
+}
+
+fn (mut v VAST) handle_function_body(body []Statement) {
+	for stmt in body {
+		match stmt {
+			VariableStmt {
+				stop := stmt.names.len - 1
+				v.out.write_rune(`\t`)
+
+				for i, name in stmt.names {
+					comma := if i != stop { ',' } else { '' }
+					v.out.write_string('$name$comma ')
+				}
+				middle := if stmt.declaration { ':=' } else { '=' }
+				v.out.write_string(middle)
+				for i, value in stmt.values {
+					comma := if i != stop { ',' } else { '' }
+					v.out.write_string(' $value$comma')
+				}
+				v.out.writeln('')
+			}
+			else {}
+		}
 	}
 }

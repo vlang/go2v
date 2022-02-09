@@ -13,9 +13,9 @@ Go2V is a CLI utility to transpile Go source code into V source code.
 	- `tokenizer.v`
 - [x] Pass the tokens into the Go AST tree constructor
 	- `tree_constructor.v`
-- [ ] Adapt the parsed AST into a sort of V AST
+- [x] Adapt the parsed AST into a sort of V AST
   - `ast_constructor.v`
-- [ ] Adapt Go-ish things to V-ish things
+- [x] Adapt Go-ish things to V-ish things
   - `ast_constructor.v`
-- [ ] Transform the V AST struct into V Code
+- [x] Transform the V AST struct into V Code
   - `v_file_constructor.v`
