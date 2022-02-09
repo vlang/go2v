@@ -52,12 +52,14 @@ pub fn go_to_v(input_path string, output_path string) ? {
 		if output_path.contains(path_separator) {
 			if !is_dir {
 				out_path = output_path.all_before_last(path_separator)
-				file_names[0] = output_path.all_after_last(path_separator)
+				if !output_path.ends_with('/') {
+					file_names[0] = output_path.all_after_last(path_separator)
+				}
 			} else {
 				file_names[0] = output_path
 			}
 		} else {
-			out_path = output_path
+			file_names[0] = output_path
 		}
 	}
 
