@@ -125,8 +125,21 @@ fn (mut v VAST) handle_functions() {
 		}
 		// Body
 		v.out.writeln(' {')
-		// write body
+		v.handle_function_body(func.body)
 		v.out.writeln('}')
 		v.out.writeln('')
+	}
+}
+
+fn (mut v VAST) handle_function_body(body []Statement) {
+	for stmt in body {
+		match stmt {
+			VariableStmt {
+				println('hhf')
+				middle := if stmt.declaration { ':=' } else { '=' }
+				v.out.writeln('\t$stmt.name $middle $stmt.value')
+			}
+			else {}
+		}
 	}
 }
