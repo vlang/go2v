@@ -44,7 +44,7 @@ pub fn go_to_v(input_path string, output_path string) ? {
 	if output_path != '' {
 		if os.exists(output_path) {
 			if is_dir && !os.is_dir(output_path) {
-				return error("'$input_path' is a directory, but '$output_path' is not")
+				return error('"$input_path" is a directory, but "$output_path" is not')
 			}
 		}
 
@@ -72,7 +72,7 @@ pub fn go_to_v(input_path string, output_path string) ? {
 			if !os.exists(out_path) {
 				os.mkdir_all(out_path) ?
 			} else if os.is_file(out_path) {
-				return error("'$out_path' is a file, not a directory")
+				return error('"$out_path" is a file, not a directory')
 			}
 		}
 		convert_and_write(inputs.first(), file_names.first(), out_path) ?
