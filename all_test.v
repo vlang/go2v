@@ -13,7 +13,7 @@ fn test_all() ? {
 		'$go2v_path/go2v'
 	}
 	for dir in os.ls('$go2v_path/tests') or { []string{} } {
-		os.execute('$go2v_exe $go2v_path/tests/$dir/${dir}.go -o /tests/$dir/out.vv')
+		os.execute('$go2v_exe $go2v_path/tests/$dir/${dir}.go -o $go2v_path/tests/$dir/out.vv')
 		assert os.read_file('$go2v_path/tests/$dir/out.vv') ? == os.read_file('$go2v_path/tests/$dir/${dir}.vv') ?
 	}
 }
