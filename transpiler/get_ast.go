@@ -11,7 +11,10 @@ func main() {
 	path := os.Args[1]
 
 	fset := token.NewFileSet()
-	node, _ := parser.ParseFile(fset, path, nil, parser.ParseComments)
+	node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+	if err != nil {
+		panic(err)
+	}
 
 	f, _ := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0600)
 	defer f.Close()
