@@ -138,6 +138,10 @@ fn (mut v VAST) handle_function_body(body []Statement) {
 				stop := stmt.names.len - 1
 				v.out.write_rune(`\t`)
 
+				if stmt.mutable && stmt.declaration {
+					v.out.write_string('mut ')
+				}
+
 				for i, name in stmt.names {
 					comma := if i != stop { ',' } else { '' }
 					v.out.write_string('$name$comma ')

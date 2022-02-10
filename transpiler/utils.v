@@ -25,8 +25,12 @@ fn (mut v VAST) get_embedded(tree Tree) {
 	}
 }
 
-fn get_name(tree Tree) string {
-	return tree.child['Name'].tree.child['Name'].val#[1..-1]
+fn get_name(tree Tree, deep bool) string {
+	return if deep {
+		tree.child['Name'].tree.child['Name'].val#[1..-1]
+	} else {
+		tree.child['Name'].val#[1..-1]
+	}
 }
 
 fn (mut v VAST) get_type(tree Tree) string {

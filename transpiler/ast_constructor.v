@@ -44,6 +44,7 @@ mut:
 	names       []string
 	values      []string
 	declaration bool
+	mutable     bool = true
 }
 
 struct Temp {}
@@ -101,7 +102,7 @@ fn (mut v VAST) get_decl(tree Tree, embedded bool) {
 }
 
 fn (mut v VAST) get_module(tree Tree) {
-	v.@module = get_name(tree)
+	v.@module = get_name(tree, true)
 }
 
 fn (mut v VAST) get_imports(tree Tree) {
@@ -113,20 +114,20 @@ fn (mut v VAST) get_imports(tree Tree) {
 
 fn (mut v VAST) get_struct(tree Tree) StructLike {
 	mut @struct := StructLike{
-		name: get_name(tree)
+		name: get_name(tree, true)
 	}
 
 	for _, field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
 		// support `A, B int` syntax
 		for _, name in field.tree.child['Names'].tree.child.clone() {
-			@struct.fields[name.tree.child['Name'].val#[1..-1]] = v.get_type(field.tree)
+			@struct.fields[get_name(name.tree, false)] = v.get_type(field.tree)
 		}
 	}
 	return @struct
 }
 
 fn (mut v VAST) get_types(tree Tree) {
-	v.types[get_name(tree)] = v.get_type(tree)
+	v.types[get_name(tree, true)] = v.get_type(tree)
 }
 
 fn (mut v VAST) get_consts_and_enums(tree Tree) {
@@ -142,7 +143,7 @@ fn (mut v VAST) get_consts_and_enums(tree Tree) {
 		if val == 'iota' && !is_enum {
 			// Begining of enum
 			is_enum = true
-			temp_enum.name = @const.tree.child['Type'].tree.child['Name'].val#[1..-1]
+			temp_enum.name = v.get_type(@const.tree)
 			temp_enum.fields[name_base.child['Name'].val#[1..-1]] = ''
 			// Delete type used as enum name (Go enums implentation is so weird)
 			v.types.delete(temp_enum.name)
@@ -167,7 +168,7 @@ fn (mut v VAST) get_consts_and_enums(tree Tree) {
 
 fn (mut v VAST) get_functions(tree Tree) {
 	mut func := Function{
-		name: get_name(tree)
+		name: get_name(tree, true)
 	}
 
 	// Comments on top functions (docstrings)
@@ -183,14 +184,14 @@ fn (mut v VAST) get_functions(tree Tree) {
 
 	// Arguments
 	for _, arg in tree.child['Type'].tree.child['Params'].tree.child['List'].tree.child.clone() {
-		func.args[arg.tree.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1]] = v.get_type(arg.tree)
+		func.args[get_name(arg.tree.child['Names'].tree.child['0'].tree, false)] = v.get_type(arg.tree)
 	}
 
 	// Method
 	if 'Recv' in tree.child.clone() {
 		base := tree.child['Recv'].tree.child['List'].tree.child['0'].tree
 		func.method = [
-			base.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1],
+			get_name(base.child['Names'].tree.child['0'].tree, false),
 			v.get_type(base),
 		]
 	}
@@ -206,9 +207,19 @@ fn (mut v VAST) get_functions(tree Tree) {
 			'*ast.DeclStmt' {
 				base := stmt.tree.child['Decl'].tree.child['Specs'].tree.child['0'].tree
 
+				mut names := []string{}
+				mut values := []string{}
+
+				for _, var in base.child['Names'].tree.child.clone() {
+					names << get_name(var.tree, false)
+				}
+				for _, var in base.child['Values'].tree.child.clone() {
+					values << get_value(var.tree)
+				}
+
 				func.body << VariableStmt{
-					names: [base.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1]]
-					values: [base.child['Values'].tree.child['0'].tree.child['Value'].val#[1..-1]]
+					names: names
+					values: values
 					declaration: true
 				}
 			}
@@ -217,7 +228,7 @@ fn (mut v VAST) get_functions(tree Tree) {
 				mut values := []string{}
 
 				for _, var in stmt.tree.child['Lhs'].tree.child.clone() {
-					names << var.tree.child['Name'].val#[1..-1]
+					names << get_name(var.tree, false)
 				}
 				for _, var in stmt.tree.child['Rhs'].tree.child.clone() {
 					values << get_value(var.tree)
