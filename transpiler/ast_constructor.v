@@ -65,7 +65,7 @@ fn ast_constructor(tree Tree) VAST {
 	mut v_ast := VAST{}
 
 	v_ast.get_module(tree)
-	for _, el in tree.child['Decls'].tree.child.clone() {
+	for _, el in tree.child['Decls'].tree.child {
 		v_ast.get_all(el.tree, false)
 	}
 
@@ -93,7 +93,7 @@ fn (mut v VAST) get_all(tree Tree, embedded bool) {
 		'type' {
 			if simplified_base.child['Type'].tree.name == '*ast.StructType' {
 				if !embedded {
-					for _, decl in base.child.clone() {
+					for _, decl in base.child {
 						v.structs << v.get_struct(decl.tree)
 					}
 				} else {
@@ -133,7 +133,7 @@ fn (mut v VAST) get_struct(tree Tree) StructLike {
 
 	for _, field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
 		// support `A, B int` syntax
-		for _, name in field.tree.child['Names'].tree.child.clone() {
+		for _, name in field.tree.child['Names'].tree.child {
 			@struct.fields[get_name(name.tree, false)] = v.get_type(field.tree)
 		}
 	}
@@ -148,7 +148,7 @@ fn (mut v VAST) get_consts_and_enums(tree Tree) {
 	mut is_enum := false
 	mut temp_enum := StructLike{}
 
-	for _, @const in tree.child.clone() {
+	for _, @const in tree.child {
 		name_base := @const.tree.child['Names'].tree.child['0'].tree
 
 		mut val := v.get_value(@const.tree.child['Values'].tree.child['0'].tree)
@@ -186,7 +186,7 @@ fn (mut v VAST) get_functions(tree Tree) {
 	}
 
 	// Comments on top functions (docstrings)
-	if 'Doc' in tree.child.clone() {
+	if 'Doc' in tree.child {
 		func.comment = '//' +
 			tree.child['Doc'].tree.child['List'].tree.child['0'].tree.child['Text'].val#[3..-5].replace('\\n', '\n// ').replace('\\t', '\t')
 	}
@@ -197,12 +197,12 @@ fn (mut v VAST) get_functions(tree Tree) {
 	}
 
 	// Arguments
-	for _, arg in tree.child['Type'].tree.child['Params'].tree.child['List'].tree.child.clone() {
+	for _, arg in tree.child['Type'].tree.child['Params'].tree.child['List'].tree.child {
 		func.args[get_name(arg.tree.child['Names'].tree.child['0'].tree, false)] = v.get_type(arg.tree)
 	}
 
 	// Method
-	if 'Recv' in tree.child.clone() {
+	if 'Recv' in tree.child {
 		base := tree.child['Recv'].tree.child['List'].tree.child['0'].tree
 		func.method = [
 			get_name(base.child['Names'].tree.child['0'].tree, false),
@@ -211,12 +211,12 @@ fn (mut v VAST) get_functions(tree Tree) {
 	}
 
 	// Return value(s)
-	for _, arg in tree.child['Type'].tree.child['Results'].tree.child['List'].tree.child.clone() {
+	for _, arg in tree.child['Type'].tree.child['Results'].tree.child['List'].tree.child {
 		func.ret_vals << v.get_type(arg.tree)
 	}
 
 	// Body
-	for _, stmt in tree.child['Body'].tree.child['List'].tree.child.clone() {
+	for _, stmt in tree.child['Body'].tree.child['List'].tree.child {
 		match stmt.tree.name {
 			// `var` syntax
 			'*ast.DeclStmt' {
@@ -225,10 +225,10 @@ fn (mut v VAST) get_functions(tree Tree) {
 				mut names := []string{}
 				mut values := []string{}
 
-				for _, var in base.child['Names'].tree.child.clone() {
+				for _, var in base.child['Names'].tree.child {
 					names << get_name(var.tree, false)
 				}
-				for _, var in base.child['Values'].tree.child.clone() {
+				for _, var in base.child['Values'].tree.child {
 					values << v.get_value(var.tree)
 				}
 
@@ -245,11 +245,11 @@ fn (mut v VAST) get_functions(tree Tree) {
 				mut names := []string{}
 				mut values := []string{}
 
-				for _, var in stmt.tree.child['Lhs'].tree.child.clone() {
+				for _, var in stmt.tree.child['Lhs'].tree.child {
 					names << get_name(var.tree, false)
 				}
-				for _, var in stmt.tree.child['Rhs'].tree.child.clone() {
-					if 'Type' !in var.tree.child.clone() {
+				for _, var in stmt.tree.child['Rhs'].tree.child {
+					if 'Type' !in var.tree.child {
 						values << v.get_value(var.tree)
 					} else {
 						// structs
@@ -273,7 +273,7 @@ fn (mut v VAST) get_functions(tree Tree) {
 				mut namespaces := get_namespaces(base.child['Fun'].tree)
 
 				// function/method arguments
-				for _, arg in base.child['Args'].tree.child.clone() {
+				for _, arg in base.child['Args'].tree.child {
 					namespaces[0].args << v.get_value(arg.tree)
 				}
 

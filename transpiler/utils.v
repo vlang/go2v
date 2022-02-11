@@ -36,7 +36,7 @@ fn (mut v VAST) get_embedded(tree Tree) {
 
 fn get_name(tree Tree, deep bool) string {
 	// `a = `
-	if 'Name' in tree.child.clone() {
+	if 'Name' in tree.child {
 		return if deep {
 			tree.child['Name'].tree.child['Name'].val#[1..-1]
 		} else {
@@ -72,7 +72,7 @@ fn get_namespaces(tree Tree) []Namespace {
 	mut temp := tree
 	mut namespaces := []Namespace{}
 
-	for ('X' in temp.child.clone()) {
+	for ('X' in temp.child) {
 		namespaces << Namespace{
 			name: get_name(temp.child['Sel'].tree, false)
 		}
