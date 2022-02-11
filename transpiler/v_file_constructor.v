@@ -39,12 +39,16 @@ fn (mut v VAST) handle_types() {
 
 fn (mut v VAST) handle_structs() {
 	for strct in v.structs {
-		v.out.writeln('struct $strct.name {')
-		for field, typ in strct.fields {
-			v.out.writeln('\t$field $typ')
+		v.out.write_string('struct $strct.name {')
+		if strct.fields.len != 0 {
+			for field, typ in strct.fields {
+				v.out.write_string('\n\t$field $typ')
+			}
+			v.out.write_string('\n}')
+		} else {
+			v.out.write_string('}')
 		}
-		v.out.writeln('}')
-		v.out.writeln('')
+		v.out.writeln('\n')
 	}
 }
 
@@ -154,7 +158,24 @@ fn (mut v VAST) handle_function_body(body []Statement) {
 				}
 				v.out.writeln('')
 			}
-			else {}
+			CallStmt {
+				stop_ns := stmt.namespaces.len - 1
+				v.out.write_rune(`\t`)
+
+				for i, ns in stmt.namespaces {
+					if i != stop_ns {
+						v.out.write_string('${ns.name}.')
+					} else {
+						v.out.write_string('${ns.name}(')
+						stop_arg := ns.args.len - 1
+						for j, arg in ns.args {
+							comma := if j != stop_arg { ', ' } else { '' }
+							v.out.write_string('$arg$comma')
+						}
+						v.out.writeln(')')
+					}
+				}
+			}
 		}
 	}
 }

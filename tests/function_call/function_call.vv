@@ -1,0 +1,18 @@
+module main
+
+struct Test2 {}
+
+struct Test1 {
+	a Test2
+}
+
+fn main() {
+	println('Hello World')
+	mut ok := Test1{}
+	ok.a.Test()
+	println('okkk')
+}
+
+pub fn (t Test2) Test() {
+	println('Test')
+}

@@ -14,7 +14,11 @@ fn test_all() ? {
 	}
 	for dir in os.ls('$go2v_path/tests') or { []string{} } {
 		os.execute('$go2v_exe $go2v_path/tests/$dir/${dir}.go -o $go2v_path/tests/$dir/out.vv')
-		assert os.read_file('$go2v_path/tests/$dir/out.vv') ? == os.read_file('$go2v_path/tests/$dir/${dir}.vv') ?
-		println('$dir test ${term.bright_green('passed')}')
+		if os.read_file('$go2v_path/tests/$dir/out.vv') ? == os.read_file('$go2v_path/tests/$dir/${dir}.vv') ? {
+			println('$dir test ${term.bright_green('passed')}')
+		} else {
+			println('$dir test ${term.bright_red('failed')}')
+			assert false
+		}
 	}
 }
