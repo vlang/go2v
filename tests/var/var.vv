@@ -1,7 +1,8 @@
 module main
 
 fn main() {
-	i := 42
+	mut i := 42
 	i = 24
-	j := 24
+	mut j := 24
+	j = 42
 }
