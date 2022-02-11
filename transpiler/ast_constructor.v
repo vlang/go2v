@@ -244,7 +244,6 @@ fn (mut v VAST) get_functions(tree Tree) {
 			'*ast.AssignStmt' {
 				mut names := []string{}
 				mut values := []string{}
-				declaration := stmt.tree.child['Tok'].val == ':='
 
 				for _, var in stmt.tree.child['Lhs'].tree.child.clone() {
 					names << get_name(var.tree, false)
@@ -263,7 +262,7 @@ fn (mut v VAST) get_functions(tree Tree) {
 				func.body << VariableStmt{
 					names: names
 					values: values
-					declaration: declaration
+					declaration: stmt.tree.child['Tok'].val == ':='
 				}
 			}
 			// function/method call
