@@ -16,7 +16,8 @@ mut:
 	types      map[string]string
 	functions  []Function
 	//
-	out strings.Builder = strings.new_builder(200)
+	out           strings.Builder = strings.new_builder(200)
+	declared_vars []string
 }
 
 struct Function {
@@ -36,7 +37,7 @@ mut:
 	fields map[string]string
 }
 
-type Statement = Temp | VariableStmt
+type Statement = CallStmt | VariableStmt
 
 struct VariableStmt {
 mut:
@@ -47,20 +48,33 @@ mut:
 	mutable     bool = true
 }
 
-struct Temp {}
+struct CallStmt {
+mut:
+	comment    string
+	namespaces []Namespace
+}
+
+// in `a.b.c(...)` `a`, `b` and `c(...)` are namespaces
+struct Namespace {
+mut:
+	name string
+	args []string
+}
 
 fn ast_constructor(tree Tree) VAST {
 	mut v_ast := VAST{}
 
 	v_ast.get_module(tree)
 	for _, el in tree.child['Decls'].tree.child.clone() {
-		v_ast.get_decl(el.tree, false)
+		v_ast.get_all(el.tree, false)
 	}
+
+	v_ast.v_style()
 
 	return v_ast
 }
 
-fn (mut v VAST) get_decl(tree Tree, embedded bool) {
+fn (mut v VAST) get_all(tree Tree, embedded bool) {
 	// Go AST structure is different if embedded or not
 	base := tree.child['Specs'].tree
 	mut simplified_base := base.child['0'].tree
@@ -137,7 +151,7 @@ fn (mut v VAST) get_consts_and_enums(tree Tree) {
 	for _, @const in tree.child.clone() {
 		name_base := @const.tree.child['Names'].tree.child['0'].tree
 
-		mut val := get_value(@const.tree.child['Values'].tree.child['0'].tree)
+		mut val := v.get_value(@const.tree.child['Values'].tree.child['0'].tree)
 
 		// Enums
 		if val == 'iota' && !is_enum {
@@ -204,6 +218,7 @@ fn (mut v VAST) get_functions(tree Tree) {
 	// Body
 	for _, stmt in tree.child['Body'].tree.child['List'].tree.child.clone() {
 		match stmt.tree.name {
+			// `var` syntax
 			'*ast.DeclStmt' {
 				base := stmt.tree.child['Decl'].tree.child['Specs'].tree.child['0'].tree
 
@@ -214,8 +229,10 @@ fn (mut v VAST) get_functions(tree Tree) {
 					names << get_name(var.tree, false)
 				}
 				for _, var in base.child['Values'].tree.child.clone() {
-					values << get_value(var.tree)
+					values << v.get_value(var.tree)
 				}
+
+				v.declared_vars << names
 
 				func.body << VariableStmt{
 					names: names
@@ -223,21 +240,46 @@ fn (mut v VAST) get_functions(tree Tree) {
 					declaration: true
 				}
 			}
+			// `:=` & `=` syntax
 			'*ast.AssignStmt' {
 				mut names := []string{}
 				mut values := []string{}
+				declaration := stmt.tree.child['Tok'].val == ':='
 
 				for _, var in stmt.tree.child['Lhs'].tree.child.clone() {
 					names << get_name(var.tree, false)
 				}
 				for _, var in stmt.tree.child['Rhs'].tree.child.clone() {
-					values << get_value(var.tree)
+					if 'Type' !in var.tree.child.clone() {
+						values << v.get_value(var.tree)
+					} else {
+						// structs
+						values << v.get_value(var.tree.child['Type'].tree)
+					}
 				}
+
+				v.declared_vars << names
 
 				func.body << VariableStmt{
 					names: names
 					values: values
-					declaration: stmt.tree.child['Tok'].val == ':='
+					declaration: declaration
+				}
+			}
+			// function/method call
+			'*ast.ExprStmt' {
+				base := stmt.tree.child['X'].tree
+
+				// namespaces, see struct Namespace for explaination
+				mut namespaces := get_namespaces(base.child['Fun'].tree)
+
+				// function/method arguments
+				for _, arg in base.child['Args'].tree.child.clone() {
+					namespaces[0].args << v.get_value(arg.tree)
+				}
+
+				func.body << CallStmt{
+					namespaces: namespaces.reverse()
 				}
 			}
 			else {}

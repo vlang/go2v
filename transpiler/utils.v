@@ -1,12 +1,13 @@
 module transpiler
 
-fn get_value(tree Tree) string {
+fn (mut v VAST) get_value(tree Tree) string {
 	raw_val := if tree.child['Value'].val.len != 0 {
 		tree.child['Value'].val // almost everything
 	} else {
 		tree.child['Name'].val // bools, iotas (enums), variables
 	}
-	// Format the value
+
+	// format the value
 	mut val := raw_val
 	if val.len != 0 {
 		val = match raw_val[1] {
@@ -16,20 +17,41 @@ fn get_value(tree Tree) string {
 		}
 	}
 
+	// structs
+	if 'Obj' in tree.child {
+		if !v.declared_vars.contains(val) {
+			val += '{}'
+		}
+		v.get_all(tree.child['Obj'].tree, true)
+	}
+
 	return val
 }
 
 fn (mut v VAST) get_embedded(tree Tree) {
 	if 'Obj' in tree.child {
-		v.get_decl(tree.child['Obj'].tree, true)
+		v.get_all(tree.child['Obj'].tree, true)
 	}
 }
 
 fn get_name(tree Tree, deep bool) string {
-	return if deep {
-		tree.child['Name'].tree.child['Name'].val#[1..-1]
+	// `a = `
+	if 'Name' in tree.child.clone() {
+		return if deep {
+			tree.child['Name'].tree.child['Name'].val#[1..-1]
+		} else {
+			tree.child['Name'].val#[1..-1]
+		}
 	} else {
-		tree.child['Name'].val#[1..-1]
+		// `a.b.c = `
+		mut out := ''
+		namespaces := get_namespaces(tree)
+
+		for i := namespaces.len - 1; i >= 0; i-- {
+			out += namespaces[i].name + if i != 0 { '.' } else { '' }
+		}
+
+		return out
 	}
 }
 
@@ -44,4 +66,21 @@ fn (mut v VAST) get_type(tree Tree) string {
 	v.get_embedded(temp.tree)
 
 	return @type + temp.tree.child['Name'].val#[1..-1]
+}
+
+fn get_namespaces(tree Tree) []Namespace {
+	mut temp := tree
+	mut namespaces := []Namespace{}
+
+	for ('X' in temp.child.clone()) {
+		namespaces << Namespace{
+			name: get_name(temp.child['Sel'].tree, false)
+		}
+		temp = temp.child['X'].tree
+	}
+	namespaces << Namespace{
+		name: get_name(temp, false)
+	}
+
+	return namespaces
 }
