@@ -1,8 +1,8 @@
 module main
 
-pub fn custom() {
+pub fn func() {
 }
 
 fn main() {
-	custom()
+	func()
 }
