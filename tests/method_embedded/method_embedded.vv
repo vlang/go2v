@@ -4,5 +4,4 @@ struct Abc {
 	a int
 }
 
-fn (a Abc) ok(d int, b []string, c rune) string {
-}
+fn (a Abc) ok(d int, b []string, c rune) string {}

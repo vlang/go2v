@@ -1,7 +1,6 @@
 module main
 
-pub fn custom() {
-}
+pub fn custom() {}
 
 fn main() {
 	custom()

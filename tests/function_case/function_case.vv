@@ -1,7 +1,6 @@
 module main
 
-pub fn func() {
-}
+pub fn func() {}
 
 fn main() {
 	func()
