@@ -34,7 +34,7 @@ fn (mut v VAST) get_embedded(tree Tree) {
 	}
 }
 
-fn get_name(tree Tree, deep bool) string {
+fn (mut v VAST) get_name(tree Tree, deep bool) string {
 	// `a = `
 	if 'Name' in tree.child {
 		return if deep {
@@ -45,7 +45,7 @@ fn get_name(tree Tree, deep bool) string {
 	} else {
 		// `a.b.c = `
 		mut out := ''
-		namespaces := get_namespaces(tree)
+		namespaces := v.get_namespaces(tree)
 
 		for i := namespaces.len - 1; i >= 0; i-- {
 			out += namespaces[i].name + if i != 0 { '.' } else { '' }
@@ -68,18 +68,18 @@ fn (mut v VAST) get_type(tree Tree) string {
 	return @type + temp.tree.child['Name'].val#[1..-1]
 }
 
-fn get_namespaces(tree Tree) []Namespace {
+fn (mut v VAST) get_namespaces(tree Tree) []Namespace {
 	mut temp := tree
 	mut namespaces := []Namespace{}
 
 	for ('X' in temp.child) {
 		namespaces << Namespace{
-			name: get_name(temp.child['Sel'].tree, false)
+			name: v.get_name(temp.child['Sel'].tree, false)
 		}
 		temp = temp.child['X'].tree
 	}
 	namespaces << Namespace{
-		name: get_name(temp, false)
+		name: v.get_name(temp, false)
 	}
 
 	return namespaces
