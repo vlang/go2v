@@ -1,9 +1,7 @@
 package main
 
-func abc(a int, b []string, c Ok) {
+func main() {
+	Custom()
 }
 
-type Ok struct {
-	a int
-	b []string
-}
+func Custom() {}

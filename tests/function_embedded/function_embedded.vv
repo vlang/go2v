@@ -1,9 +1,8 @@
 module main
 
-struct Ok {
-	a int
-	b []string
+pub fn Custom() {
 }
 
-fn abc(a int, b []string, c Ok) {
+fn main() {
+	Custom()
 }
