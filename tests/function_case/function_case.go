@@ -1,7 +1,9 @@
 package main
 
 func main() {
-	Custom()
+	Func()
 }
 
-func Custom() {}
+func Func() {
+
+}

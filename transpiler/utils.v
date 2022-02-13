@@ -34,18 +34,19 @@ fn (mut v VAST) get_embedded(tree Tree) {
 	}
 }
 
-fn get_name(tree Tree, deep bool) string {
+fn (mut v VAST) get_name(tree Tree, deep bool, snake_case bool) string {
 	// `a = `
 	if 'Name' in tree.child {
-		return if deep {
+		raw_name := if deep {
 			tree.child['Name'].tree.child['Name'].val#[1..-1]
 		} else {
 			tree.child['Name'].val#[1..-1]
 		}
+		return if snake_case { to_snake_case(raw_name) } else { capitalize(raw_name) }
 	} else {
 		// `a.b.c = `
 		mut out := ''
-		namespaces := get_namespaces(tree)
+		namespaces := v.get_namespaces(tree)
 
 		for i := namespaces.len - 1; i >= 0; i-- {
 			out += namespaces[i].name + if i != 0 { '.' } else { '' }
@@ -68,19 +69,42 @@ fn (mut v VAST) get_type(tree Tree) string {
 	return @type + temp.tree.child['Name'].val#[1..-1]
 }
 
-fn get_namespaces(tree Tree) []Namespace {
+fn (mut v VAST) get_namespaces(tree Tree) []Namespace {
 	mut temp := tree
 	mut namespaces := []Namespace{}
 
 	for ('X' in temp.child) {
 		namespaces << Namespace{
-			name: get_name(temp.child['Sel'].tree, false)
+			name: v.get_name(temp.child['Sel'].tree, false, true)
 		}
 		temp = temp.child['X'].tree
 	}
 	namespaces << Namespace{
-		name: get_name(temp, false)
+		name: v.get_name(temp, false, true)
 	}
 
 	return namespaces
+}
+
+fn to_snake_case(str string) string {
+	mut out := []rune{}
+
+	for i, ch in str {
+		if `A` <= ch && ch <= `Z` {
+			if i != 0 {
+				out << `_`
+			}
+			out << ch + 32
+		} else {
+			out << ch
+		}
+	}
+
+	return out.string()
+}
+
+fn capitalize(str string) string {
+	sub := if `A` <= str[0] && str[0] <= `Z` { 0 } else { 32 }
+
+	return (str[0] - byte(sub)).ascii_str() + str[1..]
 }

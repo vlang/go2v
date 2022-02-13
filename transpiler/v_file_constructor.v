@@ -128,10 +128,13 @@ fn (mut v VAST) handle_functions() {
 			v.out.write_string(')')
 		}
 		// Body
-		v.out.writeln(' {')
+		if func.body.len != 0 {
+			v.out.write_string(' {\n')
+		} else {
+			v.out.write_string(' {')
+		}
 		v.handle_function_body(func.body)
-		v.out.writeln('}')
-		v.out.writeln('')
+		v.out.write_string('}\n\n')
 	}
 }
 

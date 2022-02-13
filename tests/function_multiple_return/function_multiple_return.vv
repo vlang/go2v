@@ -1,4 +1,3 @@
 module main
 
-fn abc(a int, b []string, c rune) (int, string, []int) {
-}
+fn abc(a int, b []string, c rune) (int, string, []int) {}

@@ -10,7 +10,7 @@ fn (mut v VAST) v_style() {
 				// transform `fmt.Println` to `println`
 				if stmt.namespaces[0].name == 'fmt' {
 					fmt_count++
-					if stmt.namespaces[1].name == 'Println' {
+					if stmt.namespaces[1].name == 'println' {
 						println_count++
 						new_ns := Namespace{'println', stmt.namespaces[1].args}
 						stmt.namespaces.delete_last()

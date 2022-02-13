@@ -9,10 +9,10 @@ struct Test1 {
 fn main() {
 	println('Hello World')
 	mut ok := Test1{}
-	ok.a.Test()
+	ok.a.test()
 	println('okkk')
 }
 
-pub fn (t Test2) Test() {
+pub fn (t Test2) test() {
 	println('Test')
 }

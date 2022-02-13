@@ -1,6 +1,6 @@
 module main
 
 struct Struct {
-	A int
-	B int
+	a int
+	b int
 }

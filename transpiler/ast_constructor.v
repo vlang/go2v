@@ -86,7 +86,7 @@ fn (mut v VAST) get_all(tree Tree, embedded bool) {
 	}
 
 	match tree.child[type_field_name].val {
-		// Will never be embedded
+		// imports will never be embedded
 		'import' {
 			v.get_imports(tree)
 		}
@@ -104,19 +104,22 @@ fn (mut v VAST) get_all(tree Tree, embedded bool) {
 			}
 		}
 		'const' {
-			// Enums will never be embedded
+			// enums will never be embedded
 			v.get_consts_and_enums(base)
 		}
 		else {
-			if tree.name == '*ast.FuncDecl' {
+			// functions
+			if tree.name == '*ast.FuncDecl' && !embedded {
 				v.get_functions(tree)
+			} else if simplified_base.name == '*ast.FuncDecl' {
+				v.get_functions(simplified_base)
 			}
 		}
 	}
 }
 
 fn (mut v VAST) get_module(tree Tree) {
-	v.@module = get_name(tree, true)
+	v.@module = v.get_name(tree, true, true)
 }
 
 fn (mut v VAST) get_imports(tree Tree) {
@@ -128,20 +131,20 @@ fn (mut v VAST) get_imports(tree Tree) {
 
 fn (mut v VAST) get_struct(tree Tree) StructLike {
 	mut @struct := StructLike{
-		name: get_name(tree, true)
+		name: v.get_name(tree, true, false)
 	}
 
 	for _, field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
 		// support `A, B int` syntax
 		for _, name in field.tree.child['Names'].tree.child {
-			@struct.fields[get_name(name.tree, false)] = v.get_type(field.tree)
+			@struct.fields[v.get_name(name.tree, false, true)] = v.get_type(field.tree)
 		}
 	}
 	return @struct
 }
 
 fn (mut v VAST) get_types(tree Tree) {
-	v.types[get_name(tree, true)] = v.get_type(tree)
+	v.types[v.get_name(tree, true, false)] = v.get_type(tree)
 }
 
 fn (mut v VAST) get_consts_and_enums(tree Tree) {
@@ -182,7 +185,7 @@ fn (mut v VAST) get_consts_and_enums(tree Tree) {
 
 fn (mut v VAST) get_functions(tree Tree) {
 	mut func := Function{
-		name: get_name(tree, true)
+		name: v.get_name(tree, true, true)
 	}
 
 	// Comments on top functions (docstrings)
@@ -192,20 +195,21 @@ fn (mut v VAST) get_functions(tree Tree) {
 	}
 
 	// Public/private
-	if `A` <= func.name[0] && func.name[0] <= `Z` {
+	temp_name := tree.child['Name'].tree.child['Name'].val#[1..-1]
+	if `A` <= temp_name[0] && temp_name[0] <= `Z` {
 		func.public = true
 	}
 
 	// Arguments
 	for _, arg in tree.child['Type'].tree.child['Params'].tree.child['List'].tree.child {
-		func.args[get_name(arg.tree.child['Names'].tree.child['0'].tree, false)] = v.get_type(arg.tree)
+		func.args[v.get_name(arg.tree.child['Names'].tree.child['0'].tree, false, true)] = v.get_type(arg.tree)
 	}
 
 	// Method
 	if 'Recv' in tree.child {
 		base := tree.child['Recv'].tree.child['List'].tree.child['0'].tree
 		func.method = [
-			get_name(base.child['Names'].tree.child['0'].tree, false),
+			v.get_name(base.child['Names'].tree.child['0'].tree, false, true),
 			v.get_type(base),
 		]
 	}
@@ -226,7 +230,7 @@ fn (mut v VAST) get_functions(tree Tree) {
 				mut values := []string{}
 
 				for _, var in base.child['Names'].tree.child {
-					names << get_name(var.tree, false)
+					names << v.get_name(var.tree, false, true)
 				}
 				for _, var in base.child['Values'].tree.child {
 					values << v.get_value(var.tree)
@@ -246,7 +250,7 @@ fn (mut v VAST) get_functions(tree Tree) {
 				mut values := []string{}
 
 				for _, var in stmt.tree.child['Lhs'].tree.child {
-					names << get_name(var.tree, false)
+					names << v.get_name(var.tree, false, true)
 				}
 				for _, var in stmt.tree.child['Rhs'].tree.child {
 					if 'Type' !in var.tree.child {
@@ -269,8 +273,10 @@ fn (mut v VAST) get_functions(tree Tree) {
 			'*ast.ExprStmt' {
 				base := stmt.tree.child['X'].tree
 
+				v.get_embedded(base.child['Fun'].tree)
+
 				// namespaces, see struct Namespace for explaination
-				mut namespaces := get_namespaces(base.child['Fun'].tree)
+				mut namespaces := v.get_namespaces(base.child['Fun'].tree)
 
 				// function/method arguments
 				for _, arg in base.child['Args'].tree.child {

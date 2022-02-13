@@ -1,0 +1,7 @@
+module main
+
+pub fn func() {}
+
+fn main() {
+	func()
+}
