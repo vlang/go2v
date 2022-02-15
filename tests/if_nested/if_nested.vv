@@ -1,0 +1,13 @@
+module main
+
+fn main() {
+	if 123 == 0 {
+		mut z := 123
+		println('ok')
+	} else {
+		if 456 == 0 {
+			mut z := 456
+			println('ok')
+		}
+	}
+}
