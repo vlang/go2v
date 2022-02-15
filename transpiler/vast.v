@@ -16,9 +16,8 @@ mut:
 	types      map[string]string
 	functions  []Function
 	//
-	out           strings.Builder = strings.new_builder(200)
-	declared_vars []string
-	indent        string
+	out    strings.Builder = strings.new_builder(200)
+	indent string
 }
 
 struct StructLike {
@@ -40,28 +39,28 @@ mut:
 
 // body
 
-type Statement = CallStmt | IfStmt | VariableStmt
+type Statement = BranchStmt | CallStmt | ForStmt | IfStmt | IncDecStmt | VariableStmt
 
 struct VariableStmt {
 mut:
-	comment     string
-	names       []string
-	values      []string
-	declaration bool
-	mutable     bool = true
+	comment string
+	names   []string
+	middle  string
+	values  []string
+	mutable bool = true
+}
+
+struct IncDecStmt {
+mut:
+	var string
+	inc string
 }
 
 struct CallStmt {
 mut:
 	comment    string
-	namespaces []Namespace
-}
-
-// in `a.b.c(...)` `a`, `b` and `c(...)` are namespaces
-struct Namespace {
-mut:
-	name string
-	args []string
+	namespaces string
+	args       []string
 }
 
 struct IfStmt {
@@ -73,4 +72,23 @@ struct IfElse {
 mut:
 	condition string
 	body      []Statement
+}
+
+struct ForStmt {
+mut:
+	is_for_in bool
+	body      []Statement
+	// C-style & while loops specific
+	init      VariableStmt
+	condition string
+	post      ForPost
+	// for-in loop specific
+	vars []VariableStmt
+	var  VariableStmt
+}
+
+type ForPost = IncDecStmt | VariableStmt
+
+struct BranchStmt {
+	name string
 }

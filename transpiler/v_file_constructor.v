@@ -148,7 +148,7 @@ fn (mut v VAST) handle_function_body(body []Statement) {
 				v.out.write_string(v.indent)
 				stop := stmt.names.len - 1
 
-				if stmt.mutable && stmt.declaration {
+				if stmt.mutable && stmt.middle == ':=' {
 					v.out.write_string('mut ')
 				}
 
@@ -156,31 +156,28 @@ fn (mut v VAST) handle_function_body(body []Statement) {
 					comma := if i != stop { ',' } else { '' }
 					v.out.write_string('$name$comma ')
 				}
-				middle := if stmt.declaration { ':=' } else { '=' }
-				v.out.write_string(middle)
+				v.out.write_string(stmt.middle)
 				for i, value in stmt.values {
 					comma := if i != stop { ',' } else { '' }
 					v.out.write_string(' $value$comma')
 				}
 				v.out.write_rune(`\n`)
 			}
+			IncDecStmt {
+				v.out.write_string(v.indent)
+
+				v.out.write_string('$stmt.var$stmt.inc\n')
+			}
 			CallStmt {
 				v.out.write_string(v.indent)
-				stop_ns := stmt.namespaces.len - 1
+				stop := stmt.args.len - 1
 
-				for i, ns in stmt.namespaces {
-					if i != stop_ns {
-						v.out.write_string('${ns.name}.')
-					} else {
-						v.out.write_string('${ns.name}(')
-						stop_arg := ns.args.len - 1
-						for j, arg in ns.args {
-							comma := if j != stop_arg { ', ' } else { '' }
-							v.out.write_string('$arg$comma')
-						}
-						v.out.writeln(')')
-					}
+				v.out.write_string('${stmt.namespaces}(')
+				for i, arg in stmt.args {
+					comma := if i != stop { ', ' } else { '' }
+					v.out.write_string('$arg$comma')
 				}
+				v.out.writeln(')')
 			}
 			IfStmt {
 				for i, branch in stmt.branchs {
@@ -201,6 +198,41 @@ fn (mut v VAST) handle_function_body(body []Statement) {
 						v.out.write_string('}\n')
 					}
 				}
+			}
+			ForStmt {
+				v.out.write_string(v.indent)
+
+				init := if stmt.init.names.len > 0 {
+					'${stmt.init.names[0]} := ${stmt.init.values[0]}'
+				} else {
+					''
+				}
+				cond := if stmt.condition != ' ' { stmt.condition } else { 'true' }
+				mut post := ''
+				if stmt.post is IncDecStmt {
+					post = ' $stmt.post.var$stmt.post.inc'
+				} else if stmt.post is VariableStmt {
+					post = ' ${stmt.post.names[0]} := ${stmt.post.values[0]}'
+				}
+				if init == '' && post == '' {
+					if cond == 'true' {
+						// bare for
+						v.out.write_string('for {\n')
+					} else {
+						// while
+						v.out.write_string('for $cond {\n')
+					}
+				} else {
+					// c-style for
+					v.out.write_string('for $init; $cond;$post {\n')
+				}
+				v.handle_function_body(stmt.body)
+				v.out.write_string(v.indent)
+				v.out.write_string('}\n')
+			}
+			BranchStmt {
+				v.out.write_string(v.indent)
+				v.out.write_string('$stmt.name\n')
 			}
 		}
 	}
