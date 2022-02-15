@@ -8,13 +8,12 @@ fn (mut v VAST) v_style() {
 		for mut stmt in func.body {
 			if mut stmt is CallStmt {
 				// transform `fmt.Println` to `println`
-				if stmt.namespaces[0].name == 'fmt' {
+				ns_arr := stmt.namespaces.split('.')
+				if ns_arr[0] == 'fmt' {
 					fmt_count++
-					if stmt.namespaces[1].name == 'println' {
+					if ns_arr[1] == 'println' {
 						println_count++
-						new_ns := Namespace{'println', stmt.namespaces[1].args}
-						stmt.namespaces.delete_last()
-						stmt.namespaces[0] = new_ns
+						stmt.namespaces = 'println'
 					}
 				}
 			}

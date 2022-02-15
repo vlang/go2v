@@ -21,7 +21,8 @@ fn (mut v VAST) get_value(tree Tree) string {
 
 	// structs
 	if 'Obj' in tree.child {
-		if !v.declared_vars.contains(val) {
+		// structs always starts with a capital letter and variable names never
+		if `A` <= val[0] && val[0] <= `Z` {
 			val += '{}'
 		}
 		v.extract_declaration(tree.child['Obj'].tree, true)
@@ -64,14 +65,7 @@ fn (mut v VAST) get_name(tree Tree, deep bool, snake_case bool) string {
 		}
 	} else {
 		// `a.b.c = ` syntax
-		mut out := ''
-		namespaces := v.get_namespaces(tree)
-
-		for i := namespaces.len - 1; i >= 0; i-- {
-			out += namespaces[i].name + if i != 0 { '.' } else { '' }
-		}
-
-		return out
+		return v.get_namespaces(tree)
 	}
 }
 
@@ -92,22 +86,24 @@ fn (mut v VAST) get_type(tree Tree) string {
 }
 
 // get the namespaces of the left-hand side of an assignment or a function call
-// for further help, see Namespace struct
-fn (mut v VAST) get_namespaces(tree Tree) []Namespace {
+// in `a.b.c(...)` `a`, `b` and `c` are namespaces
+fn (mut v VAST) get_namespaces(tree Tree) string {
 	mut temp := tree
-	mut namespaces := []Namespace{}
+	mut namespaces := []string{}
 
 	for ('X' in temp.child) {
-		namespaces << Namespace{
-			name: v.get_name(temp.child['Sel'].tree, false, true)
-		}
+		namespaces << v.get_name(temp.child['Sel'].tree, false, true)
 		temp = temp.child['X'].tree
 	}
-	namespaces << Namespace{
-		name: v.get_name(temp, false, true)
+	namespaces << v.get_name(temp, false, true)
+
+	mut out := ''
+
+	for i := namespaces.len - 1; i >= 0; i-- {
+		out += namespaces[i] + if i != 0 { '.' } else { '' }
 	}
 
-	return namespaces
+	return out
 }
 
 // check if the tree contains an embedded declaration, and extract it if so
@@ -182,12 +178,18 @@ fn (mut v VAST) get_var(tree Tree) VariableStmt {
 		}
 	}
 
-	v.declared_vars << names
-
 	return VariableStmt{
 		names: names
+		middle: tree.child['Tok'].val
 		values: values
-		declaration: tree.child['Tok'].val == ':='
+	}
+}
+
+// get the increment statement (IncDecStmt) from a tree
+fn (mut v VAST) get_inc_dec(tree Tree) IncDecStmt {
+	return IncDecStmt{
+		var: v.get_namespaces(tree.child['X'].tree)
+		inc: tree.child['Tok'].val
 	}
 }
 
@@ -212,12 +214,10 @@ fn (mut v VAST) get_body(tree Tree) []Statement {
 					values << v.get_value(var.tree)
 				}
 
-				v.declared_vars << names
-
 				body << VariableStmt{
 					names: names
+					middle: ':='
 					values: values
-					declaration: true
 				}
 			}
 			// `:=` & `=` syntax
@@ -228,19 +228,22 @@ fn (mut v VAST) get_body(tree Tree) []Statement {
 			'*ast.ExprStmt' {
 				base := stmt.tree.child['X'].tree
 
-				v.get_embedded(base.child['Fun'].tree)
-
-				// namespaces, see struct Namespace struct for explaination
-				mut namespaces := v.get_namespaces(base.child['Fun'].tree)
+				mut clall_stmt := CallStmt{
+					namespaces: v.get_namespaces(base.child['Fun'].tree)
+				}
 
 				// function/method arguments
 				for _, arg in base.child['Args'].tree.child {
-					namespaces[0].args << v.get_value(arg.tree)
+					clall_stmt.args << v.get_value(arg.tree)
 				}
 
-				body << CallStmt{
-					namespaces: namespaces.reverse()
-				}
+				v.get_embedded(base.child['Fun'].tree)
+
+				body << clall_stmt
+			}
+			// `i++` & `i--`
+			'*ast.IncDecStmt' {
+				body << v.get_inc_dec(stmt.tree)
 			}
 			// if/else
 			'*ast.IfStmt' {
@@ -254,7 +257,6 @@ fn (mut v VAST) get_body(tree Tree) []Statement {
 					// `if z := 0; z < 10` syntax
 					var := v.get_var(temp.child['Init'].tree)
 					if var.names.len > 0 {
-						v.declared_vars << var.names[0]
 						if_else.body << var
 					}
 
@@ -285,6 +287,41 @@ fn (mut v VAST) get_body(tree Tree) []Statement {
 				}
 
 				body << if_stmt
+			}
+			// condition for/bare for/C-style for
+			'*ast.ForStmt' {
+				mut for_stmt := ForStmt{}
+
+				// init
+				for_stmt.init = v.get_var(stmt.tree.child['Init'].tree)
+
+				// condition
+				for_stmt.condition = v.get_condition(stmt.tree.child['Cond'].tree)
+
+				// post
+				post_base := stmt.tree.child['Post'].tree
+				if post_base.child.len > 0 {
+					// `for i := 0; i < 10; i++` syntax
+					if post_base.name == '*ast.IncDecStmt' {
+						for_stmt.post = v.get_inc_dec(post_base)
+						// `for i := 0; i < 10; i += 1` syntax
+					} else {
+						for_stmt.post = v.get_var(post_base)
+					}
+				}
+
+				// body
+				for_stmt.body = v.get_body(stmt.tree.child['Body'].tree)
+
+				body << for_stmt
+			}
+			// break/continue
+			'*ast.BranchStmt' {
+				body << BranchStmt{stmt.tree.child['Tok'].val}
+			}
+			// for in
+			'*ast.RangeStmt' {
+				// TODO: implement `for .., .. in ..` loops
 			}
 			else {}
 		}
