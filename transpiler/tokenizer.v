@@ -38,7 +38,7 @@ fn tokenizer(input []rune) []Token {
 				match next_ch {
 					`.` {}
 					` ` {
-						// Counting spaces is a hack to know if we've passed the line count present at each line
+						// counting spaces is a hack to know if we've passed the line count present at each line
 						space_count++
 					}
 					else {

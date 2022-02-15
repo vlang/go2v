@@ -9,14 +9,16 @@ fn v_file_constructor(v_ast VAST) string {
 	v.handle_consts()
 	v.handle_enums()
 	v.handle_functions()
-	v.out.cut_last(1) // remove last newline
+
+	// remove last newline
+	v.out.cut_last(1)
 
 	return v.out.str()
 }
 
 fn (mut v VAST) handle_module() {
 	v.out.writeln('module ${v.@module}')
-	v.out.writeln('')
+	v.out.write_rune(`\n`)
 }
 
 fn (mut v VAST) handle_imports() {
@@ -24,7 +26,7 @@ fn (mut v VAST) handle_imports() {
 		for imp in v.imports {
 			v.out.writeln('import $imp')
 		}
-		v.out.writeln('')
+		v.out.write_rune(`\n`)
 	}
 }
 
@@ -33,7 +35,7 @@ fn (mut v VAST) handle_types() {
 		for name, typ in v.types {
 			v.out.writeln('type $name = $typ')
 		}
-		v.out.writeln('')
+		v.out.write_rune(`\n`)
 	}
 }
 
@@ -64,7 +66,7 @@ fn (mut v VAST) handle_consts() {
 			}
 			v.out.writeln(')')
 		}
-		v.out.writeln('')
+		v.out.write_rune(`\n`)
 	}
 }
 
@@ -78,30 +80,29 @@ fn (mut v VAST) handle_enums() {
 				v.out.writeln('\t$name = $val')
 			}
 		}
-		v.out.writeln('}')
-		v.out.writeln('')
+		v.out.writeln('}\n')
 	}
 }
 
 fn (mut v VAST) handle_functions() {
 	for func in v.functions {
-		// Comment
+		// comment
 		if func.comment != '' {
 			v.out.writeln(func.comment)
 		}
-		// Public/private
+		// public/private
 		if func.public {
 			v.out.write_string('pub ')
 		}
-		// Keyword
+		// keyword
 		v.out.write_string('fn ')
-		// Method
+		// method
 		if func.method.len != 0 {
 			v.out.write_string('(${func.method[0]} ${func.method[1]}) ')
 		}
-		// Name
+		// name
 		v.out.write_string('${func.name}(')
-		// Arguments
+		// arguments
 		mut len := func.args.len
 		for name, @type in func.args {
 			len--
@@ -112,7 +113,7 @@ fn (mut v VAST) handle_functions() {
 			}
 		}
 		v.out.write_string(')')
-		// Return value(s)
+		// return value(s)
 		if func.ret_vals.len == 1 {
 			v.out.write_string(' ${func.ret_vals[0]}')
 		} else if func.ret_vals.len != 0 {
@@ -127,7 +128,7 @@ fn (mut v VAST) handle_functions() {
 			}
 			v.out.write_string(')')
 		}
-		// Body
+		// body
 		if func.body.len != 0 {
 			v.out.write_string(' {\n')
 		} else {
@@ -139,11 +140,13 @@ fn (mut v VAST) handle_functions() {
 }
 
 fn (mut v VAST) handle_function_body(body []Statement) {
+	v.indent += '\t'
+
 	for stmt in body {
 		match stmt {
 			VariableStmt {
+				v.out.write_string(v.indent)
 				stop := stmt.names.len - 1
-				v.out.write_rune(`\t`)
 
 				if stmt.mutable && stmt.declaration {
 					v.out.write_string('mut ')
@@ -159,11 +162,11 @@ fn (mut v VAST) handle_function_body(body []Statement) {
 					comma := if i != stop { ',' } else { '' }
 					v.out.write_string(' $value$comma')
 				}
-				v.out.writeln('')
+				v.out.write_rune(`\n`)
 			}
 			CallStmt {
+				v.out.write_string(v.indent)
 				stop_ns := stmt.namespaces.len - 1
-				v.out.write_rune(`\t`)
 
 				for i, ns in stmt.namespaces {
 					if i != stop_ns {
@@ -179,6 +182,28 @@ fn (mut v VAST) handle_function_body(body []Statement) {
 					}
 				}
 			}
+			IfStmt {
+				for i, branch in stmt.branchs {
+					if i != 0 {
+						v.out.write_string('else ')
+					} else {
+						v.out.write_string(v.indent)
+					}
+					if branch.condition != ' ' {
+						v.out.write_string('if $branch.condition ')
+					}
+					v.out.writeln('{')
+					v.handle_function_body(branch.body)
+					v.out.write_string(v.indent)
+					if i != stmt.branchs.len - 1 {
+						v.out.write_string('} ')
+					} else {
+						v.out.write_string('}\n')
+					}
+				}
+			}
 		}
 	}
+
+	v.indent = v.indent#[..-1]
 }
