@@ -1,0 +1,5 @@
+module main
+
+struct Struct1 {}
+
+struct Struct2 {}

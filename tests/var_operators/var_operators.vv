@@ -1,0 +1,12 @@
+module main
+
+struct Ok {
+	a int
+}
+
+fn main() {
+	mut ok := Ok{}
+	mut sum := 0
+	sum += 1
+	ok.a /= 2
+}

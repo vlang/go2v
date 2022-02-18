@@ -4,4 +4,3 @@ struct Struct1 {
 	a int
 	b []string
 }
-

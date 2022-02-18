@@ -1,182 +1,115 @@
 module transpiler
 
-import strings
-
 // TODO: handle comments
-
-struct VAST {
-mut:
-	@module    string
-	imports    []string
-	consts     map[string]string
-	structs    []StructLike
-	unions     []StructLike
-	interfaces []StructLike
-	enums      []StructLike
-	types      map[string]string
-	functions  []Function
-	//
-	out strings.Builder = strings.new_builder(200)
-}
-
-struct Function {
-	name     string
-	args     map[string]string
-	ret_type []string
-	// body     []Instruction
-}
-
-struct StructLike {
-mut:
-	name   string
-	fields map[string]string
-}
-
-// TODO: will change as we need to set this list according to Go AST
-// like we may group different similar in syntax instructions
-/*
-type Instruction = Assignment
-	| Break
-	| Continue
-	| Else
-	| Expression
-	| For
-	| FunctionCall
-	| If
-	| Return
-	| Match
-	| Comment
-*/
 
 fn ast_constructor(tree Tree) VAST {
 	mut v_ast := VAST{}
 
-	v_ast.get_module(tree)
-	for _, el in tree.child['Decls'].tree.child.clone() {
-		v_ast.get_decl(el.tree, false)
+	v_ast.extract_module_name(tree)
+	// go through each declaration node & extract the corresponding declaration
+	for _, el in tree.child['Decls'].tree.child {
+		v_ast.extract_declaration(el.tree, false)
 	}
+
+	// transform remaining Go-style things into V-style things
+	v_ast.v_style()
 
 	return v_ast
 }
 
-fn (mut v VAST) get_decl(tree Tree, embedded bool) {
-	// Go AST structure is different if embedded or not
-	consts_base := tree.child['Specs'].tree
-	mut base := consts_base.child['0'].tree
+fn (mut v VAST) extract_declaration(tree Tree, embedded bool) {
+	base := tree.child['Specs'].tree
+	mut simplified_base := base.child['0'].tree
 	mut type_field_name := 'Tok'
 
+	// Go AST structure is different if the declarating is embedded
 	if embedded {
-		base = tree.child['Decl'].tree
+		simplified_base = tree.child['Decl'].tree
 		type_field_name = 'Kind'
 	}
 
 	match tree.child[type_field_name].val {
-		// Will never be embedded
 		'import' {
-			v.get_imports(tree)
+			v.extract_imports(tree)
 		}
 		'type' {
-			if base.child['Type'].tree.name == '*ast.StructType' {
-				v.get_structs(base)
-			} else if base.name != '' {
-				v.get_types(base)
+			if simplified_base.child['Type'].tree.name == '*ast.StructType' {
+				// structs
+				if !embedded {
+					for _, decl in base.child {
+						v.structs << v.extract_struct(decl.tree)
+					}
+				} else {
+					v.structs << v.extract_struct(simplified_base)
+				}
+				// sumtypes
+			} else if simplified_base.name != '' {
+				v.extract_sumtype(simplified_base)
 			}
+			// TODO: support interfaces
 		}
 		'const' {
-			// Enums will never be embedded
-			v.get_consts_and_enums(consts_base)
+			v.extract_const_or_enum(base)
 		}
-		else {}
+		else {
+			// functions
+			if tree.name == '*ast.FuncDecl' && !embedded {
+				v.extract_function(tree)
+			} else if simplified_base.name == '*ast.FuncDecl' {
+				v.extract_function(simplified_base)
+			}
+		}
 	}
 }
 
-fn (mut v VAST) get_module(tree Tree) {
-	v.@module = tree.child['Name'].tree.child['Name'].val#[1..-1]
+fn (mut v VAST) extract_module_name(tree Tree) {
+	v.@module = v.get_name(tree, true, true)
 }
 
-fn (mut v VAST) get_imports(tree Tree) {
+fn (mut v VAST) extract_imports(tree Tree) {
 	for _, imp in tree.child['Specs'].tree.child {
-		v.imports << imp.tree.child['Path'].tree.child['Value'].val#[3..-3]
+		v.imports << imp.tree.child['Path'].tree.child['Value'].val#[3..-3].replace('/',
+			'.')
 	}
 }
 
-fn (mut v VAST) get_structs(tree Tree) {
+fn (mut v VAST) extract_struct(tree Tree) StructLike {
 	mut @struct := StructLike{
-		name: tree.child['Name'].tree.child['Name'].val#[1..-1]
+		name: v.get_name(tree, true, false)
 	}
 
-	for _, raw_field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
-		mut val := ''
-		mut temp := raw_field.tree.child['Type']
-
-		if raw_field.tree.child['Type'].tree.name == '*ast.ArrayType' {
-			val = '[]'
-			temp = raw_field.tree.child['Type'].tree.child['Elt']
-		}
-
-		@struct.fields[raw_field.tree.child['Names'].tree.child['0'].tree.child['Name'].val#[1..-1]] =
-			val + temp.tree.child['Name'].val#[1..-1]
-
-		// check if item embedded
-		if 'Obj' in temp.tree.child {
-			v.get_decl(temp.tree.child['Obj'].tree, true)
+	for _, field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
+		// support `A, B int` syntax
+		for _, name in field.tree.child['Names'].tree.child {
+			@struct.fields[v.get_name(name.tree, false, true)] = v.get_type(field.tree)
 		}
 	}
-
-	v.structs << @struct
+	return @struct
 }
 
-fn (mut v VAST) get_types(tree Tree) {
-	mut val := ''
-	mut temp := tree.child['Type']
-
-	if tree.child['Type'].tree.name == '*ast.ArrayType' {
-		val = '[]'
-		temp = tree.child['Type'].tree.child['Elt']
-	}
-
-	v.types[tree.child['Name'].tree.child['Name'].val#[1..-1]] = val +
-		temp.tree.child['Name'].val#[1..-1]
-
-	// check if item embedded
-	if 'Obj' in temp.tree.child {
-		v.get_decl(temp.tree.child['Obj'].tree, true)
-	}
+fn (mut v VAST) extract_sumtype(tree Tree) {
+	v.types[v.get_name(tree, true, false)] = v.get_type(tree)
 }
 
-fn (mut v VAST) get_consts_and_enums(tree Tree) {
+fn (mut v VAST) extract_const_or_enum(tree Tree) {
 	mut is_enum := false
 	mut temp_enum := StructLike{}
 
-	for _, @const in tree.child.clone() {
-		val_base := @const.tree.child['Values'].tree.child['0'].tree
+	for _, @const in tree.child {
 		name_base := @const.tree.child['Names'].tree.child['0'].tree
 
-		raw_val := if val_base.child['Value'].val.len != 0 {
-			val_base.child['Value'].val // everything except bools
-		} else {
-			val_base.child['Name'].val // bools & iotas (enums)
-		}
-		// Format the value
-		mut val := raw_val
-		if val.len != 0 {
-			val = match raw_val[1] {
-				`\\` { "'${raw_val#[3..-3]}'" } // strings
-				`'` { '`${raw_val#[2..-2]}`' } // runes
-				else { raw_val#[1..-1] } // numbers, bools, iotas (enums)
-			}
-		}
+		mut val := v.get_value(@const.tree.child['Values'].tree.child['0'].tree)
 
-		// Enums
+		// enums
 		if val == 'iota' && !is_enum {
-			// Begining of enum
+			// begining of enum
 			is_enum = true
-			temp_enum.name = @const.tree.child['Type'].tree.child['Name'].val#[1..-1]
+			temp_enum.name = v.get_type(@const.tree)
 			temp_enum.fields[name_base.child['Name'].val#[1..-1]] = ''
-			// Delete type used as enum name (Go enums implentation is so weird)
+			// delete type used as enum name (Go enums implentation is so weird)
 			v.types.delete(temp_enum.name)
 		} else if is_enum {
-			// Inside of enum
+			// inside of enum
 			val = match val {
 				'' { '' }
 				'iota' { '' }
@@ -184,7 +117,7 @@ fn (mut v VAST) get_consts_and_enums(tree Tree) {
 			}
 			temp_enum.fields[name_base.child['Name'].val#[1..-1]] = val
 		} else {
-			// Consts
+			// consts
 			v.consts[name_base.child['Name'].val#[1..-1]] = val
 		}
 	}
@@ -192,4 +125,46 @@ fn (mut v VAST) get_consts_and_enums(tree Tree) {
 	if is_enum {
 		v.enums << temp_enum
 	}
+}
+
+fn (mut v VAST) extract_function(tree Tree) {
+	mut func := Function{
+		name: v.get_name(tree, true, true)
+	}
+
+	// comments on top functions (docstrings)
+	if 'Doc' in tree.child {
+		func.comment = '//' +
+			tree.child['Doc'].tree.child['List'].tree.child['0'].tree.child['Text'].val#[3..-5].replace('\\n', '\n// ').replace('\\t', '\t')
+	}
+
+	// public/private
+	temp_name := tree.child['Name'].tree.child['Name'].val#[1..-1]
+	if `A` <= temp_name[0] && temp_name[0] <= `Z` {
+		func.public = true
+	}
+
+	// arguments
+	for _, arg in tree.child['Type'].tree.child['Params'].tree.child['List'].tree.child {
+		func.args[v.get_name(arg.tree.child['Names'].tree.child['0'].tree, false, true)] = v.get_type(arg.tree)
+	}
+
+	// method
+	if 'Recv' in tree.child {
+		base := tree.child['Recv'].tree.child['List'].tree.child['0'].tree
+		func.method = [
+			v.get_name(base.child['Names'].tree.child['0'].tree, false, true),
+			v.get_type(base),
+		]
+	}
+
+	// return value(s)
+	for _, arg in tree.child['Type'].tree.child['Results'].tree.child['List'].tree.child {
+		func.ret_vals << v.get_type(arg.tree)
+	}
+
+	// body
+	func.body = v.get_body(tree.child['Body'].tree)
+
+	v.functions << func
 }

@@ -1,0 +1,8 @@
+module main
+
+fn main() {
+	if 43 > 42 {
+		mut x := 43
+		println(x)
+	}
+}

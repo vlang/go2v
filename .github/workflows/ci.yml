@@ -12,52 +12,37 @@ jobs:
       matrix:
         os:
           - name: ubuntu-latest
-            vexe: v
+            make: make
           - name: macos-latest
-            vexe: v
+            make: make
           - name: windows-latest
-            vexe: .\v.exe
+            make: .\make.bat
     runs-on: ${{ matrix.os.name }}
 
     steps:
-      - name: Checkout latest V
-        uses: actions/checkout@v2
-        with:
-          repository: vlang/v
-
       - name: Install Go
         uses: actions/setup-go@v2
         with:
-          go-version: "^1.17.6"
+          go-version: "^1.17.7"
 
-      - name: Build V on Windows
-        if: ${{ matrix.os.name == 'windows-latest' }}
+      - name: Install V
         run: |
-          .\make.bat
-          .\v symlink
+          cd ..
+          git clone https://github.com/vlang/v.git --depth 1 v
+          cd v
+          ${{ matrix.os.make }}
+          ./v symlink -githubci
 
-      - name: Build V on Ubuntu, MacOS
-        if: ${{ matrix.os.name != 'windows-latest' }}
-        run: |
-          make
-          sudo ./v symlink
-
-      - name: Checkout ${{ github.event.repository.name }}
+      - name: Checkout go2v
         uses: actions/checkout@v2
-        with:
-          path: ${{ github.event.repository.name }}
 
-      - name: Check if code is formatted
+      - name: Check code formatting
         run: |
-          ${{ matrix.os.vexe }} fmt -diff ${{ github.event.repository.name }}
-          ${{ matrix.os.vexe }} fmt -verify ${{ github.event.repository.name }}
+          v fmt -diff .
+          v fmt -verify .
 
-      - name: Build ${{ github.event.repository.name }}
-        run: |
-          cd ${{ github.event.repository.name }}
-          ../${{ matrix.os.vexe }} -prod .
+      - name: Build go2v
+        run: v -prod .
 
-      - name: Run Tests
-        run: |
-          cd ${{ github.event.repository.name }}
-          ../${{ matrix.os.vexe }} -stats test .
+      - name: Run tests
+        run: v -stats test .

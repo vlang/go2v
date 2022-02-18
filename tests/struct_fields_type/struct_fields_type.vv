@@ -1,0 +1,6 @@
+module main
+
+struct Struct {
+	a int
+	b int
+}
