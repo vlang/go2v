@@ -335,7 +335,9 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				// condition
 				if_else.condition = v.get_condition(temp.child['Cond'].tree)
 				if var.names.len != 0 {
-					if_else.condition = if_else.condition.replace(var.names[0], (var.values[0] as BasicValueStmt).value)
+					if var.values[0] is BasicValueStmt {
+						if_else.condition = if_else.condition.replace(var.names[0], (var.values[0] as BasicValueStmt).value)
+					}
 				}
 
 				// body
