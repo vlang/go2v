@@ -1,6 +1,7 @@
 module transpiler
 
 fn (mut v VAST) v_style() {
+	// TODO: refactor this as it doesn't work on non-function bodies
 	mut fmt_count := 0
 	mut println_count := 0
 

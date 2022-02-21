@@ -39,15 +39,44 @@ mut:
 
 // body
 
-type Statement = BranchStmt | CallStmt | ForStmt | IfStmt | IncDecStmt | VariableStmt
+type Statement = ArrayStmt
+	| BasicValueStmt
+	| BranchStmt
+	| CallStmt
+	| ForStmt
+	| IfStmt
+	| IncDecStmt
+	| NotImplYetStmt
+	| SliceStmt
+	| VariableStmt
+
+struct NotImplYetStmt {}
 
 struct VariableStmt {
 mut:
 	comment string
 	names   []string
 	middle  string
-	values  []string
+	values  []Statement
 	mutable bool = true
+}
+
+struct ArrayStmt {
+mut:
+	@type  string
+	values []string
+	len    string
+}
+
+struct SliceStmt {
+mut:
+	value string
+	low   string
+	high  string
+}
+
+struct BasicValueStmt {
+	value string
 }
 
 struct IncDecStmt {
@@ -81,13 +110,11 @@ mut:
 	// C-style & while loops specific
 	init      VariableStmt
 	condition string
-	post      ForPost
+	post      Statement
 	// for-in loop specific
 	vars []VariableStmt
 	var  VariableStmt
 }
-
-type ForPost = IncDecStmt | VariableStmt
 
 struct BranchStmt {
 	name string

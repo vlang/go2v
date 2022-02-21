@@ -70,7 +70,7 @@ fn main() {
 							return
 						}
 						os.mkdir('$go2v_path/tests/$create') ?
-						os.write_file('$go2v_path/tests/$create/${create}.go', 'package main\n') ?
+						os.write_file('$go2v_path/tests/$create/${create}.go', 'package main\n\nfunc main() {\n\t\n}\n') ?
 						println('$go2v_path/tests/$create/${create}.go created')
 					} else if out != '' {
 						if os.is_dir('$go2v_path/tests/$out/${out}.vv') {
