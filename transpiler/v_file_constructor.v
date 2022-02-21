@@ -134,108 +134,152 @@ fn (mut v VAST) handle_functions() {
 		} else {
 			v.out.write_string(' {')
 		}
-		v.handle_function_body(func.body)
+		v.handle_body(func.body)
 		v.out.write_string('}\n\n')
 	}
 }
 
-fn (mut v VAST) handle_function_body(body []Statement) {
+fn (mut v VAST) handle_body(body []Statement) {
 	v.indent += '\t'
 
 	for stmt in body {
-		match stmt {
-			VariableStmt {
-				v.out.write_string(v.indent)
-				stop := stmt.names.len - 1
-
-				if stmt.mutable && stmt.middle == ':=' {
-					v.out.write_string('mut ')
-				}
-
-				for i, name in stmt.names {
-					comma := if i != stop { ',' } else { '' }
-					v.out.write_string('$name$comma ')
-				}
-				v.out.write_string(stmt.middle)
-				for i, value in stmt.values {
-					comma := if i != stop { ',' } else { '' }
-					v.out.write_string(' $value$comma')
-				}
-				v.out.write_rune(`\n`)
-			}
-			IncDecStmt {
-				v.out.write_string(v.indent)
-
-				v.out.write_string('$stmt.var$stmt.inc\n')
-			}
-			CallStmt {
-				v.out.write_string(v.indent)
-				stop := stmt.args.len - 1
-
-				v.out.write_string('${stmt.namespaces}(')
-				for i, arg in stmt.args {
-					comma := if i != stop { ', ' } else { '' }
-					v.out.write_string('$arg$comma')
-				}
-				v.out.writeln(')')
-			}
-			IfStmt {
-				for i, branch in stmt.branchs {
-					if i != 0 {
-						v.out.write_string('else ')
-					} else {
-						v.out.write_string(v.indent)
-					}
-					if branch.condition != ' ' {
-						v.out.write_string('if $branch.condition ')
-					}
-					v.out.writeln('{')
-					v.handle_function_body(branch.body)
-					v.out.write_string(v.indent)
-					if i != stmt.branchs.len - 1 {
-						v.out.write_string('} ')
-					} else {
-						v.out.write_string('}\n')
-					}
-				}
-			}
-			ForStmt {
-				v.out.write_string(v.indent)
-
-				init := if stmt.init.names.len > 0 {
-					'${stmt.init.names[0]} := ${stmt.init.values[0]}'
-				} else {
-					''
-				}
-				cond := if stmt.condition != ' ' { stmt.condition } else { 'true' }
-				mut post := ''
-				if stmt.post is IncDecStmt {
-					post = ' $stmt.post.var$stmt.post.inc'
-				} else if stmt.post is VariableStmt {
-					post = ' ${stmt.post.names[0]} := ${stmt.post.values[0]}'
-				}
-				if init == '' && post == '' {
-					if cond == 'true' {
-						// bare for
-						v.out.write_string('for {\n')
-					} else {
-						// while
-						v.out.write_string('for $cond {\n')
-					}
-				} else {
-					// c-style for
-					v.out.write_string('for $init; $cond;$post {\n')
-				}
-				v.handle_function_body(stmt.body)
-				v.out.write_string(v.indent)
-				v.out.write_string('}\n')
-			}
-			BranchStmt {
-				v.out.write_string(v.indent)
-				v.out.write_string('$stmt.name\n')
-			}
-		}
+		v.stmt_str(stmt, false)
 	}
 
 	v.indent = v.indent#[..-1]
+}
+
+fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
+	if !is_value {
+		v.out.write_string(v.indent)
+	}
+	match stmt {
+		VariableStmt {
+			stop := stmt.names.len - 1
+
+			if stmt.mutable && stmt.middle == ':=' {
+				v.out.write_string('mut ')
+			}
+
+			for i, name in stmt.names {
+				comma := if i != stop { ',' } else { '' }
+				v.out.write_string('$name$comma ')
+			}
+			v.out.write_string(stmt.middle)
+			for i, value in stmt.values {
+				comma := if i != stop { ',' } else { '' }
+				v.out.write_rune(` `)
+				v.stmt_str(value, true)
+				v.out.write_string(comma)
+			}
+		}
+		IncDecStmt {
+			v.out.write_string('$stmt.var$stmt.inc')
+		}
+		CallStmt {
+			stop := stmt.args.len - 1
+
+			v.out.write_string('${stmt.namespaces}(')
+			for i, arg in stmt.args {
+				comma := if i != stop { ', ' } else { '' }
+				v.out.write_string('$arg$comma')
+			}
+			v.out.write_rune(`)`)
+		}
+		IfStmt {
+			for i, branch in stmt.branchs {
+				if i != 0 {
+					v.out.write_string('else ')
+				}
+				if branch.condition != ' ' {
+					v.out.write_string('if $branch.condition ')
+				}
+				v.out.writeln('{')
+				v.handle_body(branch.body)
+				v.out.write_string(v.indent)
+				if i != stmt.branchs.len - 1 {
+					v.out.write_string('} ')
+				} else {
+					v.out.write_string('}')
+				}
+			}
+		}
+		ForStmt {
+			v.out.write_string('for ')
+			// check if stmt.init or stmt.post aren't null
+			if stmt.init.names.len > 0 || stmt.post.type_name() != 'unknown transpiler.Statement' {
+				// c-style for
+				v.stmt_str(stmt.init, true)
+				v.out.write_string('; $stmt.condition; ')
+				v.stmt_str(stmt.post, true)
+				// check if stmt.post isn't null
+				if stmt.post.type_name() != 'unknown transpiler.Statement' {
+					v.out.write_rune(` `)
+				}
+			} else if stmt.condition[0] != ` ` {
+				// while
+				v.out.write_string('$stmt.condition ')
+			}
+			// for bare loops no need to write anything
+			v.out.write_string('{\n')
+			v.handle_body(stmt.body)
+			v.out.write_string('$v.indent}')
+		}
+		BranchStmt {
+			v.out.write_string(stmt.name)
+		}
+		ArrayStmt {
+			is_empty := stmt.values.len < 1
+			is_fixed_size := stmt.len.len > 0
+
+			v.out.write_rune(`[`)
+
+			if is_empty {
+				if is_fixed_size {
+					v.out.write_string(stmt.len)
+				}
+				v.out.write_string(']${stmt.@type}{}')
+			} else {
+				mut i := 0
+				for el in stmt.values {
+					if i != stmt.values.len - 1 {
+						v.out.write_string('$el, ')
+					} else {
+						v.out.write_string('$el')
+					}
+					i++
+				}
+
+				if is_fixed_size && i < stmt.len.int() {
+					default_val := match stmt.@type {
+						'string' { "''" }
+						'int' { '0' }
+						'bool' { 'false' }
+						else { '${stmt.@type}{}' } // TODO: ensure it is correct
+					}
+
+					for i != stmt.len.int() {
+						v.out.write_string(', $default_val')
+						i++
+					}
+				}
+
+				v.out.write_rune(`]`)
+				if is_fixed_size {
+					v.out.write_rune(`!`)
+				}
+			}
+		}
+		BasicValueStmt {
+			v.out.write_string(stmt.value)
+		}
+		SliceStmt {
+			v.out.write_string('$stmt.value[${stmt.low}..$stmt.high]')
+		}
+		NotImplYetStmt {}
+	}
+
+	if !is_value {
+		v.out.write_rune(`\n`)
+	}
 }
