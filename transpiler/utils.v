@@ -3,30 +3,31 @@ module transpiler
 // get the value of a variable etc. Basically, everything that can be of multiple types
 fn (mut v VAST) get_value(tree Tree) string {
 	// get the raw value
-	raw_val := if 'Value' in tree.child {
-		tree.child['Value'].val // almost everything
+	mut val := if 'Value' in tree.child {
+		// almost everything
+		tree.child['Value'].val
+	} else if 'Name' in tree.child {
+		// bools, iotas (enums), variables
+		tree.child['Name'].val
 	} else {
-		tree.child['Name'].val // bools, iotas (enums), variables
+		''
 	}
 
 	// format the value
-	mut val := raw_val
 	if val.len != 0 {
-		val = match raw_val[1] {
-			`\\` { "'${raw_val#[3..-3]}'" } // strings
-			`'` { '`${raw_val#[2..-2]}`' } // runes
-			else { raw_val#[1..-1] } // everything else
+		val = match val[1] {
+			`\\` { "'${val#[3..-3]}'" } // strings
+			`'` { '`${val#[2..-2]}`' } // runes
+			else { val#[1..-1] } // everything else
 		}
-	}
 
-	// structs
-	if 'Obj' in tree.child {
-		// structs always starts with a capital letter and variable names never
+		// structs (structs always starts with a capital letter and variable names never)
 		if `A` <= val[0] && val[0] <= `Z` {
 			val += '{}'
 		}
-		v.extract_declaration(tree.child['Obj'].tree, true)
 	}
+
+	v.get_embedded(tree)
 
 	return val
 }
@@ -72,17 +73,17 @@ fn (mut v VAST) get_name(tree Tree, deep bool, snake_case bool) string {
 // get the type of property/function arguments etc.
 fn (mut v VAST) get_type(tree Tree) string {
 	mut @type := ''
-	mut temp := tree.child['Type']
+	mut temp := tree.child['Type'].tree
 
 	// arrays
-	if temp.tree.name == '*ast.ArrayType' {
+	if temp.name == '*ast.ArrayType' {
 		@type = '[]'
-		temp = temp.tree.child['Elt']
+		temp = temp.child['Elt'].tree
 	}
 
-	v.get_embedded(temp.tree)
+	v.get_embedded(temp)
 
-	return @type + temp.tree.child['Name'].val#[1..-1]
+	return @type + temp.child['Name'].val#[1..-1]
 }
 
 // get the namespaces of the left-hand side of an assignment or a function call
@@ -92,7 +93,16 @@ fn (mut v VAST) get_namespaces(tree Tree) string {
 	mut namespaces := []string{}
 
 	for ('X' in temp.child) {
-		namespaces << v.get_name(temp.child['Sel'].tree, false, true)
+		//`a.b.c` syntax
+		if 'Sel' in temp.child {
+			namespaces << v.get_name(temp.child['Sel'].tree, false, true)
+		}
+
+		//`a[idx]` syntax
+		if 'Index' in temp.child {
+			namespaces << '[' + v.get_value(temp.child['Index'].tree) + ']'
+		}
+
 		temp = temp.child['X'].tree
 	}
 	namespaces << v.get_name(temp, false, true)
@@ -100,7 +110,7 @@ fn (mut v VAST) get_namespaces(tree Tree) string {
 	mut out := ''
 
 	for i := namespaces.len - 1; i >= 0; i-- {
-		out += namespaces[i] + if i != 0 { '.' } else { '' }
+		out += namespaces[i] + if i != 0 && namespaces[i - 1][0] != `[` { '.' } else { '' }
 	}
 
 	return out
@@ -154,28 +164,20 @@ fn (mut v VAST) get_condition(tree Tree) string {
 			out << ch
 		}
 	}
+
 	return out.string()
 }
 
 // get the variable statement (VariableStmt) from a tree
 fn (mut v VAST) get_var(tree Tree) VariableStmt {
 	mut names := []string{}
-	mut values := []string{}
+	mut values := []Statement{}
 
-	for _, var in tree.child['Lhs'].tree.child {
-		names << v.get_name(var.tree, false, true)
+	for _, name in tree.child['Lhs'].tree.child {
+		names << v.get_name(name.tree, false, true)
 	}
-	for _, var in tree.child['Rhs'].tree.child {
-		if 'X' in var.tree.child {
-			// negative numbers, maybe other stuff too
-			values << var.tree.child['Op'].val + v.get_value(var.tree.child['X'].tree)
-		} else if 'Type' in var.tree.child {
-			// structs
-			values << v.get_value(var.tree.child['Type'].tree)
-		} else {
-			// everything else
-			values << v.get_value(var.tree)
-		}
+	for _, val in tree.child['Rhs'].tree.child {
+		values << v.get_stmt(val.tree) // TODO: support `variable := StructWithFields{0, "abc"}`
 	}
 
 	return VariableStmt{
@@ -199,133 +201,179 @@ fn (mut v VAST) get_body(tree Tree) []Statement {
 
 	// go through every statement
 	for _, stmt in tree.child['List'].tree.child {
-		match stmt.tree.name {
-			// `var` syntax
-			'*ast.DeclStmt' {
-				base := stmt.tree.child['Decl'].tree.child['Specs'].tree.child['0'].tree
-
-				mut names := []string{}
-				mut values := []string{}
-
-				for _, var in base.child['Names'].tree.child {
-					names << v.get_name(var.tree, false, true)
-				}
-				for _, var in base.child['Values'].tree.child {
-					values << v.get_value(var.tree)
-				}
-
-				body << VariableStmt{
-					names: names
-					middle: ':='
-					values: values
-				}
-			}
-			// `:=` & `=` syntax
-			'*ast.AssignStmt' {
-				body << v.get_var(stmt.tree)
-			}
-			// function/method call
-			'*ast.ExprStmt' {
-				base := stmt.tree.child['X'].tree
-
-				mut clall_stmt := CallStmt{
-					namespaces: v.get_namespaces(base.child['Fun'].tree)
-				}
-
-				// function/method arguments
-				for _, arg in base.child['Args'].tree.child {
-					clall_stmt.args << v.get_value(arg.tree)
-				}
-
-				v.get_embedded(base.child['Fun'].tree)
-
-				body << clall_stmt
-			}
-			// `i++` & `i--`
-			'*ast.IncDecStmt' {
-				body << v.get_inc_dec(stmt.tree)
-			}
-			// if/else
-			'*ast.IfStmt' {
-				mut if_stmt := IfStmt{}
-				mut temp := stmt.tree
-				mut near_end := if 'Else' in temp.child { false } else { true }
-
-				for ('Else' in temp.child || near_end) {
-					mut if_else := IfElse{}
-
-					// `if z := 0; z < 10` syntax
-					var := v.get_var(temp.child['Init'].tree)
-					if var.names.len > 0 {
-						if_else.body << var
-					}
-
-					// condition
-					if_else.condition = v.get_condition(temp.child['Cond'].tree)
-					if var.names.len != 0 {
-						if_else.condition = if_else.condition.replace(var.names[0], var.values[0])
-					}
-
-					// body
-					if_else.body << if 'Body' in temp.child {
-						// `if` or `else if` branchs
-						v.get_body(temp.child['Body'].tree)
-					} else {
-						// `else` branchs
-						v.get_body(temp)
-					}
-
-					if_stmt.branchs << if_else
-
-					if near_end {
-						break
-					}
-					if 'Else' !in temp.child['Else'].tree.child {
-						near_end = true
-					}
-					temp = temp.child['Else'].tree
-				}
-
-				body << if_stmt
-			}
-			// condition for/bare for/C-style for
-			'*ast.ForStmt' {
-				mut for_stmt := ForStmt{}
-
-				// init
-				for_stmt.init = v.get_var(stmt.tree.child['Init'].tree)
-
-				// condition
-				for_stmt.condition = v.get_condition(stmt.tree.child['Cond'].tree)
-
-				// post
-				post_base := stmt.tree.child['Post'].tree
-				if post_base.child.len > 0 {
-					// `for i := 0; i < 10; i++` syntax
-					if post_base.name == '*ast.IncDecStmt' {
-						for_stmt.post = v.get_inc_dec(post_base)
-						// `for i := 0; i < 10; i += 1` syntax
-					} else {
-						for_stmt.post = v.get_var(post_base)
-					}
-				}
-
-				// body
-				for_stmt.body = v.get_body(stmt.tree.child['Body'].tree)
-
-				body << for_stmt
-			}
-			// break/continue
-			'*ast.BranchStmt' {
-				body << BranchStmt{stmt.tree.child['Tok'].val}
-			}
-			// for in
-			'*ast.RangeStmt' {
-				// TODO: implement `for .., .. in ..` loops
-			}
-			else {}
-		}
+		body << v.get_stmt(stmt.tree)
 	}
 
 	return body
+}
+
+fn (mut v VAST) get_stmt(tree Tree) Statement {
+	match tree.name {
+		// `var` syntax
+		'*ast.DeclStmt' {
+			// TODO: remake that to reuse the get_var function
+			base := tree.child['Decl'].tree.child['Specs'].tree.child['0'].tree
+
+			mut names := []string{}
+			mut values := []Statement{}
+
+			for _, var in base.child['Names'].tree.child {
+				names << v.get_name(var.tree, false, true)
+			}
+			for _, var in base.child['Values'].tree.child {
+				values << v.get_stmt(var.tree)
+			}
+
+			return VariableStmt{
+				names: names
+				middle: ':='
+				values: values
+			}
+		}
+		// `:=` & `=` syntax
+		'*ast.AssignStmt' {
+			return v.get_var(tree)
+		}
+		// basic variable value
+		'*ast.BasicLit', '*ast.Ident' {
+			return BasicValueStmt{v.get_value(tree)}
+		}
+		// (almost) basic variable value
+		// eg: -1
+		'*ast.UnaryExpr' {
+			return BasicValueStmt{tree.child['Op'].val + v.get_value(tree.child['X'].tree)}
+		}
+		// arrays & `Struct{}` syntaxt
+		'*ast.CompositeLit' {
+			match tree.child['Type'].tree.name {
+				// arrays
+				'*ast.ArrayType' {
+					mut array := ArrayStmt{
+						@type: v.get_type(tree)[2..] // remove `[]`
+						len: v.get_value(tree.child['Type'].tree.child['Len'].tree)
+					}
+					for _, el in tree.child['Elts'].tree.child {
+						if v.get_value(el.tree.child['Type'].tree).len > 0 {
+							array.values << v.get_value(el.tree.child['Type'].tree)
+						} else {
+							array.values << v.get_value(el.tree)
+						}
+						// TODO: try somthing similar to `return BasicValueStmt{v.get_value(tree.child['Type'].tree)}`
+					}
+					return array
+				}
+				// `Struct{}` syntaxt
+				else {
+					return BasicValueStmt{v.get_value(tree.child['Type'].tree)}
+				}
+			}
+		}
+		// slices (slicing)
+		'*ast.SliceExpr' {
+			return SliceStmt{
+				value: v.get_namespaces(tree.child['X'].tree)
+				low: v.get_value(tree.child['Low'].tree)
+				high: v.get_value(tree.child['High'].tree)
+			}
+		}
+		// function/method call
+		'*ast.ExprStmt' {
+			base := tree.child['X'].tree
+
+			mut clall_stmt := CallStmt{
+				namespaces: v.get_namespaces(base.child['Fun'].tree)
+			}
+
+			// function/method arguments
+			for _, arg in base.child['Args'].tree.child {
+				clall_stmt.args << v.get_value(arg.tree)
+			}
+
+			v.get_embedded(base.child['Fun'].tree)
+
+			return clall_stmt
+		}
+		// `i++` & `i--`
+		'*ast.IncDecStmt' {
+			return v.get_inc_dec(tree)
+		}
+		// if/else
+		'*ast.IfStmt' {
+			mut if_stmt := IfStmt{}
+			mut temp := tree
+			mut near_end := if 'Else' in temp.child { false } else { true }
+
+			for ('Else' in temp.child || near_end) {
+				mut if_else := IfElse{}
+
+				// `if z := 0; z < 10` syntax
+				var := v.get_var(temp.child['Init'].tree)
+				if var.names.len > 0 {
+					if_else.body << var
+					// TODO: support https://go.dev/tour/flowcontrol/7
+				}
+
+				// condition
+				if_else.condition = v.get_condition(temp.child['Cond'].tree)
+				if var.names.len != 0 {
+					if_else.condition = if_else.condition.replace(var.names[0], (var.values[0] as BasicValueStmt).value)
+				}
+
+				// body
+				if_else.body << if 'Body' in temp.child {
+					// `if` or `else if` branchs
+					v.get_body(temp.child['Body'].tree)
+				} else {
+					// `else` branchs
+					v.get_body(temp)
+				}
+
+				if_stmt.branchs << if_else
+
+				if near_end {
+					break
+				}
+				if 'Else' !in temp.child['Else'].tree.child {
+					near_end = true
+				}
+				temp = temp.child['Else'].tree
+			}
+
+			return if_stmt
+		}
+		// condition for/bare for/C-style for
+		'*ast.ForStmt' {
+			mut for_stmt := ForStmt{}
+
+			// init
+			for_stmt.init = v.get_var(tree.child['Init'].tree)
+			for_stmt.init.mutable = false
+
+			// condition
+			for_stmt.condition = v.get_condition(tree.child['Cond'].tree)
+
+			// post
+			post_base := tree.child['Post'].tree
+			if post_base.child.len > 0 {
+				for_stmt.post = v.get_stmt(post_base)
+			}
+
+			// body
+			for_stmt.body = v.get_body(tree.child['Body'].tree)
+
+			return for_stmt
+		}
+		// break/continue
+		'*ast.BranchStmt' {
+			return BranchStmt{tree.child['Tok'].val}
+		}
+		// for in
+		'*ast.RangeStmt' {
+			// TODO: implement `for .., .. in ..` loops
+		}
+		else {}
+	}
+
+	eprintln("A feature in your Go code named `$tree.name` isn't currently implemented in Go2V, please check the resulting V code and report the missing feature at https://github.com/vlang/go2v/issues/new")
+	return NotImplYetStmt{}
 }
