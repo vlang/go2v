@@ -9,16 +9,15 @@ struct InOut {
 
 // TODO: add a system with a watcher function to make the tree construction stage and possibly other stages concurrent
 
-const go2v_temp = '${os.temp_dir()}/go2v_temp'
+const go2v_temp = '$os.temp_dir()/go2v_temp'
 
 pub fn go_to_v(input_path string, output_path string) ? {
 	if !os.exists(input_path) {
-		eprintln("'$input_path' is not a valid file/directory.")
-		exit(1)
+		return error('"$input_path" is not a valid file/directory.')
 	}
 
-	if !os.exists(go2v_temp) {
-		os.mkdir(go2v_temp) ?
+	if !os.exists(transpiler.go2v_temp) {
+		os.mkdir(transpiler.go2v_temp) ?
 	}
 
 	input_is_dir := os.is_dir(input_path)
@@ -93,7 +92,7 @@ pub fn go_to_v(input_path string, output_path string) ? {
 pub fn convert_and_write(input_path string, output_path string) ? {
 	println('converting "$input_path" -> "$output_path"')
 
-	temp_output := '$go2v_temp/go_ast'
+	temp_output := '$transpiler.go2v_temp/go_ast'
 
 	input_str := os.read_file(input_path) ?
 	os.write_file(temp_output, input_str) ?
