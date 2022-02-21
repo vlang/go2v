@@ -1,0 +1,9 @@
+module main
+
+fn main() {
+	mut strings := ['hello', 'world']
+	for idx, el in strings {
+		println('$idx $el')
+		println('$idx ${strings[idx]}')
+	}
+}

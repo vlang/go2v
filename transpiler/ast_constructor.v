@@ -11,9 +11,6 @@ fn ast_constructor(tree Tree) VAST {
 		v_ast.extract_declaration(el.tree, false)
 	}
 
-	// transform remaining Go-style things into V-style things
-	v_ast.v_style()
-
 	return v_ast
 }
 

@@ -22,10 +22,14 @@ fn (mut v VAST) handle_module() {
 }
 
 fn (mut v VAST) handle_imports() {
-	if v.imports.len != 0 {
-		for imp in v.imports {
+	len := v.out.len
+	for imp in v.imports {
+		// remove useless `fmt` import
+		if !(imp == 'fmt' && v.fmt_import_count == v.println_fn_count) {
 			v.out.writeln('import $imp')
 		}
+	}
+	if len != v.out.len {
 		v.out.write_rune(`\n`)
 	}
 }
@@ -222,6 +226,17 @@ fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
 			}
 			// for bare loops no need to write anything
 			v.out.write_string('{\n')
+			v.handle_body(stmt.body)
+			v.out.write_string('$v.indent}')
+		}
+		ForInStmt {
+			if stmt.idx.len > 0 || stmt.element.len > 0 {
+				v.out.write_string('for $stmt.idx, $stmt.element in ')
+			} else {
+				v.out.write_string('for _ in ')
+			}
+			v.stmt_str(stmt.variable, true)
+			v.out.write_string(' {\n')
 			v.handle_body(stmt.body)
 			v.out.write_string('$v.indent}')
 		}
