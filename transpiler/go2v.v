@@ -2,102 +2,108 @@ module transpiler
 
 import os
 
-// TODO: add a system with a watcher function to make the tree construction stage and possibly other stages concurrent
-
-const temp_file_path = os.temp_dir() + '/go2v_temp'
-
-pub fn go_to_v(input_path string, output_path string) ? {
-	mut out_path := '.'
-
-	if !os.exists(input_path) {
-		eprintln("'$input_path' is not a valid file/directory.")
-		exit(1)
-	}
-
-	is_dir := os.is_dir(input_path)
-
-	// default output directory for directory transpilation
-	if output_path == '' && is_dir {
-		out_path = 'out'
-	}
-
-	mut inputs := []string{}
-	mut file_names := []string{}
-	mut rel_input_path := input_path
-
-	if !is_dir {
-		if input_path.ends_with('.go') {
-			inputs << os.read_file(input_path) ?
-			file_names << input_path#[..-3] + '.v'
-		} else {
-			return error('"$input_path" isn\'t a `.go` file')
-		}
-	} else {
-		for input in os.ls(input_path) or { []string{} } {
-			if input.ends_with('.go') {
-				rel_input_path += '/$input'
-				inputs << os.read_file('$input_path/$input') ?
-				file_names << input#[..-3] + '.v'
-			}
-		}
-		if inputs.len == 0 {
-			return error('"$input_path" doesn\'t contain any `.go` file')
-		}
-	}
-
-	if output_path != '' {
-		if os.exists(output_path) {
-			if is_dir && !os.is_dir(output_path) {
-				return error('"$input_path" is a directory, but "$output_path" is not')
-			}
-		}
-
-		path_separator := $if windows { '\\' } $else { '/' }
-		if output_path.contains(path_separator) {
-			if !is_dir {
-				out_path = output_path.all_before_last(path_separator)
-				if !output_path.ends_with('/') {
-					file_names[0] = output_path.all_after_last(path_separator)
-				}
-			} else {
-				out_path = output_path
-			}
-		} else {
-			if !is_dir {
-				file_names[0] = output_path
-			} else {
-				out_path = output_path
-			}
-		}
-	}
-
-	if !is_dir {
-		if out_path != '.' {
-			if !os.exists(out_path) {
-				os.mkdir_all(out_path) ?
-			} else if os.is_file(out_path) {
-				return error('"$out_path" is a file, not a directory')
-			}
-		}
-		convert_and_write(inputs[0], '$out_path/${file_names[0]}', rel_input_path) ?
-	} else {
-		os.mkdir_all(out_path) ?
-		for i, input in inputs {
-			convert_and_write(input, '$out_path/${file_names[i]}', rel_input_path) ?
-		}
-	}
-
-	os.rm(transpiler.temp_file_path) ?
+struct InOut {
+	input_path  string
+	output_path string
 }
 
-pub fn convert_and_write(input_str string, output string, input_path string) ? {
-	os.write_file(transpiler.temp_file_path, input_str) ?
-	if os.execute('go run "${os.resource_abs_path('transpiler')}/get_ast.go" "$transpiler.temp_file_path"').exit_code != 0 {
-		return error('"$input_path" isn\'t a valid Go file')
+// TODO: add a system with a watcher function to make the tree construction stage and possibly other stages concurrent
+
+const go2v_temp = '$os.temp_dir()/go2v_temp'
+
+pub fn go_to_v(input_path string, output_path string) ? {
+	if !os.exists(input_path) {
+		return error('"$input_path" is not a valid file/directory.')
 	}
 
-	raw_input := os.read_file(transpiler.temp_file_path) ?
-	runes_input := raw_input.runes()
+	if !os.exists(transpiler.go2v_temp) {
+		os.mkdir(transpiler.go2v_temp) ?
+	}
+
+	input_is_dir := os.is_dir(input_path)
+	input_is_file := !input_is_dir
+	mut out_is_dir := input_is_dir
+
+	mut out_path := output_path
+
+	if out_path.ends_with(os.path_separator) {
+		out_path = out_path#[..-1]
+		out_is_dir = true
+	} else if input_is_file && os.is_dir(output_path) {
+		return error('"$output_path" is a directory')
+	}
+
+	if out_path == '' {
+		if input_is_dir {
+			out_path = input_path
+		} else {
+			out_path = os.dir(input_path)
+		}
+	}
+
+	if out_is_dir {
+		os.mkdir_all(out_path) ?
+	} else {
+		os.mkdir_all(os.dir(out_path)) ?
+	}
+
+	if input_is_dir && os.is_file(out_path) {
+		return error('"$input_path" is a directory, but "$output_path" is a file')
+	}
+
+	mut outputs := []InOut{}
+
+	if input_is_file {
+		if input_path.ends_with('.go') {
+			input_file := if input_path.contains(os.path_separator) {
+				input_path.all_after('${os.dir(input_path)}/')
+			} else {
+				input_path
+			}
+			outputs << InOut{
+				input_path: input_path
+				output_path: if out_is_dir {
+					'$out_path/${input_file.all_before_last('.go')}.v'
+				} else {
+					if out_path == '.' { '${input_file.all_before_last('.go')}.v' } else { out_path }
+				}
+			}
+		} else {
+			return error('"$input_path" is not a `.go` file')
+		}
+	} else {
+		for input in os.walk_ext(input_path, '.go') {
+			outputs << InOut{
+				input_path: input
+				output_path: '$out_path/${input.all_after(input_path)[1..].all_before('.go')}.v'
+			}
+		}
+
+		if outputs.len == 0 {
+			return error('"$input_path" does not contain any `.go` file')
+		}
+	}
+
+	for inout in outputs {
+		convert_and_write(inout.input_path, inout.output_path) ?
+	}
+}
+
+pub fn convert_and_write(input_path string, output_path string) ? {
+	println('converting "$input_path" -> "$output_path"')
+
+	temp_output := '$transpiler.go2v_temp/go_ast'
+
+	input_str := os.read_file(input_path) ?
+	os.write_file(temp_output, input_str) ?
+
+	if os.execute('go run "${os.resource_abs_path('transpiler')}/get_ast.go" "$temp_output"').exit_code != 0 {
+		return error('"$input_path" is not a valid Go file')
+	}
+
+	go_ast := os.read_file(temp_output) ?
+
+	runes_input := go_ast.runes()
 	tokens := tokenizer(runes_input)
 	tree := tree_constructor(tokens)
 	v_ast := ast_constructor(tree)
@@ -106,15 +112,15 @@ pub fn convert_and_write(input_str string, output string, input_path string) ? {
 	// compile with -cg to enable this block
 	// only works properly if converting single file.
 	$if debug {
-		if os.is_file(output) {
-			os.mkdir('temp') or {}
-			os.write_file('temp/raw', raw_input) ?
-			os.write_file('temp/tokens', tokens.str()) ?
-			os.write_file('temp/tree', tree.str()) ?
-			os.write_file('temp/ast', v_ast.str()) ?
-			os.write_file('temp/file.v', v_file) ?
-		}
+		os.mkdir('temp') or {}
+		os.write_file('temp/go_ast', go_ast) ?
+		os.write_file('temp/tokens', tokens.str()) ?
+		os.write_file('temp/tree', tree.str()) ?
+		os.write_file('temp/v_ast', v_ast.str()) ?
+		os.write_file('temp/file.v', v_file) ?
 	}
 
-	os.write_file(output, v_file) ?
+	os.rm(temp_output) ?
+
+	os.write_file(output_path, v_file) ?
 }
