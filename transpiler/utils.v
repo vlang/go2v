@@ -91,26 +91,44 @@ fn (mut v VAST) get_type(tree Tree) string {
 fn (mut v VAST) get_namespaces(tree Tree) string {
 	mut temp := tree
 	mut namespaces := []string{}
+	// All `near_end` related code is a trick to repeat one more time the loop
+	mut near_end := if 'X' in temp.child { false } else { true }
 
-	for ('X' in temp.child) {
-		//`a.b.c` syntax
-		if 'Sel' in temp.child {
-			namespaces << v.get_name(temp.child['Sel'].tree, false, true)
+	for (('X' in temp.child) || near_end) {
+		// value
+		if 'Value' in temp.child {
+			namespaces << v.get_value(temp)
 		}
 
-		//`a[idx]` syntax
+		// `a` syntax
+		if 'Name' in temp.child {
+			namespaces << v.get_name(temp, false, true)
+		}
+
+		// `a.b.c` syntax
+		if 'Sel' in temp.child {
+			namespaces << '.' + v.get_name(temp.child['Sel'].tree, false, true)
+		}
+
+		// `a[idx]` syntax
 		if 'Index' in temp.child {
 			namespaces << '[' + v.get_value(temp.child['Index'].tree) + ']'
 		}
 
 		temp = temp.child['X'].tree
+
+		if near_end {
+			break
+		}
+		if !('X' in temp.child['X'].tree.child || 'Sel' in temp.child) {
+			near_end = true
+		}
 	}
-	namespaces << v.get_name(temp, false, true)
 
 	mut out := ''
 
 	for i := namespaces.len - 1; i >= 0; i-- {
-		out += namespaces[i] + if i != 0 && namespaces[i - 1][0] != `[` { '.' } else { '' }
+		out += namespaces[i]
 	}
 
 	return out
@@ -190,7 +208,7 @@ fn (mut v VAST) get_var(tree Tree) VariableStmt {
 // get the increment statement (IncDecStmt) from a tree
 fn (mut v VAST) get_inc_dec(tree Tree) IncDecStmt {
 	return IncDecStmt{
-		var: v.get_namespaces(tree.child['X'].tree)
+		var: v.get_namespaces(tree)
 		inc: tree.child['Tok'].val
 	}
 }
@@ -204,7 +222,7 @@ fn (mut v VAST) get_body(tree Tree) []Statement {
 		body << v.get_stmt(stmt.tree)
 	}
 
-	return body
+	return v.v_style(body)
 }
 
 fn (mut v VAST) get_stmt(tree Tree) Statement {
@@ -241,7 +259,8 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		// (almost) basic variable value
 		// eg: -1
 		'*ast.UnaryExpr' {
-			return BasicValueStmt{tree.child['Op'].val + v.get_value(tree.child['X'].tree)}
+			op := if tree.child['Op'].val != 'range' { tree.child['Op'].val } else { '' }
+			return BasicValueStmt{op + v.get_value(tree.child['X'].tree)}
 		}
 		// arrays & `Struct{}` syntaxt
 		'*ast.CompositeLit' {
@@ -286,7 +305,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 
 			// function/method arguments
 			for _, arg in base.child['Args'].tree.child {
-				clall_stmt.args << v.get_value(arg.tree)
+				clall_stmt.args << v.get_namespaces(arg.tree)
 			}
 
 			v.get_embedded(base.child['Fun'].tree)
@@ -369,7 +388,26 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		}
 		// for in
 		'*ast.RangeStmt' {
-			// TODO: implement `for .., .. in ..` loops
+			mut forin_stmt := ForInStmt{}
+
+			// classic syntax
+			if tree.child['Tok'].val != 'ILLEGAL' {
+				// idx
+				forin_stmt.idx = tree.child['Key'].tree.child['Name'].val#[1..-1]
+
+				// element & variable
+				temp_var := v.get_var(tree.child['Key'].tree.child['Obj'].tree.child['Decl'].tree)
+				forin_stmt.element = temp_var.names[1] or { '_' }
+				forin_stmt.variable = temp_var.values[0] or { BasicValueStmt{'_'} }
+			} else {
+				// `for range variable {` syntax
+				forin_stmt.variable = BasicValueStmt{v.get_namespaces(tree)}
+			}
+
+			// body
+			forin_stmt.body = v.get_body(tree.child['Body'].tree)
+
+			return forin_stmt
 		}
 		else {}
 	}

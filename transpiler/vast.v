@@ -18,6 +18,9 @@ mut:
 	//
 	out    strings.Builder = strings.new_builder(200)
 	indent string
+	//
+	fmt_import_count int
+	println_fn_count int
 }
 
 struct StructLike {
@@ -43,6 +46,7 @@ type Statement = ArrayStmt
 	| BasicValueStmt
 	| BranchStmt
 	| CallStmt
+	| ForInStmt
 	| ForStmt
 	| IfStmt
 	| IncDecStmt
@@ -105,15 +109,18 @@ mut:
 
 struct ForStmt {
 mut:
-	is_for_in bool
-	body      []Statement
-	// C-style & while loops specific
 	init      VariableStmt
 	condition string
 	post      Statement
-	// for-in loop specific
-	vars []VariableStmt
-	var  VariableStmt
+	body      []Statement
+}
+
+struct ForInStmt {
+mut:
+	idx      string
+	element  string
+	variable Statement
+	body     []Statement
 }
 
 struct BranchStmt {

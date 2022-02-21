@@ -1,9 +1,7 @@
 module main
 
-import fmt
-
 fn main() {
 	for i := 1; i < 5; i++ {
-		fmt.println('Hi buddy')
+		println('Hi buddy')
 	}
 }

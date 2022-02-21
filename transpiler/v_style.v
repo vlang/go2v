@@ -1,30 +1,48 @@
 module transpiler
 
-fn (mut v VAST) v_style() {
-	// TODO: refactor this as it doesn't work on non-function bodies
-	mut fmt_count := 0
-	mut println_count := 0
+fn (mut v VAST) v_style(body []Statement) []Statement {
+	mut b := body.clone()
 
-	for mut func in v.functions {
-		for mut stmt in func.body {
-			if mut stmt is CallStmt {
-				// transform `fmt.Println` to `println`
-				ns_arr := stmt.namespaces.split('.')
-				if ns_arr[0] == 'fmt' {
-					fmt_count++
-					if ns_arr[1] == 'println' {
-						println_count++
-						stmt.namespaces = 'println'
+	for stmt in b {
+		if mut stmt is CallStmt {
+			ns_array := stmt.namespaces.split('.')
+			if ns_array[0] == 'fmt' {
+				v.fmt_import_count++
+				if ns_array[1] == 'println' {
+					v.println_fn_count++
+					stmt.namespaces = 'println'
+
+					// `println(a, b)` -> `println('$a $b')
+					if stmt.args.len > 1 {
+						mut out := "'"
+						for i, arg in stmt.args {
+							// `${}` syntax for special characters
+							mut special_char := false
+							for ch in arg {
+								if !((`a` <= ch && ch <= `z`)
+									|| (`A` <= ch && ch <= `Z`) || ch == `.`) {
+									special_char = true
+									break
+								}
+							}
+							if special_char {
+								out += '\${$arg}'
+							} else {
+								out += '\$$arg'
+							}
+
+							if i != stmt.args.len - 1 {
+								out += ' '
+							} else {
+								out += "'"
+							}
+						}
+						stmt.args = [out]
 					}
 				}
 			}
 		}
 	}
 
-	// transform `fmt.Println` to `println`
-	if fmt_count == println_count && fmt_count > 0 {
-		if v.imports.contains('fmt') {
-			v.imports.delete(v.imports.index('fmt'))
-		}
-	}
+	return b
 }

@@ -1,4 +1,4 @@
 module main
 
-import fmt
 import io
+import strings
