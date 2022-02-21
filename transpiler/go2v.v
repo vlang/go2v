@@ -72,7 +72,7 @@ pub fn go_to_v(input_path string, output_path string) ? {
 			return error('"$input_path" is not a `.go` file')
 		}
 	} else {
-		for input in os.walk_ext(input_path, 'go') {
+		for input in os.walk_ext(input_path, '.go') {
 			outputs << InOut{
 				input_path: input
 				output_path: '$out_path/${input.all_after(input_path)[1..].all_before('.go')}.v'
