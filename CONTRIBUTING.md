@@ -27,7 +27,7 @@
 *In this section replace `go2v` with `v run .` or compile Go2V first.*
 
 Tests are located in `tests` subdirectories, each test is composed of a `.go` file, the input, and a `.vv` file the supposed output.
-You can run the test suit using `go2v test` or specific one using `go2v test test_name`.
+You can run the test suite using `go2v test` or specific one using `go2v test test_name`.
 
 - To create a test simply run the `go2v test -create test_name` command, it'll create a a dummy Go file at `tests/test_name/test_name.go`
 - Edit the `.go` file
