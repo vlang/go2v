@@ -14,7 +14,7 @@
       - `transpiler/tokenizer.v`
    - Transform the list of tokens into a tree
       - `transpiler/tree_constructor.v`
-5. Transform the parsed AST into a VAST struct
+5. Transform the parsed Go AST into a V AST struct
    - `transpiler/ast_constructor.v`
    - `transpiler/utils.v`
 6. Adapt remaining Go-ish things to V-ish things
