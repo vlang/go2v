@@ -338,6 +338,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 					if var.values[0] is BasicValueStmt {
 						if_else.condition = if_else.condition.replace(var.names[0], (var.values[0] as BasicValueStmt).value)
 					}
+					// TODO: create a system to support other types of statement
 				}
 
 				// body
