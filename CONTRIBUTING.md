@@ -1,6 +1,6 @@
 # Special thanks for your interest in contributing, you are more than welcome!
 
-## The translation from Go to V follow those steps:
+## The translation from Go to V follows those steps:
 
 1. Go2V CLI app
    - `go2v.v`
