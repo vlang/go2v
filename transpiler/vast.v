@@ -93,7 +93,7 @@ struct CallStmt {
 mut:
 	comment    string
 	namespaces string
-	args       []string
+	args       []Statement
 }
 
 struct IfStmt {

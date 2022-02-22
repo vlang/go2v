@@ -185,8 +185,8 @@ fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
 
 			v.out.write_string('${stmt.namespaces}(')
 			for i, arg in stmt.args {
-				comma := if i != stop { ', ' } else { '' }
-				v.out.write_string('$arg$comma')
+				v.stmt_str(arg, true)
+				v.out.write_string(if i != stop { ', ' } else { '' })
 			}
 			v.out.write_rune(`)`)
 		}

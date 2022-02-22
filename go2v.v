@@ -78,7 +78,6 @@ fn main() {
 							return
 						}
 						transpiler.go_to_v('$go2v_path/tests/$out/${out}.go', '$go2v_path/tests/$out/${out}.vv') ?
-						println('$go2v_path/tests/$out/${out}.vv saved')
 					} else if compact {
 						os.execvp('${@VEXE}', [
 							'test',
