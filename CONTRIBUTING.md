@@ -2,7 +2,7 @@
 
 ## The translation from Go to V follows those steps:
 
-1. Go2V CLI app
+1. Start the process
    - `go2v.v`
 2. Get the Go code (path handling etc.)
 	- `transpiler/go2v.v`
