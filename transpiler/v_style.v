@@ -3,7 +3,7 @@ module transpiler
 fn (mut v VAST) v_style(body []Statement) []Statement {
 	mut b := body.clone()
 
-	for i, stmt in b {
+	for stmt in b {
 		if mut stmt is CallStmt {
 			ns_array := stmt.namespaces.split('.')
 
@@ -14,17 +14,15 @@ fn (mut v VAST) v_style(body []Statement) []Statement {
 					v.println_fn_count++
 					stmt.namespaces = 'println'
 
-					// `fmt.Println(a, b)` -> `println(a)` & `println(b)`
+					// `fmt.Println(a, b)` -> `println('${a} ${b}')`
 					if stmt.args.len > 1 {
-						mut j := i
-						for arg in stmt.args {
-							j++
-							b.insert(j, CallStmt{
-								namespaces: 'println'
-								args: [arg]
-							})
+						mut out := "'"
+						for i, arg in stmt.args {
+							v.stmt_str(arg, true)
+							out += '\${${v.out.cut_last(v.out.len)}}'
+							out += if i != stmt.args.len - 1 { ' ' } else { "'" }
 						}
-						b.delete(i)
+						stmt.args = [BasicValueStmt{out}]
 					}
 				}
 			}

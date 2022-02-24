@@ -123,4 +123,5 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 	os.rm(temp_output) ?
 
 	os.write_file(output_path, v_file) ?
+	os.execute('v -w fmt $output_path')
 }

@@ -3,10 +3,7 @@ module main
 fn main() {
 	mut strings := ['hello', 'world']
 	for idx, el in strings {
-		println(idx)
-		println(el)
-		println(idx)
-		println()
+		println('$idx $el')
 	}
 	for idx, _ in strings {
 		println(idx)

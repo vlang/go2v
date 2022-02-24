@@ -1,4 +1,6 @@
 module main
 
-import go.token
+import crypto.aes
 import strings
+
+fn main() {}

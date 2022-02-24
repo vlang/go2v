@@ -2,3 +2,5 @@ module main
 
 import io
 import strings
+
+fn main() {}

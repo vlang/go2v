@@ -18,43 +18,30 @@ fn v_file_constructor(v_ast VAST) string {
 
 fn (mut v VAST) handle_module() {
 	v.out.writeln('module ${v.@module}')
-	v.out.write_rune(`\n`)
 }
 
 fn (mut v VAST) handle_imports() {
-	len := v.out.len
 	for imp in v.imports {
 		// remove useless `fmt` import
 		if !(imp == 'fmt' && v.fmt_import_count == v.println_fn_count) {
 			v.out.writeln('import $imp')
 		}
 	}
-	if len != v.out.len {
-		v.out.write_rune(`\n`)
-	}
 }
 
 fn (mut v VAST) handle_types() {
-	if v.types.len != 0 {
-		for name, typ in v.types {
-			v.out.writeln('type $name = $typ')
-		}
-		v.out.write_rune(`\n`)
+	for name, typ in v.types {
+		v.out.writeln('type $name = $typ')
 	}
 }
 
 fn (mut v VAST) handle_structs() {
 	for strct in v.structs {
 		v.out.write_string('struct $strct.name {')
-		if strct.fields.len != 0 {
-			for field, typ in strct.fields {
-				v.out.write_string('\n\t$field $typ')
-			}
-			v.out.write_string('\n}')
-		} else {
-			v.out.write_string('}')
+		for field, typ in strct.fields {
+			v.out.writeln('$field $typ')
 		}
-		v.out.writeln('\n')
+		v.out.writeln('}')
 	}
 }
 
@@ -66,11 +53,10 @@ fn (mut v VAST) handle_consts() {
 		} else {
 			v.out.writeln('const (')
 			for key, val in v.consts {
-				v.out.writeln('\t$key = $val')
+				v.out.writeln('$key = $val')
 			}
 			v.out.writeln(')')
 		}
-		v.out.write_rune(`\n`)
 	}
 }
 
@@ -79,21 +65,19 @@ fn (mut v VAST) handle_enums() {
 		v.out.writeln('enum $enm.name {')
 		for name, val in enm.fields {
 			if val.len == 0 {
-				v.out.writeln('\t$name')
+				v.out.writeln(name)
 			} else {
-				v.out.writeln('\t$name = $val')
+				v.out.writeln('$name = $val')
 			}
 		}
-		v.out.writeln('}\n')
+		v.out.writeln('}')
 	}
 }
 
 fn (mut v VAST) handle_functions() {
 	for func in v.functions {
 		// comment
-		if func.comment != '' {
-			v.out.writeln(func.comment)
-		}
+		v.out.writeln(func.comment)
 		// public/private
 		if func.public {
 			v.out.write_string('pub ')
@@ -107,23 +91,17 @@ fn (mut v VAST) handle_functions() {
 		// name
 		v.out.write_string('${func.name}(')
 		// arguments
-		mut len := func.args.len
 		for name, @type in func.args {
-			len--
-			if len == 0 {
-				v.out.write_string('$name ${@type}')
-			} else {
-				v.out.write_string('$name ${@type}, ')
-			}
+			v.out.write_string('$name ${@type}, ')
 		}
 		v.out.write_string(')')
 		// return value(s)
-		if func.ret_vals.len == 1 {
-			v.out.write_string(' ${func.ret_vals[0]}')
-		} else if func.ret_vals.len != 0 {
+
+		if func.ret_vals.len > 0 {
 			v.out.write_string(' (')
-			len = func.ret_vals.len
+			mut len := func.ret_vals.len
 			for i, val in func.ret_vals {
+				// TODO: useless after https://github.com/vlang/v/issues/13592 gets fixed
 				if i != len - 1 {
 					v.out.write_string('$val, ')
 				} else {
@@ -133,30 +111,19 @@ fn (mut v VAST) handle_functions() {
 			v.out.write_string(')')
 		}
 		// body
-		if func.body.len != 0 {
-			v.out.write_string(' {\n')
-		} else {
-			v.out.write_string(' {')
-		}
+		v.out.write_string(' {')
 		v.handle_body(func.body)
-		v.out.write_string('}\n\n')
+		v.out.writeln('}')
 	}
 }
 
 fn (mut v VAST) handle_body(body []Statement) {
-	v.indent += '\t'
-
 	for stmt in body {
 		v.stmt_str(stmt, false)
 	}
-
-	v.indent = v.indent#[..-1]
 }
 
 fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
-	if !is_value {
-		v.out.write_string(v.indent)
-	}
 	match stmt {
 		VariableStmt {
 			stop := stmt.names.len - 1
@@ -165,28 +132,29 @@ fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
 				v.out.write_string('mut ')
 			}
 
+			// name(s)
 			for i, name in stmt.names {
-				comma := if i != stop { ',' } else { '' }
-				v.out.write_string('$name$comma ')
+				v.out.write_string(name)
+				v.out.write_string(if i != stop { ',' } else { '' })
 			}
+
+			// eg: `:=`, `+=`, `=`
 			v.out.write_string(stmt.middle)
+
+			// value(s)
 			for i, value in stmt.values {
-				comma := if i != stop { ',' } else { '' }
-				v.out.write_rune(` `)
 				v.stmt_str(value, true)
-				v.out.write_string(comma)
+				v.out.write_string(if i != stop { ',' } else { '' })
 			}
 		}
 		IncDecStmt {
 			v.out.write_string('$stmt.var$stmt.inc')
 		}
 		CallStmt {
-			stop := stmt.args.len - 1
-
 			v.out.write_string('${stmt.namespaces}(')
-			for i, arg in stmt.args {
+			for arg in stmt.args {
 				v.stmt_str(arg, true)
-				v.out.write_string(if i != stop { ', ' } else { '' })
+				v.out.write_rune(`,`)
 			}
 			v.out.write_rune(`)`)
 		}
@@ -198,14 +166,9 @@ fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
 				if branch.condition != ' ' {
 					v.out.write_string('if $branch.condition ')
 				}
-				v.out.writeln('{')
+				v.out.write_rune(`{`)
 				v.handle_body(branch.body)
-				v.out.write_string(v.indent)
-				if i != stmt.branchs.len - 1 {
-					v.out.write_string('} ')
-				} else {
-					v.out.write_string('}')
-				}
+				v.out.write_rune(`}`)
 			}
 		}
 		ForStmt {
@@ -214,20 +177,16 @@ fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
 			if stmt.init.names.len > 0 || stmt.post.type_name() != 'unknown transpiler.Statement' {
 				// c-style for
 				v.stmt_str(stmt.init, true)
-				v.out.write_string('; $stmt.condition; ')
+				v.out.write_string(';$stmt.condition;')
 				v.stmt_str(stmt.post, true)
-				// check if stmt.post isn't null
-				if stmt.post.type_name() != 'unknown transpiler.Statement' {
-					v.out.write_rune(` `)
-				}
-			} else if stmt.condition[0] != ` ` {
+			} else {
 				// while
-				v.out.write_string('$stmt.condition ')
+				v.out.write_string(stmt.condition)
 			}
 			// for bare loops no need to write anything
-			v.out.write_string('{\n')
+			v.out.write_rune(`{`)
 			v.handle_body(stmt.body)
-			v.out.write_string('$v.indent}')
+			v.out.write_rune(`}`)
 		}
 		ForInStmt {
 			if stmt.idx.len > 0 || stmt.element.len > 0 {
@@ -236,9 +195,9 @@ fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
 				v.out.write_string('for _ in ')
 			}
 			v.stmt_str(stmt.variable, true)
-			v.out.write_string(' {\n')
+			v.out.write_rune(`{`)
 			v.handle_body(stmt.body)
-			v.out.write_string('$v.indent}')
+			v.out.write_rune(`}`)
 		}
 		BranchStmt {
 			v.out.write_string(stmt.name)
@@ -255,26 +214,27 @@ fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
 				}
 				v.out.write_string(']${stmt.@type}{}')
 			} else {
-				mut i := 0
 				for el in stmt.values {
-					if i != stmt.values.len - 1 {
-						v.out.write_string('$el, ')
-					} else {
-						v.out.write_string('$el')
-					}
-					i++
+					v.out.write_string('$el, ')
 				}
 
+				mut i := stmt.values.len
 				if is_fixed_size && i < stmt.len.int() {
 					default_val := match stmt.@type {
 						'string' { "''" }
 						'int' { '0' }
 						'bool' { 'false' }
-						else { '${stmt.@type}{}' } // TODO: ensure it is correct
+						else { '${stmt.@type}{}' }
 					}
 
+					mut is_first := true
 					for i != stmt.len.int() {
-						v.out.write_string(', $default_val')
+						if is_first {
+							is_first = false
+							v.out.write_string('$default_val')
+						} else {
+							v.out.write_string(', $default_val')
+						}
 						i++
 					}
 				}

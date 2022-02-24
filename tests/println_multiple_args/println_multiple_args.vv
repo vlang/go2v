@@ -5,10 +5,7 @@ import strings
 fn main() {
 	mut arr := ['hello', 'world']
 	for idx, el in arr {
-		println(idx)
-		println(el)
+		println('$idx $el')
 	}
-	println(strings.repeat('Hello\n', 10))
-	println(34)
-	println('hello')
+	println('${strings.repeat('Hello\n', 10)} ${34} ${'hello'}')
 }

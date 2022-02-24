@@ -16,8 +16,7 @@ mut:
 	types      map[string]string
 	functions  []Function
 	//
-	out    strings.Builder = strings.new_builder(200)
-	indent string
+	out strings.Builder = strings.new_builder(200)
 	//
 	fmt_import_count int
 	println_fn_count int
