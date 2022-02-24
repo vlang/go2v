@@ -122,6 +122,13 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 
 	os.rm(temp_output) ?
 
-	os.write_file(output_path, v_file) ?
-	os.execute('v -w fmt $output_path')
+	// `v fmt` cannot format files not ending in `.v` or `.vv`
+	if !(output_path.ends_with('.v') || output_path.ends_with('.vv')) {
+		os.write_file('${output_path}.v', v_file) ?
+		os.write_file(output_path, os.execute('v fmt ${output_path}.v').output) ?
+		os.rm('${output_path}.v') ?
+	} else {
+		os.write_file(output_path, v_file) ?
+		os.execute('v -w fmt $output_path')
+	}
 }

@@ -251,6 +251,16 @@ fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
 		SliceStmt {
 			v.out.write_string('$stmt.value[${stmt.low}..$stmt.high]')
 		}
+		ReturnStmt {
+			v.out.write_string('return ')
+			for el in stmt.values {
+				v.stmt_str(el, true)
+				v.out.write_rune(`,`)
+			}
+		}
+		IndexStmt {
+			v.out.write_string(stmt.value)
+		}
 		NotImplYetStmt {}
 	}
 

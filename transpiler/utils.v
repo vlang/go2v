@@ -112,7 +112,7 @@ fn (mut v VAST) get_namespaces(tree Tree) string {
 
 		// `a[idx]` syntax
 		if 'Index' in temp.child {
-			namespaces << '[' + v.get_value(temp.child['Index'].tree) + ']'
+			namespaces << '[' + v.get_namespaces(temp.child['Index'].tree) + ']'
 		}
 
 		temp = temp.child['X'].tree
@@ -252,9 +252,9 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		'*ast.AssignStmt' {
 			return v.get_var(tree)
 		}
-		// basic variable value
-		'*ast.BasicLit', '*ast.Ident' {
-			return BasicValueStmt{v.get_value(tree)}
+		// basic value
+		'*ast.BasicLit', '*ast.Ident', '*ast.SelectorExpr' {
+			return BasicValueStmt{v.get_namespaces(tree)}
 		}
 		// (almost) basic variable value
 		// eg: -1
@@ -338,6 +338,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 					if var.values[0] is BasicValueStmt {
 						if_else.condition = if_else.condition.replace(var.names[0], (var.values[0] as BasicValueStmt).value)
 					}
+					// TODO: create a system to support other types of statement
 				}
 
 				// body
@@ -410,6 +411,20 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			forin_stmt.body = v.get_body(tree.child['Body'].tree)
 
 			return forin_stmt
+		}
+		'*ast.ReturnStmt' {
+			mut return_stmt := ReturnStmt{}
+
+			for _, el in tree.child['Results'].tree.child {
+				return_stmt.values << v.get_stmt(el.tree)
+			}
+
+			return return_stmt
+		}
+		'*ast.IndexExpr' {
+			return IndexStmt{
+				value: v.get_namespaces(tree)
+			}
 		}
 		else {}
 	}
