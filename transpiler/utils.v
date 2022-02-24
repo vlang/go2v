@@ -252,9 +252,9 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		'*ast.AssignStmt' {
 			return v.get_var(tree)
 		}
-		// basic variable value
-		'*ast.BasicLit', '*ast.Ident' {
-			return BasicValueStmt{v.get_value(tree)}
+		// basic value
+		'*ast.BasicLit', '*ast.Ident', '*ast.SelectorExpr' {
+			return BasicValueStmt{v.get_namespaces(tree)}
 		}
 		// (almost) basic variable value
 		// eg: -1
@@ -410,6 +410,15 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			forin_stmt.body = v.get_body(tree.child['Body'].tree)
 
 			return forin_stmt
+		}
+		'*ast.ReturnStmt' {
+			mut return_stmt := ReturnStmt{}
+
+			for _, el in tree.child['Results'].tree.child {
+				return_stmt.values << v.get_stmt(el.tree)
+			}
+
+			return return_stmt
 		}
 		else {}
 	}

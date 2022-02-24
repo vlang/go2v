@@ -50,6 +50,7 @@ type Statement = ArrayStmt
 	| IfStmt
 	| IncDecStmt
 	| NotImplYetStmt
+	| ReturnStmt
 	| SliceStmt
 	| VariableStmt
 
@@ -124,4 +125,9 @@ mut:
 
 struct BranchStmt {
 	name string
+}
+
+struct ReturnStmt {
+mut:
+	values []Statement
 }
