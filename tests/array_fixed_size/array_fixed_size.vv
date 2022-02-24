@@ -4,6 +4,7 @@ struct Ok {}
 
 fn main() {
 	mut full := [4, 5, 23, 55]!
+	mut one_missing := [4, 5, 23, 55, 0]!
 	mut missing := ['John', 'Paul', 'George', 'Ringo', '', '']!
 	mut missing_struct := [Ok{}, Ok{}]!
 	mut missing_empty := [2]int{}

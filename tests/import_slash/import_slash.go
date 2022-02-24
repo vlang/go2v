@@ -1,6 +1,8 @@
 package main
 
 import (
-	"go/token"
+	"crypto/aes"
 	"strings"
 )
+
+func main() {}

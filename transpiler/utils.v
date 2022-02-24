@@ -16,7 +16,7 @@ fn (mut v VAST) get_value(tree Tree) string {
 	// format the value
 	if val.len != 0 {
 		val = match val[1] {
-			`\\` { "'${val#[3..-3]}'" } // strings
+			`\\` { "'${val#[3..-3]}'".replace('\\\\', '\\') } // strings
 			`'` { '`${val#[2..-2]}`' } // runes
 			else { val#[1..-1] } // everything else
 		}
@@ -112,7 +112,7 @@ fn (mut v VAST) get_namespaces(tree Tree) string {
 
 		// `a[idx]` syntax
 		if 'Index' in temp.child {
-			namespaces << '[' + v.get_value(temp.child['Index'].tree) + ']'
+			namespaces << '[' + v.get_namespaces(temp.child['Index'].tree) + ']'
 		}
 
 		temp = temp.child['X'].tree
@@ -252,9 +252,9 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		'*ast.AssignStmt' {
 			return v.get_var(tree)
 		}
-		// basic variable value
-		'*ast.BasicLit', '*ast.Ident' {
-			return BasicValueStmt{v.get_value(tree)}
+		// basic value
+		'*ast.BasicLit', '*ast.Ident', '*ast.SelectorExpr' {
+			return BasicValueStmt{v.get_namespaces(tree)}
 		}
 		// (almost) basic variable value
 		// eg: -1
@@ -295,9 +295,9 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				high: v.get_value(tree.child['High'].tree)
 			}
 		}
-		// function/method call
-		'*ast.ExprStmt' {
-			base := tree.child['X'].tree
+		// (nested) function/method call
+		'*ast.ExprStmt', '*ast.CallExpr' {
+			base := if tree.name == '*ast.ExprStmt' { tree.child['X'].tree } else { tree }
 
 			mut clall_stmt := CallStmt{
 				namespaces: v.get_namespaces(base.child['Fun'].tree)
@@ -305,7 +305,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 
 			// function/method arguments
 			for _, arg in base.child['Args'].tree.child {
-				clall_stmt.args << v.get_namespaces(arg.tree)
+				clall_stmt.args << v.get_stmt(arg.tree)
 			}
 
 			v.get_embedded(base.child['Fun'].tree)
@@ -411,6 +411,20 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			forin_stmt.body = v.get_body(tree.child['Body'].tree)
 
 			return forin_stmt
+		}
+		'*ast.ReturnStmt' {
+			mut return_stmt := ReturnStmt{}
+
+			for _, el in tree.child['Results'].tree.child {
+				return_stmt.values << v.get_stmt(el.tree)
+			}
+
+			return return_stmt
+		}
+		'*ast.IndexExpr' {
+			return IndexStmt{
+				value: v.get_namespaces(tree)
+			}
 		}
 		else {}
 	}

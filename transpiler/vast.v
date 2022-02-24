@@ -16,8 +16,7 @@ mut:
 	types      map[string]string
 	functions  []Function
 	//
-	out    strings.Builder = strings.new_builder(200)
-	indent string
+	out strings.Builder = strings.new_builder(200)
 	//
 	fmt_import_count int
 	println_fn_count int
@@ -50,7 +49,9 @@ type Statement = ArrayStmt
 	| ForStmt
 	| IfStmt
 	| IncDecStmt
+	| IndexStmt
 	| NotImplYetStmt
+	| ReturnStmt
 	| SliceStmt
 	| VariableStmt
 
@@ -93,7 +94,7 @@ struct CallStmt {
 mut:
 	comment    string
 	namespaces string
-	args       []string
+	args       []Statement
 }
 
 struct IfStmt {
@@ -125,4 +126,14 @@ mut:
 
 struct BranchStmt {
 	name string
+}
+
+struct ReturnStmt {
+mut:
+	values []Statement
+}
+
+struct IndexStmt {
+mut:
+	value string
 }

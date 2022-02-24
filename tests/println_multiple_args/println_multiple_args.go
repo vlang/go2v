@@ -1,11 +1,15 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 func main() {
-	strings := []string{"hello", "world"}
-	for idx, el := range strings {
+	arr := []string{"hello", "world"}
+	for idx, el := range arr {
 		fmt.Println(idx, el)
-		fmt.Println(idx, strings[idx])
 	}
+
+	fmt.Println(strings.Repeat("Hello\n", 10), 34, "hello")
 }

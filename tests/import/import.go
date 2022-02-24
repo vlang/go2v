@@ -4,3 +4,5 @@ import (
 	"io"
 	"strings"
 )
+
+func main() {}

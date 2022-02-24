@@ -7,6 +7,10 @@ func main() {
 		4, 5, 23, 55,
 	}
 
+	one_missing := [5]int{
+		4, 5, 23, 55,
+	}
+
 	missing := [6]string{
 		"John",
 		"Paul",

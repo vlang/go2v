@@ -1,9 +1,11 @@
 module main
 
+import strings
+
 fn main() {
-	mut strings := ['hello', 'world']
-	for idx, el in strings {
+	mut arr := ['hello', 'world']
+	for idx, el in arr {
 		println('$idx $el')
-		println('$idx ${strings[idx]}')
 	}
+	println('${strings.repeat('Hello\n', 10)} ${34} ${'hello'}')
 }
