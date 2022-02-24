@@ -112,7 +112,7 @@ fn (mut v VAST) get_namespaces(tree Tree) string {
 
 		// `a[idx]` syntax
 		if 'Index' in temp.child {
-			namespaces << '[' + v.get_value(temp.child['Index'].tree) + ']'
+			namespaces << '[' + v.get_namespaces(temp.child['Index'].tree) + ']'
 		}
 
 		temp = temp.child['X'].tree
@@ -419,6 +419,11 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			}
 
 			return return_stmt
+		}
+		'*ast.IndexExpr' {
+			return IndexStmt{
+				value: v.get_namespaces(tree)
+			}
 		}
 		else {}
 	}

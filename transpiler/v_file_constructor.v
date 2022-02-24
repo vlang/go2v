@@ -258,6 +258,9 @@ fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
 				v.out.write_rune(`,`)
 			}
 		}
+		IndexStmt {
+			v.out.write_string(stmt.value)
+		}
 		NotImplYetStmt {}
 	}
 
