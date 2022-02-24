@@ -1,6 +1,0 @@
-module main
-
-fn main() {
-	mut a := [0, 1, 3]
-	mut b := a[0]
-}
