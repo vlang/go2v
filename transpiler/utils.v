@@ -1,5 +1,24 @@
 module transpiler
 
+// types equivalence (left Go & right V)
+const get_type = {
+	'bool':    'bool'
+	'string':  'string'
+	'byte':    'byte'
+	'rune':    'rune'
+	'int':     'int'
+	'int8':    'i8'
+	'int16':   'i16'
+	'int32':   'i32'
+	'int64':   'i64'
+	'uint8':   'u8'
+	'uint16':  'u16'
+	'uint32':  'u32'
+	'uint64':  'u64'
+	'float32': 'f32'
+	'float64': 'f64'
+}
+
 // get the value of a variable etc. Basically, everything that can be of multiple types
 fn (mut v VAST) get_value(tree Tree) string {
 	// get the raw value
@@ -246,6 +265,8 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				names: names
 				middle: ':='
 				values: values
+				@type: transpiler.get_type[v.get_name(base.child['Type'].tree, false,
+					true)]
 			}
 		}
 		// `:=` & `=` syntax

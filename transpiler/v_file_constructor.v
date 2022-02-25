@@ -126,6 +126,7 @@ fn (mut v VAST) handle_body(body []Statement) {
 fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 	match stmt {
 		VariableStmt {
+			has_explicit_type := stmt.@type.len > 0
 			stop := stmt.names.len - 1
 
 			if stmt.mutable && stmt.middle == ':=' {
@@ -143,7 +144,14 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 
 			// value(s)
 			for i, value in stmt.values {
+				// explicit type
+				if has_explicit_type {
+					v.out.write_string('${stmt.@type}(')
+				}
 				v.handle_stmt(value, true)
+				if has_explicit_type {
+					v.out.write_rune(`)`)
+				}
 				v.out.write_string(if i != stop { ',' } else { '' })
 			}
 		}

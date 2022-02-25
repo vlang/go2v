@@ -65,6 +65,7 @@ mut:
 	middle  string
 	values  []Statement
 	mutable bool = true
+	@type   string
 }
 
 struct ArrayStmt {
