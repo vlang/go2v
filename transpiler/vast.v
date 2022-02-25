@@ -45,6 +45,7 @@ type Statement = ArrayStmt
 	| BasicValueStmt
 	| BranchStmt
 	| CallStmt
+	| DeferStmt
 	| ForInStmt
 	| ForStmt
 	| IfStmt
@@ -133,6 +134,11 @@ struct BranchStmt {
 struct ReturnStmt {
 mut:
 	values []Statement
+}
+
+struct DeferStmt {
+mut:
+	value Statement
 }
 
 struct IndexStmt {

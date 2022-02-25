@@ -267,6 +267,11 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 				v.out.write_rune(`,`)
 			}
 		}
+		DeferStmt {
+			v.out.write_string('defer {')
+			v.handle_stmt(stmt.value, true)
+			v.out.write_rune(`}`)
+		}
 		IndexStmt {
 			v.out.write_string(stmt.value)
 		}

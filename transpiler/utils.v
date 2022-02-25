@@ -443,6 +443,9 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 
 			return return_stmt
 		}
+		'*ast.DeferStmt' {
+			return DeferStmt{v.get_stmt(tree.child['Call'].tree)}
+		}
 		'*ast.IndexExpr' {
 			return IndexStmt{
 				value: v.get_namespaces(tree)
