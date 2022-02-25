@@ -5,6 +5,8 @@ go2v.exe
 #Testing
 temp
 tests/**/out.vv
+test.go
+z
 
 #MacOS
 .DS_Store

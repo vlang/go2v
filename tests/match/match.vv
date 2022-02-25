@@ -1,0 +1,11 @@
+module main
+
+fn main() {print('You're',)
+match 27{18,{mut age:=27
+println(' of age',)
+}10,{mut age:=27
+println(' a child',)
+}else{mut age:=27
+println('.. I don't know my program is pretty dumb :/',)
+}}
+}

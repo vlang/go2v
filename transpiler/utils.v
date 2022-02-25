@@ -16,7 +16,7 @@ fn (mut v VAST) get_value(tree Tree) string {
 	// format the value
 	if val.len != 0 {
 		val = match val[1] {
-			`\\` { "'${val#[3..-3]}'".replace('\\\\', '\\') } // strings
+			`\\` { "'" + val#[3..-3].replace('\\\\', '\\').replace("'", "\\'") + "'" } // strings
 			`'` { '`${val#[2..-2]}`' } // runes
 			else { val#[1..-1] } // everything else
 		}
@@ -425,6 +425,39 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			return IndexStmt{
 				value: v.get_namespaces(tree)
 			}
+		}
+		'*ast.SwitchStmt' {
+			mut match_stmt := MatchStmt{
+				value: v.get_stmt(tree.child['Tag'].tree)
+			}
+
+			// `switch z := 0; z < 10` syntax
+			var := v.get_var(tree.child['Init'].tree)
+			has_init := var.names.len > 0
+			if has_init {
+				match_stmt.value = var.values[0]
+			}
+
+			// cases
+			for _, case in tree.child['Body'].tree.child['List'].tree.child {
+				mut match_case := MatchCase{
+					values: v.get_body(case.tree)
+				}
+
+				// `switch z := 0; z < 10` syntax
+				if has_init {
+					match_case.body << var
+				}
+
+				for _, case_stmt in case.tree.child['Body'].tree.child {
+					match_case.body << v.get_stmt(case_stmt.tree)
+					match_case.body = v.v_style(match_case.body)
+				}
+
+				match_stmt.cases << match_case
+			}
+
+			return match_stmt
 		}
 		else {}
 	}
