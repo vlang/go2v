@@ -16,10 +16,10 @@ mut:
 	types      map[string]string
 	functions  []Function
 	//
-	out strings.Builder = strings.new_builder(200)
+	out strings.Builder = strings.new_builder(400)
 	//
-	fmt_import_count int
-	println_fn_count int
+	fmt_import_count       int
+	fmt_supported_fn_count int
 }
 
 struct StructLike {
@@ -50,6 +50,7 @@ type Statement = ArrayStmt
 	| IfStmt
 	| IncDecStmt
 	| IndexStmt
+	| MatchStmt
 	| NotImplYetStmt
 	| ReturnStmt
 	| SliceStmt
@@ -136,4 +137,16 @@ mut:
 struct IndexStmt {
 mut:
 	value string
+}
+
+struct MatchStmt {
+mut:
+	value Statement
+	cases []MatchCase
+}
+
+struct MatchCase {
+mut:
+	values []Statement
+	body   []Statement
 }

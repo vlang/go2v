@@ -23,7 +23,7 @@ fn (mut v VAST) handle_module() {
 fn (mut v VAST) handle_imports() {
 	for imp in v.imports {
 		// remove useless `fmt` import
-		if !(imp == 'fmt' && v.fmt_import_count == v.println_fn_count) {
+		if !(imp == 'fmt' && v.fmt_import_count == v.fmt_supported_fn_count) {
 			v.out.writeln('import $imp')
 		}
 	}
@@ -119,11 +119,11 @@ fn (mut v VAST) handle_functions() {
 
 fn (mut v VAST) handle_body(body []Statement) {
 	for stmt in body {
-		v.stmt_str(stmt, false)
+		v.handle_stmt(stmt, false)
 	}
 }
 
-fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
+fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 	match stmt {
 		VariableStmt {
 			stop := stmt.names.len - 1
@@ -143,7 +143,7 @@ fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
 
 			// value(s)
 			for i, value in stmt.values {
-				v.stmt_str(value, true)
+				v.handle_stmt(value, true)
 				v.out.write_string(if i != stop { ',' } else { '' })
 			}
 		}
@@ -153,7 +153,7 @@ fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
 		CallStmt {
 			v.out.write_string('${stmt.namespaces}(')
 			for arg in stmt.args {
-				v.stmt_str(arg, true)
+				v.handle_stmt(arg, true)
 				v.out.write_rune(`,`)
 			}
 			v.out.write_rune(`)`)
@@ -176,9 +176,9 @@ fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
 			// check if stmt.init or stmt.post aren't null
 			if stmt.init.names.len > 0 || stmt.post.type_name() != 'unknown transpiler.Statement' {
 				// c-style for
-				v.stmt_str(stmt.init, true)
+				v.handle_stmt(stmt.init, true)
 				v.out.write_string(';$stmt.condition;')
-				v.stmt_str(stmt.post, true)
+				v.handle_stmt(stmt.post, true)
 			} else {
 				// while
 				v.out.write_string(stmt.condition)
@@ -194,7 +194,7 @@ fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
 			} else {
 				v.out.write_string('for _ in ')
 			}
-			v.stmt_str(stmt.variable, true)
+			v.handle_stmt(stmt.variable, true)
 			v.out.write_rune(`{`)
 			v.handle_body(stmt.body)
 			v.out.write_rune(`}`)
@@ -254,12 +254,31 @@ fn (mut v VAST) stmt_str(stmt Statement, is_value bool) {
 		ReturnStmt {
 			v.out.write_string('return ')
 			for el in stmt.values {
-				v.stmt_str(el, true)
+				v.handle_stmt(el, true)
 				v.out.write_rune(`,`)
 			}
 		}
 		IndexStmt {
 			v.out.write_string(stmt.value)
+		}
+		MatchStmt {
+			v.out.write_string('match ')
+			v.handle_stmt(stmt.value, true)
+			v.out.write_rune(`{`)
+			for case in stmt.cases {
+				if case.values.len > 0 {
+					for value in case.values {
+						v.handle_stmt(value, true)
+						v.out.write_rune(`,`)
+					}
+				} else {
+					v.out.write_string('else')
+				}
+				v.out.write_rune(`{`)
+				v.handle_body(case.body)
+				v.out.write_rune(`}`)
+			}
+			v.out.write_rune(`}`)
 		}
 		NotImplYetStmt {}
 	}
