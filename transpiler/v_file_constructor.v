@@ -160,9 +160,10 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 		}
 		CallStmt {
 			v.out.write_string('${stmt.namespaces}(')
-			for arg in stmt.args {
+			for i, arg in stmt.args {
 				v.handle_stmt(arg, true)
-				v.out.write_rune(`,`)
+				// TODO: useless after https://github.com/vlang/v/issues/13592 gets fixed
+				v.out.write_string(if i != stmt.args.len - 1 { ',' } else { '' })
 			}
 			v.out.write_rune(`)`)
 		}
