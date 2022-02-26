@@ -1,6 +1,7 @@
 module transpiler
 
 import os
+import term
 
 struct InOut {
 	input_path  string
@@ -97,8 +98,10 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 	input_str := os.read_file(input_path) ?
 	os.write_file(temp_output, input_str) ?
 
-	if os.execute('go run "${os.resource_abs_path('transpiler')}/get_ast.go" "$temp_output"').exit_code != 0 {
-		return error('"$input_path" is not a valid Go file')
+	convertion := os.execute('go run "${os.resource_abs_path('transpiler')}/get_ast.go" "$temp_output"')
+	if convertion.exit_code != 0 {
+		return error(term.bright_red('"$input_path" is not a valid Go file') +
+			'\n==================\n$convertion.output\n==================')
 	}
 
 	go_ast := os.read_file(temp_output) ?
