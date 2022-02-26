@@ -1,5 +1,27 @@
 module transpiler
 
+// types equivalence (left Go & right V)
+const (
+	get_type = {
+		'bool':    'bool'
+		'string':  'string'
+		'byte':    'byte'
+		'rune':    'rune'
+		'int':     'int'
+		'int8':    'i8'
+		'int16':   'i16'
+		'int32':   'i32'
+		'int64':   'i64'
+		'uint8':   'u8'
+		'uint16':  'u16'
+		'uint32':  'u32'
+		'uint64':  'u64'
+		'float32': 'f32'
+		'float64': 'f64'
+	}
+	go_types = get_type.keys()
+)
+
 // get the value of a variable etc. Basically, everything that can be of multiple types
 fn (mut v VAST) get_value(tree Tree) string {
 	// get the raw value
@@ -34,39 +56,33 @@ fn (mut v VAST) get_value(tree Tree) string {
 
 // get the name of a variable/property/function etc.
 fn (mut v VAST) get_name(tree Tree, deep bool, snake_case bool) string {
-	// `a = ` syntax
-	if 'Name' in tree.child {
-		raw_name := if deep {
-			tree.child['Name'].tree.child['Name'].val#[1..-1]
-		} else {
-			tree.child['Name'].val#[1..-1]
-		}
-
-		if snake_case {
-			// convert to snake case
-			mut out := []rune{}
-
-			for i, ch in raw_name {
-				if `A` <= ch && ch <= `Z` {
-					if i != 0 {
-						out << `_`
-					}
-					out << ch + 32
-				} else {
-					out << ch
-				}
-			}
-
-			return out.string()
-		} else {
-			// capitalize
-			sub := if `A` <= raw_name[0] && raw_name[0] <= `Z` { 0 } else { 32 }
-
-			return (raw_name[0] - byte(sub)).ascii_str() + raw_name[1..]
-		}
+	raw_name := if deep {
+		tree.child['Name'].tree.child['Name'].val#[1..-1]
 	} else {
-		// `a.b.c = ` syntax
-		return v.get_namespaces(tree)
+		tree.child['Name'].val#[1..-1]
+	}
+
+	if snake_case {
+		// convert to snake case
+		mut out := []rune{}
+
+		for i, ch in raw_name {
+			if `A` <= ch && ch <= `Z` {
+				if i != 0 {
+					out << `_`
+				}
+				out << ch + 32
+			} else {
+				out << ch
+			}
+		}
+
+		return out.string()
+	} else {
+		// capitalize
+		sub := if `A` <= raw_name[0] && raw_name[0] <= `Z` { 0 } else { 32 }
+
+		return (raw_name[0] - byte(sub)).ascii_str() + raw_name[1..]
 	}
 }
 
@@ -123,6 +139,10 @@ fn (mut v VAST) get_namespaces(tree Tree) string {
 		if !('X' in temp.child['X'].tree.child || 'Sel' in temp.child) {
 			near_end = true
 		}
+	}
+
+	if namespaces.len == 1 && namespaces[0] in transpiler.go_types {
+		namespaces[0] = transpiler.get_type[namespaces[0]]
 	}
 
 	mut out := ''
@@ -192,7 +212,7 @@ fn (mut v VAST) get_var(tree Tree) VariableStmt {
 	mut values := []Statement{}
 
 	for _, name in tree.child['Lhs'].tree.child {
-		names << v.get_name(name.tree, false, true)
+		names << v.get_namespaces(name.tree)
 	}
 	for _, val in tree.child['Rhs'].tree.child {
 		values << v.get_stmt(val.tree) // TODO: support `variable := StructWithFields{0, "abc"}`
@@ -246,6 +266,8 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				names: names
 				middle: ':='
 				values: values
+				@type: transpiler.get_type[v.get_name(base.child['Type'].tree, false,
+					true)]
 			}
 		}
 		// `:=` & `=` syntax
@@ -420,6 +442,9 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			}
 
 			return return_stmt
+		}
+		'*ast.DeferStmt' {
+			return DeferStmt{v.get_stmt(tree.child['Call'].tree)}
 		}
 		'*ast.IndexExpr' {
 			return IndexStmt{

@@ -1,0 +1,6 @@
+module main
+
+fn main() {
+	mut a := u64(12)
+	mut ok, ko := i16(23), i16(34)
+}
