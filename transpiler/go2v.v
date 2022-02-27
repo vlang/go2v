@@ -10,15 +10,9 @@ struct InOut {
 
 // TODO: add a system with a watcher function to make the tree construction stage and possibly other stages concurrent
 
-const go2v_temp = '$os.temp_dir()/go2v_temp'
-
 pub fn go_to_v(input_path string, output_path string) ? {
 	if !os.exists(input_path) {
 		return error('"$input_path" is not a valid file/directory.')
-	}
-
-	if !os.exists(transpiler.go2v_temp) {
-		os.mkdir(transpiler.go2v_temp) ?
 	}
 
 	input_is_dir := os.is_dir(input_path)
