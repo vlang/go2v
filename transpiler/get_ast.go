@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -8,7 +9,9 @@ import (
 )
 
 func main() {
-	path := os.Args[1]
+	// parsing flags with none defined just makes input parameters start @ 0
+	flag.Parse()
+	path := flag.Arg(0)
 
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
@@ -19,5 +22,5 @@ func main() {
 	f, _ := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0600)
 	defer f.Close()
 
-	ast.Fprint(f, fset, node, ast.NotNilFilter)
+	ast.Fprint(os.Stdout, fset, node, ast.NotNilFilter)
 }
