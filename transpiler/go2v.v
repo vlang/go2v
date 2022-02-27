@@ -118,7 +118,8 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 	mut prefs := pref.new_preferences()
 	prefs.is_fmt = true
 	table := ast.new_table()
-	file_ast := parser.parse_text(raw_v_file, 'generated file', table, .parse_comments, prefs)
+	file_ast := parser.parse_text(raw_v_file, 'generated file', table, .parse_comments,
+		prefs)
 	formatted_content := fmt.fmt(file_ast, table, prefs, false)
 
 	// compile with -cg to enable this block
