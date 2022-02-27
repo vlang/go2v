@@ -6,6 +6,7 @@ go2v.exe
 temp
 tests/**/out.vv
 test.go
+test.v
 z
 
 #MacOS
