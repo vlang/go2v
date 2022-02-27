@@ -10,15 +10,9 @@ struct InOut {
 
 // TODO: add a system with a watcher function to make the tree construction stage and possibly other stages concurrent
 
-const go2v_temp = '$os.temp_dir()/go2v_temp'
-
 pub fn go_to_v(input_path string, output_path string) ? {
 	if !os.exists(input_path) {
 		return error('"$input_path" is not a valid file/directory.')
-	}
-
-	if !os.exists(transpiler.go2v_temp) {
-		os.mkdir(transpiler.go2v_temp) ?
 	}
 
 	input_is_dir := os.is_dir(input_path)
@@ -93,19 +87,13 @@ pub fn go_to_v(input_path string, output_path string) ? {
 pub fn convert_and_write(input_path string, output_path string) ? {
 	println('converting "$input_path" -> "$output_path"')
 
-	temp_output := '$transpiler.go2v_temp/go_ast'
-
-	input_str := os.read_file(input_path) ?
-	os.write_file(temp_output, input_str) ?
-
-	convertion := os.execute('go run "${os.resource_abs_path('transpiler')}/get_ast.go" "$temp_output"')
-	if convertion.exit_code != 0 {
+	conversion := os.execute('go run "${os.resource_abs_path('transpiler')}/get_ast.go" -- "$input_path"')
+	if conversion.exit_code != 0 {
 		return error(term.bright_red('"$input_path" is not a valid Go file') +
-			'\n==================\n$convertion.output\n==================')
+			'\n==================\n$conversion.output\n==================')
 	}
 
-	go_ast := os.read_file(temp_output) ?
-
+	go_ast := conversion.output
 	runes_input := go_ast.runes()
 	tokens := tokenizer(runes_input)
 	tree := tree_constructor(tokens)
@@ -123,13 +111,10 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 		os.write_file('temp/file.v', v_file) ?
 	}
 
-	os.rm(temp_output) ?
-
 	// workaround for custom output not ending in `.v` or `.vv` because `v fmt` cannot format those
 	if !(output_path.ends_with('.v') || output_path.ends_with('.vv')) {
 		os.write_file('${output_path}.v', v_file) ?
 		os.write_file(output_path, os.execute('v fmt ${output_path}.v').output) ?
-		os.rm('${output_path}.v') ?
 	} else {
 		os.write_file(output_path, v_file) ?
 		os.execute('v -w fmt $output_path')
