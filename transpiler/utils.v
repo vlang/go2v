@@ -329,6 +329,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			for _, arg in base.child['Args'].tree.child {
 				clall_stmt.args << v.get_stmt(arg.tree)
 			}
+			clall_stmt.args = v.v_style(clall_stmt.args)
 
 			v.get_embedded(base.child['Fun'].tree)
 
