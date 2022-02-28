@@ -2,6 +2,10 @@ module transpiler
 
 import os
 import term
+import v.ast
+import v.fmt
+import v.pref
+import v.parser
 
 struct InOut {
 	input_path  string
@@ -98,7 +102,7 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 	tokens := tokenizer(runes_input)
 	tree := tree_constructor(tokens)
 	v_ast := ast_constructor(tree)
-	v_file := v_file_constructor(v_ast)
+	raw_v_file := v_file_constructor(v_ast)
 
 	// compile with -cg to enable this block
 	// only works properly if converting single file.
@@ -108,16 +112,21 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 		os.write_file('temp/tokens', tokens.str()) ?
 		os.write_file('temp/tree', tree.str()) ?
 		os.write_file('temp/v_ast', v_ast.str()) ?
-		os.write_file('temp/file.v', v_file) ?
+		os.write_file('temp/raw_file.v', raw_v_file) ?
 	}
 
-	// workaround for custom output not ending in `.v` or `.vv` because `v fmt` cannot format those
-	if !(output_path.ends_with('.v') || output_path.ends_with('.vv')) {
-		os.write_file('${output_path}.v', v_file) ?
-		os.execute('v fmt -w ${output_path}.v')
-		os.mv('${output_path}.v', output_path) ?
-	} else {
-		os.write_file(output_path, v_file) ?
-		os.execute('v -w fmt $output_path')
+	mut prefs := pref.new_preferences()
+	prefs.is_fmt = true
+	table := ast.new_table()
+	file_ast := parser.parse_text(raw_v_file, 'generated file', table, .parse_comments,
+		prefs)
+	formatted_content := fmt.fmt(file_ast, table, prefs, false)
+
+	// compile with -cg to enable this block
+	// only works properly if converting single file.
+	$if debug {
+		os.write_file('temp/formatted_file.v', formatted_content) ?
 	}
+
+	os.write_file(output_path, formatted_content) ?
 }
