@@ -1,5 +1,10 @@
 module transpiler
 
+fn (mut v VAST) stmt_to_string(stmt Statement) string {
+	v.handle_stmt(stmt, true)
+	return v.out.cut_last(v.out.len)
+}
+
 fn (mut v VAST) style_print(stmt CallStmt) CallStmt {
 	mut s := stmt
 
@@ -16,8 +21,7 @@ fn (mut v VAST) style_print(stmt CallStmt) CallStmt {
 			if s.args.len > 1 {
 				mut out := "'"
 				for i, arg in s.args {
-					v.handle_stmt(arg, true)
-					out += '\${${v.out.cut_last(v.out.len)}}'
+					out += '\${${v.stmt_to_string(arg)}}'
 					out += if i != s.args.len - 1 { ' ' } else { "'" }
 				}
 				s.args = [BasicValueStmt{out}]
@@ -31,11 +35,16 @@ fn (mut v VAST) style_print(stmt CallStmt) CallStmt {
 fn (mut v VAST) v_style(body []Statement) []Statement {
 	mut b := body.clone()
 
-	for stmt in b {
+	for i, stmt in b {
 		if mut stmt is CallStmt {
-			temp := v.style_print(stmt)
-			stmt.namespaces = temp.namespaces
-			stmt.args = temp.args
+			if stmt.namespaces == 'len' || stmt.namespaces == 'cap' {
+				b.delete(i)
+				b.insert(i, BasicValueStmt{'${v.stmt_to_string(stmt.args[0])}.$stmt.namespaces'})
+			} else {
+				temp := v.style_print(stmt)
+				stmt.namespaces = temp.namespaces
+				stmt.args = temp.args
+			}
 		} else if mut stmt is DeferStmt {
 			if mut stmt.value is CallStmt {
 				stmt.value = v.style_print(stmt.value)
