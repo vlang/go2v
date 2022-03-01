@@ -115,10 +115,11 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 		os.write_file('temp/raw_file.v', raw_v_file) ?
 	}
 
-	mut prefs := &pref.Preferences{output_mode: .silent}
+	mut prefs := &pref.Preferences{
+		output_mode: .silent
+	}
 	table := ast.new_table()
-	result := parser.parse_text(raw_v_file, output_path, table, .parse_comments,
-		prefs)
+	result := parser.parse_text(raw_v_file, output_path, table, .parse_comments, prefs)
 	if result.errors.len > 0 {
 		os.write_file(output_path, raw_v_file) ?
 
