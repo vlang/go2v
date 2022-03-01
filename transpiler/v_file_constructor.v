@@ -281,9 +281,11 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 			v.out.write_rune(`{`)
 			for case in stmt.cases {
 				if case.values.len > 0 {
-					for value in case.values {
+					for i, value in case.values {
+						if i > 0 {
+							v.out.write_rune(`,`)
+						}
 						v.handle_stmt(value, true)
-						v.out.write_rune(`,`)
 					}
 				} else {
 					v.out.write_string('else')
