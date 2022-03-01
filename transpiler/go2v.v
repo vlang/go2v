@@ -124,9 +124,9 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 	table := ast.new_table()
 	result := parser.parse_text(raw_v_file, output_path, table, .parse_comments, prefs)
 	if result.errors.len > 0 {
-        for e in result.errors {
-                eprintln(util.formatted_error('error:', e.message, output_path, e.pos))
-        }
+		for e in result.errors {
+			eprintln(util.formatted_error('error:', e.message, output_path, e.pos))
+		}
 		return error('Generated output could not be formatted:')
 	}
 	formatted_content := fmt.fmt(result, table, prefs, false)
