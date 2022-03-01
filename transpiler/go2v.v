@@ -6,6 +6,7 @@ import v.ast
 import v.fmt
 import v.pref
 import v.parser
+import v.util
 
 struct InOut {
 	input_path  string
@@ -115,15 +116,18 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 		os.write_file('temp/raw_file.v', raw_v_file) ?
 	}
 
+	os.write_file(output_path, raw_v_file) ?
+
 	mut prefs := &pref.Preferences{
 		output_mode: .silent
 	}
 	table := ast.new_table()
 	result := parser.parse_text(raw_v_file, output_path, table, .parse_comments, prefs)
 	if result.errors.len > 0 {
-		os.write_file(output_path, raw_v_file) ?
-
-		return error('Generated code could not be formatted:\n$result.errors')
+        for e in result.errors {
+                eprintln(util.formatted_error('error:', e.message, output_path, e.pos))
+        }
+		return error('Generated output could not be formatted:')
 	}
 	formatted_content := fmt.fmt(result, table, prefs, false)
 
