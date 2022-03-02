@@ -148,6 +148,7 @@ mut:
 
 struct MatchStmt {
 mut:
+	init  Statement
 	value Statement
 	cases []MatchCase
 }

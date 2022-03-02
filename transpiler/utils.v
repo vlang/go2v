@@ -286,6 +286,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		}
 		// arrays & `Struct{}` syntaxt
 		'*ast.CompositeLit' {
+			// TODO: instead of matching in this block, invoke `get_stmt()` and add `*ast.ArrayType` to the main match statement
 			match tree.child['Type'].tree.name {
 				// arrays
 				'*ast.ArrayType' {
@@ -459,20 +460,15 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 
 			// `switch z := 0; z < 10` syntax
 			var := v.get_var(tree.child['Init'].tree)
-			has_init := var.names.len > 0
-			if has_init {
-				match_stmt.value = var.values[0]
+			if var.names.len > 0 {
+				// TODO: have a system to prefix the variable name & a system to change all it's occurences in the match statement cases
+				match_stmt.init = var
 			}
 
 			// cases
 			for _, case in tree.child['Body'].tree.child['List'].tree.child {
 				mut match_case := MatchCase{
 					values: v.get_body(case.tree)
-				}
-
-				// `switch z := 0; z < 10` syntax
-				if has_init {
-					match_case.body << var
 				}
 
 				for _, case_stmt in case.tree.child['Body'].tree.child {
