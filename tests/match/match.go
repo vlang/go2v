@@ -6,7 +6,8 @@ import (
 
 func main() {
 	fmt.Print("You're")
-	switch age := 27; age {
+	age := 27
+	switch age {
 	case 18:
 		fmt.Println(" of age")
 	case 10:
