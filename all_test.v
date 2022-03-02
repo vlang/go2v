@@ -2,11 +2,7 @@ import os
 import term
 import v.util.diff
 
-const diffcmd = diff.find_working_diff_command() ?
-
 const go2v_path = @VMODROOT
-
-const go2v_exe = prepare_go2v_executable()
 
 fn prepare_go2v_executable() string {
 	go2v_source := '$go2v_path/go2v.v'
@@ -18,49 +14,55 @@ fn prepare_go2v_executable() string {
 	if !os.exists(go2v_executable) {
 		os.execute('${os.quoted_path(@VEXE)} -o ${os.quoted_path(go2v_executable)} ${os.quoted_path(go2v_source)}')
 	}
-	return go2v_executable
+	return os.quoted_path(go2v_executable)
 }
 
 fn test_all() ? {
 	all_tests := os.ls('$go2v_path/tests') or { []string{} }
 	mut failures := []string{}
+
 	for tidx, dir in all_tests {
 		start := '${tidx + 1:2}/${all_tests.len:-2}'
-		go_source := '$go2v_path/tests/$dir/${dir}.go'
+		go_source := os.quoted_path('$go2v_path/tests/$dir/${dir}.go')
 		produced_vv_source := '$go2v_path/tests/$dir/out.vv'
 		expected_vv_source := '$go2v_path/tests/$dir/${dir}.vv'
-		relative_expected_vv_source := expected_vv_source.replace('$go2v_path/', '')
-		cmd := '${os.quoted_path(go2v_exe)} ${os.quoted_path(go_source)} -o ${os.quoted_path(produced_vv_source)}'
-		// println(cmd)
-		res := os.execute(cmd)
+		res := os.execute('$prepare_go2v_executable() $go_source -o ${os.quoted_path(produced_vv_source)}')
+
+		// Invalid Go code
 		if res.exit_code != 0 {
-			failures << relative_expected_vv_source
-			println('${term.bright_red('failed')} $start $relative_expected_vv_source . go2v exited with $res.exit_code code; output:\n$res.output')
+			failures << dir
+			println('${term.bright_red('failed')} $start $dir . go2v exited with $res.exit_code code; output:\n$res.output')
 			continue
 		}
+		// `test_name.vv` file missing
 		if !os.exists(expected_vv_source) {
-			failures << relative_expected_vv_source
-			println('${term.bright_red('failed')} $start $relative_expected_vv_source . $expected_vv_source is missing.')
+			failures << dir
+			println('${term.bright_red('failed')} $start $dir . $expected_vv_source is missing.')
 			continue
 		}
+		// `out.vv` file missing
 		if !os.exists(produced_vv_source) {
-			failures << relative_expected_vv_source
-			println('${term.bright_red('failed')} $start $relative_expected_vv_source . $produced_vv_source is missing.')
+			failures << dir
+			println('${term.bright_red('failed')} $start $dir . $produced_vv_source is missing.')
 			continue
 		}
+		// Go2V generated wrong output
 		if os.read_file(produced_vv_source) ? != os.read_file(expected_vv_source) ? {
-			failures << relative_expected_vv_source
-			println('${term.bright_red('failed')} $start $relative_expected_vv_source')
-			println(diff.color_compare_files(diffcmd, expected_vv_source, produced_vv_source))
+			failures << dir
+			println('${term.bright_red('failed')} $start $dir')
+			println(diff.color_compare_files(diff.find_working_diff_command() ?, expected_vv_source,
+				produced_vv_source))
 			continue
 		}
-		println('${term.bright_green('passed')} $start $relative_expected_vv_source')
+
+		println('${term.bright_green('passed')} $start $dir')
 		assert true
 	}
+
 	if failures.len > 0 {
 		eprintln('Summary of test failures:')
 		for f in failures {
-			eprintln('> Failed test: $f')
+			eprintln('> Failed test(s): $f')
 		}
 		exit(1)
 	}
