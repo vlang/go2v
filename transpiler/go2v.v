@@ -6,6 +6,7 @@ import v.ast
 import v.fmt
 import v.pref
 import v.parser
+import v.util
 
 struct InOut {
 	input_path  string
@@ -115,12 +116,20 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 		os.write_file('temp/raw_file.v', raw_v_file) ?
 	}
 
-	mut prefs := pref.new_preferences()
-	prefs.is_fmt = true
+	os.write_file(output_path, raw_v_file) ?
+
+	mut prefs := &pref.Preferences{
+		output_mode: .silent
+	}
 	table := ast.new_table()
-	file_ast := parser.parse_text(raw_v_file, 'generated file', table, .parse_comments,
-		prefs)
-	formatted_content := fmt.fmt(file_ast, table, prefs, false)
+	result := parser.parse_text(raw_v_file, output_path, table, .parse_comments, prefs)
+	if result.errors.len > 0 {
+		for e in result.errors {
+			eprintln(util.formatted_error('error:', e.message, output_path, e.pos))
+		}
+		return error('Generated output could not be formatted:')
+	}
+	formatted_content := fmt.fmt(result, table, prefs, false)
 
 	// compile with -cg to enable this block
 	// only works properly if converting single file.
