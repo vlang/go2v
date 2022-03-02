@@ -48,14 +48,14 @@ fn test_all() ? {
 			println('${term.bright_red('failed')} $start $relative_expected_vv_source . $produced_vv_source is missing.')
 			continue
 		}
-		if os.read_file(produced_vv_source) ? == os.read_file(expected_vv_source) ? {
-			println('${term.bright_green('passed')} $start $relative_expected_vv_source')
-		} else {
+		if os.read_file(produced_vv_source) ? != os.read_file(expected_vv_source) ? {
 			failures << relative_expected_vv_source
 			println('${term.bright_red('failed')} $start $relative_expected_vv_source')
 			println(diff.color_compare_files(diffcmd, expected_vv_source, produced_vv_source))
 			continue
 		}
+		println('${term.bright_green('passed')} $start $relative_expected_vv_source')
+		assert true
 	}
 	if failures.len > 0 {
 		eprintln('Summary of test failures:')
