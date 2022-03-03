@@ -41,7 +41,7 @@ pub fn go_to_v(input_path string, output_path string) ? {
 		return error('"$input_path" is a file, but "$output_path" is a directory\n' +
 			' - add trailing `/` to output if you wish the .v file to be generated in that directory')
 	} else if out_path.ends_with(os.path_separator) {
-		out_path = '${out_path}${input_path.all_after_last(os.path_separator).all_before_last('.go')}.v'
+		out_path = '$out_path${input_path.all_after_last(os.path_separator).all_before_last('.go')}.v'
 	}
 
 	os.mkdir_all(os.dir(out_path)) ?
