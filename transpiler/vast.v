@@ -51,10 +51,12 @@ type Statement = ArrayStmt
 	| IfStmt
 	| IncDecStmt
 	| IndexStmt
+	| KeyValStmt
 	| MatchStmt
 	| NotImplYetStmt
 	| ReturnStmt
 	| SliceStmt
+	| StructStmt
 	| VariableStmt
 
 struct NotImplYetStmt {}
@@ -156,4 +158,15 @@ struct MatchCase {
 mut:
 	values []Statement
 	body   []Statement
+}
+
+struct StructStmt {
+mut:
+	name   string
+	fields []Statement
+}
+
+struct KeyValStmt {
+	key   string
+	value Statement
 }
