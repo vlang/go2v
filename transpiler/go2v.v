@@ -22,30 +22,30 @@ pub fn go_to_v(input_path string, output_path string) ? {
 
 	input_is_dir := os.is_dir(input_path)
 	input_is_file := !input_is_dir
-	mut out_is_dir := input_is_dir
+
+	if input_is_file && !input_path.ends_with('.go') {
+		return error('"$input_path" is not a `.go` file')
+	}
 
 	mut out_path := output_path
-
-	if out_path.ends_with(os.path_separator) {
-		out_path = out_path#[..-1]
-		out_is_dir = true
-	} else if input_is_file && os.is_dir(output_path) {
-		return error('"$output_path" is a directory')
-	}
 
 	if out_path == '' {
 		if input_is_dir {
 			out_path = input_path
 		} else {
-			out_path = os.dir(input_path)
+			out_path = '${input_path.all_before_last('.go')}.v'
 		}
+	} else if out_path.ends_with(os.path_separator) {
+		if os.is_file(os.dir(out_path)) {
+			return error('"${os.dir(out_path)}" is a file, not a directory')
+		}
+		out_path = '$out_path${os.file_name(input_path).all_before_last('.go')}.v'
+	} else if input_is_file && os.is_dir(out_path) {
+		return error('"$input_path" is a file, but "$output_path" is a directory\n' +
+			' - add trailing `/` to output if you wish the .v file to be generated in that directory')
 	}
 
-	if out_is_dir {
-		os.mkdir_all(out_path) ?
-	} else {
-		os.mkdir_all(os.dir(out_path)) ?
-	}
+	os.mkdir_all(os.dir(out_path)) ?
 
 	if input_is_dir && os.is_file(out_path) {
 		return error('"$input_path" is a directory, but "$output_path" is a file')
@@ -55,18 +55,9 @@ pub fn go_to_v(input_path string, output_path string) ? {
 
 	if input_is_file {
 		if input_path.ends_with('.go') {
-			input_file := if input_path.contains(os.path_separator) {
-				input_path.all_after('${os.dir(input_path)}/')
-			} else {
-				input_path
-			}
 			outputs << InOut{
 				input_path: input_path
-				output_path: if out_is_dir {
-					'$out_path/${input_file.all_before_last('.go')}.v'
-				} else {
-					if out_path == '.' { '${input_file.all_before_last('.go')}.v' } else { out_path }
-				}
+				output_path: out_path
 			}
 		} else {
 			return error('"$input_path" is not a `.go` file')
@@ -75,7 +66,7 @@ pub fn go_to_v(input_path string, output_path string) ? {
 		for input in os.walk_ext(input_path, '.go') {
 			outputs << InOut{
 				input_path: input
-				output_path: '$out_path/${input.all_after(input_path)[1..].all_before('.go')}.v'
+				output_path: '$out_path/${os.file_name(input).all_before('.go')}.v'
 			}
 		}
 
