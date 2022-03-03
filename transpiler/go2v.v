@@ -23,10 +23,8 @@ pub fn go_to_v(input_path string, output_path string) ? {
 	input_is_dir := os.is_dir(input_path)
 	input_is_file := !input_is_dir
 
-	if input_is_file {
-		if !input_path.ends_with('.go') {
-			return error('"$input_path" is not a `.go` file')
-		}
+	if input_is_file && !input_path.ends_with('.go') {
+		return error('"$input_path" is not a `.go` file')
 	}
 
 	mut out_path := output_path
