@@ -300,14 +300,34 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 						} else {
 							array.values << v.get_value(el.tree)
 						}
-						// TODO: try somthing similar to `return BasicValueStmt{v.get_value(tree.child['Type'].tree)}`
 					}
 					return array
 				}
-				// `Struct{}` syntaxt
-				else {
-					return BasicValueStmt{v.get_value(tree.child['Type'].tree)}
+				// structs
+				'*ast.Ident' {
+					println(tree)
+					mut @struct := StructStmt{
+						name: v.get_name(tree.child['Type'].tree, false, false)
+					}
+
+					for _, el in tree.child['Elts'].tree.child {
+						@struct.fields << v.get_stmt(el.tree)
+					}
+
+					v.get_embedded(tree.child['Type'].tree)
+
+					return @struct
 				}
+				else {
+					return not_implemented('*ast.CompositeLit / ${tree.child['Type'].tree.name}')
+				}
+			}
+		}
+		// `key: value` syntax
+		'*ast.KeyValueExpr' {
+			return KeyValStmt{
+				key: v.get_namespaces(tree.child['Key'].tree)
+				value: v.get_stmt(tree.child['Value'].tree)
 			}
 		}
 		// slices (slicing)
@@ -484,6 +504,10 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		else {}
 	}
 
-	eprintln("A feature in your Go code named `$tree.name` isn't currently implemented in Go2V, please check the resulting V code and report the missing feature at https://github.com/vlang/go2v/issues/new")
+	return not_implemented(tree.name)
+}
+
+fn not_implemented(feature string) Statement {
+	eprintln("A feature in your Go code named `$feature` isn't currently implemented in Go2V, please check the resulting V code and report the missing feature at https://github.com/vlang/go2v/issues/new")
 	return NotImplYetStmt{}
 }

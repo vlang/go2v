@@ -298,6 +298,17 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 			}
 			v.out.write_rune(`}`)
 		}
+		StructStmt {
+			v.out.write_string('$stmt.name{')
+			for field in stmt.fields {
+				v.handle_stmt(field, true)
+			}
+			v.out.write_rune(`}`)
+		}
+		KeyValStmt {
+			v.out.write_string('$stmt.key:')
+			v.handle_stmt(stmt.value, true)
+		}
 		NotImplYetStmt {}
 	}
 

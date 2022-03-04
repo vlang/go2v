@@ -25,6 +25,7 @@ jobs:
         with:
           go-version: "^1.17.7"
 
+      #TODO: use https://github.com/vlang/setup-v
       - name: Install V
         run: |
           cd ..
