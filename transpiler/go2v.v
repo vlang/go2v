@@ -45,8 +45,6 @@ pub fn go_to_v(input_path string, output_path string) ? {
 			' - add trailing `/` to output if you wish the .v file to be generated in that directory')
 	}
 
-	os.mkdir_all(os.dir(out_path)) ?
-
 	if input_is_dir && os.is_file(out_path) {
 		return error('"$input_path" is a directory, but "$output_path" is a file')
 	}
@@ -107,6 +105,7 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 		os.write_file('temp/raw_file.v', raw_v_file) ?
 	}
 
+	os.mkdir_all(os.dir(output_path)) ?
 	os.write_file(output_path, raw_v_file) ?
 
 	mut prefs := &pref.Preferences{
