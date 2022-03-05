@@ -78,14 +78,15 @@ fn (mut v VAST) extract_struct(tree Tree) StructLike {
 	for _, field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
 		// support `A, B int` syntax
 		for _, name in field.tree.child['Names'].tree.child {
-			@struct.fields[v.get_name(name.tree, false, true)] = v.get_type(field.tree)
+			@struct.fields[v.get_name(name.tree, false, true)] = v.get_type(field.tree,
+				true)
 		}
 	}
 	return @struct
 }
 
 fn (mut v VAST) extract_sumtype(tree Tree) {
-	v.types[v.get_name(tree, true, false)] = v.get_type(tree)
+	v.types[v.get_name(tree, true, false)] = v.get_type(tree, true)
 }
 
 fn (mut v VAST) extract_const_or_enum(tree Tree) {
@@ -101,7 +102,7 @@ fn (mut v VAST) extract_const_or_enum(tree Tree) {
 		if val == 'iota' && !is_enum {
 			// begining of enum
 			is_enum = true
-			temp_enum.name = v.get_type(@const.tree)
+			temp_enum.name = v.get_type(@const.tree, true)
 			temp_enum.fields[name_base.child['Name'].val#[1..-1]] = ''
 			// delete type used as enum name (Go enums implentation is so weird)
 			v.types.delete(temp_enum.name)
@@ -143,7 +144,8 @@ fn (mut v VAST) extract_function(tree Tree) {
 
 	// arguments
 	for _, arg in tree.child['Type'].tree.child['Params'].tree.child['List'].tree.child {
-		func.args[v.get_name(arg.tree.child['Names'].tree.child['0'].tree, false, true)] = v.get_type(arg.tree)
+		func.args[v.get_name(arg.tree.child['Names'].tree.child['0'].tree, false, true)] = v.get_type(arg.tree,
+			true)
 	}
 
 	// method
@@ -151,13 +153,13 @@ fn (mut v VAST) extract_function(tree Tree) {
 		base := tree.child['Recv'].tree.child['List'].tree.child['0'].tree
 		func.method = [
 			v.get_name(base.child['Names'].tree.child['0'].tree, false, true),
-			v.get_type(base),
+			v.get_type(base, true),
 		]
 	}
 
 	// return value(s)
 	for _, arg in tree.child['Type'].tree.child['Results'].tree.child['List'].tree.child {
-		func.ret_vals << v.get_type(arg.tree)
+		func.ret_vals << v.get_type(arg.tree, true)
 	}
 
 	// body

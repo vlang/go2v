@@ -6,6 +6,7 @@ import strings
 
 struct VAST {
 mut:
+	// AST
 	@module    string
 	imports    []string
 	consts     map[string]string
@@ -15,11 +16,13 @@ mut:
 	enums      []StructLike
 	types      map[string]string
 	functions  []Function
-	//
+	// `v_file_constructor.v`
 	out strings.Builder = strings.new_builder(400)
-	//
+	// `v_style.v`
 	fmt_import_count       int
 	fmt_supported_fn_count int
+	// maps
+	current_implicit_map_type string
 }
 
 struct StructLike {
@@ -52,6 +55,7 @@ type Statement = ArrayStmt
 	| IncDecStmt
 	| IndexStmt
 	| KeyValStmt
+	| MapStmt
 	| MatchStmt
 	| NotImplYetStmt
 	| ReturnStmt
@@ -170,4 +174,11 @@ mut:
 struct KeyValStmt {
 	key   string
 	value Statement
+}
+
+struct MapStmt {
+mut:
+	key_type   string
+	value_type string
+	values     []Statement
 }

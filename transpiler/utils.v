@@ -22,6 +22,9 @@ const (
 	go_types = get_type.keys()
 )
 
+// TODO: cleanup utils functions like get_value, get_type, get_name, get_namespace, etc.
+// They can probably be merged
+
 // get the value of a variable etc. Basically, everything that can be of multiple types
 fn (mut v VAST) get_value(tree Tree) string {
 	// get the raw value
@@ -87,9 +90,9 @@ fn (mut v VAST) get_name(tree Tree, deep bool, snake_case bool) string {
 }
 
 // get the type of property/function arguments etc.
-fn (mut v VAST) get_type(tree Tree) string {
+fn (mut v VAST) get_type(tree Tree, deep bool) string {
 	mut @type := ''
-	mut temp := tree.child['Type'].tree
+	mut temp := if deep { tree.child['Type'].tree } else { tree }
 
 	// arrays
 	if temp.name == '*ast.ArrayType' {
@@ -215,7 +218,7 @@ fn (mut v VAST) get_var(tree Tree) VariableStmt {
 		names << v.get_namespaces(name.tree)
 	}
 	for _, val in tree.child['Rhs'].tree.child {
-		values << v.get_stmt(val.tree) // TODO: support `variable := StructWithFields{0, "abc"}`
+		values << v.get_stmt(val.tree)
 	}
 
 	return VariableStmt{
@@ -286,13 +289,14 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		}
 		// arrays & `Struct{}` syntaxt
 		'*ast.CompositeLit' {
-			// TODO: instead of matching in this block, invoke `get_stmt()` and add `*ast.ArrayType` to the main match statement
-			match tree.child['Type'].tree.name {
+			base := tree.child['Type'].tree
+
+			match base.name {
 				// arrays
 				'*ast.ArrayType' {
 					mut array := ArrayStmt{
-						@type: v.get_type(tree)[2..] // remove `[]`
-						len: v.get_value(tree.child['Type'].tree.child['Len'].tree)
+						@type: v.get_type(tree, true)[2..] // remove `[]`
+						len: v.get_value(base.child['Len'].tree)
 					}
 					for _, el in tree.child['Elts'].tree.child {
 						if v.get_value(el.tree.child['Type'].tree).len > 0 {
@@ -304,21 +308,45 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 					return array
 				}
 				// structs
-				'*ast.Ident' {
+				'*ast.Ident', '' {
 					mut @struct := StructStmt{
-						name: v.get_name(tree.child['Type'].tree, false, false)
+						name: if base.name == '' {
+							v.current_implicit_map_type
+						} else {
+							v.get_name(base, false, false)
+						}
 					}
 
 					for _, el in tree.child['Elts'].tree.child {
 						@struct.fields << v.get_stmt(el.tree)
 					}
 
-					v.get_embedded(tree.child['Type'].tree)
+					v.get_embedded(base)
 
 					return @struct
 				}
+				// maps
+				'*ast.MapType' {
+					// short `{"key": "value"}` syntax
+					v.current_implicit_map_type = v.get_type(base.child['Value'].tree,
+						false)
+
+					// TODO: rename to `map` once https://github.com/vlang/v/issues/13663 gets fixed
+					mut map_stmt := MapStmt{
+						key_type: v.get_type(base.child['Key'].tree, false)
+						value_type: v.current_implicit_map_type
+					}
+
+					for _, el in tree.child['Elts'].tree.child {
+						map_stmt.values << v.get_stmt(el.tree)
+					}
+
+					v.get_embedded(base)
+
+					return map_stmt
+				}
 				else {
-					return not_implemented('*ast.CompositeLit / ${tree.child['Type'].tree.name}')
+					return not_implemented('*ast.CompositeLit/$base.name')
 				}
 			}
 		}

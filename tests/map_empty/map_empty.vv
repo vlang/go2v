@@ -1,0 +1,10 @@
+module main
+
+struct Vertex {
+	lat  float64
+	long float64
+}
+
+fn main() {
+	mut l := map[string]Vertex{}
+}
