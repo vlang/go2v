@@ -305,7 +305,6 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				}
 				// structs
 				'*ast.Ident' {
-					println(tree)
 					mut @struct := StructStmt{
 						name: v.get_name(tree.child['Type'].tree, false, false)
 					}
