@@ -300,14 +300,28 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 		}
 		StructStmt {
 			v.out.write_string('$stmt.name{')
-			for field in stmt.fields {
+			for i, field in stmt.fields {
+				if i > 0 {
+					v.out.write_rune(`,`)
+				}
 				v.handle_stmt(field, true)
 			}
 			v.out.write_rune(`}`)
 		}
 		KeyValStmt {
-			v.out.write_string('$stmt.key:')
+			v.out.write_string('\n$stmt.key:')
 			v.handle_stmt(stmt.value, true)
+		}
+		MapStmt {
+			if stmt.values.len > 0 {
+				v.out.write_rune(`{`)
+				for value in stmt.values {
+					v.handle_stmt(value, true)
+				}
+				v.out.write_rune(`}`)
+			} else {
+				v.out.write_string('map[$stmt.key_type]$stmt.value_type')
+			}
 		}
 		NotImplYetStmt {}
 	}
