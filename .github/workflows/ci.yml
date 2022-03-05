@@ -12,29 +12,20 @@ jobs:
       matrix:
         os:
           - name: ubuntu-latest
-            make: make
           - name: macos-latest
-            make: make
           - name: windows-latest
-            make: .\make.bat
     runs-on: ${{ matrix.os.name }}
 
     steps:
       - name: Install Go
         uses: actions/setup-go@v2
         with:
-          go-version: "^1.17.7"
+          go-version: "^1.17.8"
 
-      #TODO: use https://github.com/vlang/setup-v
       - name: Install V
-        run: |
-          cd ..
-          git clone https://github.com/vlang/v.git --depth 1 v
-          cd v
-          ${{ matrix.os.make }}
-          ./v symlink -githubci
+        uses: vlang/setup-v@v1
 
-      - name: Checkout go2v
+      - name: Get go2v
         uses: actions/checkout@v2
 
       - name: Check code formatting
