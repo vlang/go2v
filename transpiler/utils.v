@@ -507,6 +507,6 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 }
 
 fn not_implemented(feature string) Statement {
-	eprintln("Go feature `$feature` not currently implemented\nPlease report the missing feature at https://github.com/vlang/go2v/issues/new")
+	eprintln('Go feature `$feature` not currently implemented\nPlease report the missing feature at https://github.com/vlang/go2v/issues/new')
 	return NotImplYetStmt{}
 }
