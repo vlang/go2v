@@ -67,7 +67,7 @@ pub fn go_to_v(input_path string, output_path string) ? {
 		for input in go_files {
 			outputs << InOut{
 				input_path: input
-				output_path: '$out_path/${os.file_name(input).all_before('.go')}.v'
+				output_path: '$out_path/${input.all_after(input_path + os.path_separator).all_before('.go')}.v'
 			}
 		}
 
