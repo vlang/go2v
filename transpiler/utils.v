@@ -22,54 +22,23 @@ const (
 	go_types = get_type.keys()
 )
 
-// TODO: cleanup utils functions like get_value, get_type, get_name, get_namespace, etc.
-// They can probably be merged
-
-// get the value of a variable etc. Basically, everything that can be of multiple types
-fn (mut v VAST) get_value(tree Tree) string {
-	// get the raw value
-	mut val := if 'Value' in tree.child {
-		// almost everything
-		tree.child['Value'].val
-	} else if 'Name' in tree.child {
-		// bools, iotas (enums), variables
-		tree.child['Name'].val
-	} else {
-		''
-	}
-
-	// format the value
-	if val.len != 0 {
-		val = match val[1] {
-			`\\` { "'" + val#[3..-3].replace('\\\\', '\\').replace("'", "\\'") + "'" } // strings
-			`'` { '`${val#[2..-2]}`' } // runes
-			else { val#[1..-1] } // everything else
-		}
-
-		// structs (structs always starts with a capital letter and variable names never)
-		if `A` <= val[0] && val[0] <= `Z` {
-			val += '{}'
-		}
-	}
-
-	v.get_embedded(tree)
-
-	return val
+enum Case {
+	ignore
+	snake_case
+	camel_case
 }
 
-// get the name of a variable/property/function etc.
-fn (mut v VAST) get_name(tree Tree, deep bool, snake_case bool) string {
-	raw_name := if deep {
-		tree.child['Name'].tree.child['Name'].val#[1..-1]
-	} else {
-		tree.child['Name'].val#[1..-1]
+fn format_value(str string, case Case) string {
+	raw := match str[1] {
+		`\\` { "'" + str#[3..-3].replace('\\\\', '\\').replace("'", "\\'") + "'" } // strings
+		`'` { '`${str#[2..-2]}`' } // runes
+		else { str#[1..-1] } // everything else
 	}
 
-	if snake_case {
-		// convert to snake case
+	if case == .snake_case {
 		mut out := []rune{}
 
-		for i, ch in raw_name {
+		for i, ch in raw {
 			if `A` <= ch && ch <= `Z` {
 				if i != 0 {
 					out << `_`
@@ -81,57 +50,70 @@ fn (mut v VAST) get_name(tree Tree, deep bool, snake_case bool) string {
 		}
 
 		return out.string()
-	} else {
-		// capitalize
-		sub := if `A` <= raw_name[0] && raw_name[0] <= `Z` { 0 } else { 32 }
+	} else if case == .camel_case {
+		sub := if `A` <= raw[0] && raw[0] <= `Z` { 0 } else { 32 }
 
-		return (raw_name[0] - byte(sub)).ascii_str() + raw_name[1..]
+		return (raw[0] - byte(sub)).ascii_str() + raw[1..]
+	} else {
+		return raw
 	}
 }
 
 // get the type of property/function arguments etc.
-fn (mut v VAST) get_type(tree Tree, deep bool) string {
-	mut @type := ''
-	mut temp := if deep { tree.child['Type'].tree } else { tree }
+fn (mut v VAST) get_type(tree Tree) string {
+	mut type_prefix := ''
+	mut temp := tree.child['Type'].tree
 
 	// arrays
 	if temp.name == '*ast.ArrayType' {
-		@type = '[]'
+		type_prefix = '[]'
 		temp = temp.child['Elt'].tree
 	}
 
 	v.get_embedded(temp)
 
-	return @type + temp.child['Name'].val#[1..-1]
+	raw := v.get_name(temp, .ignore)
+
+	return type_prefix + if raw in transpiler.get_type {
+		// transform Go types into V ones
+		transpiler.get_type[raw]
+	} else {
+		raw
+	}
 }
 
-// get the namespaces of the left-hand side of an assignment or a function call
-// in `a.b.c(...)` `a`, `b` and `c` are namespaces
-fn (mut v VAST) get_namespaces(tree Tree) string {
+// get the name of a variable/property/function etc.
+fn (mut v VAST) get_name(tree Tree, case Case) string {
 	mut temp := tree
 	mut namespaces := []string{}
 	// All `near_end` related code is a trick to repeat one more time the loop
 	mut near_end := if 'X' in temp.child { false } else { true }
 
 	for (('X' in temp.child) || near_end) {
-		// value
-		if 'Value' in temp.child {
-			namespaces << v.get_value(temp)
+		// name
+		if 'Name' in temp.child {
+			if 'Name' in temp.child['Name'].tree.child {
+				namespaces << v.get_name(temp.child['Name'].tree, case)
+			} else {
+				namespaces << format_value(temp.child['Name'].val, case)
+			}
 		}
 
-		// `a` syntax
-		if 'Name' in temp.child {
-			namespaces << v.get_name(temp, false, true)
+		// value
+		if 'Value' in temp.child {
+			namespaces << format_value(temp.child['Value'].val, case)
+
+			v.get_embedded(temp)
 		}
 
 		// `a.b.c` syntax
 		if 'Sel' in temp.child {
-			namespaces << '.' + v.get_name(temp.child['Sel'].tree, false, true)
+			namespaces << '.' + v.get_name(temp.child['Sel'].tree, case)
 		}
 
 		// `a[idx]` syntax
 		if 'Index' in temp.child {
-			namespaces << '[' + v.get_namespaces(temp.child['Index'].tree) + ']'
+			namespaces << '[' + v.get_name(temp.child['Index'].tree, case) + ']'
 		}
 
 		temp = temp.child['X'].tree
@@ -144,6 +126,7 @@ fn (mut v VAST) get_namespaces(tree Tree) string {
 		}
 	}
 
+	// transform Go types into V ones for type casting
 	if namespaces.len == 1 && namespaces[0] in transpiler.go_types {
 		namespaces[0] = transpiler.get_type[namespaces[0]]
 	}
@@ -166,28 +149,34 @@ fn (mut v VAST) get_embedded(tree Tree) {
 
 // get the condition string from a tree for if/for/match statements
 fn (mut v VAST) get_raw_condition(tree Tree) string {
+	// logic part
 	if 'Name' !in tree.child {
+		// left-hand
 		x := if 'X' in tree.child['X'].tree.child {
 			v.get_raw_condition(tree.child['X'].tree)
 		} else {
-			v.get_value(tree.child['X'].tree)
+			v.get_name(tree.child['X'].tree, .ignore)
 		}
 
+		// operator
 		cond := tree.child['Op'].val
 
+		// right-hand
 		y := if 'Y' in tree.child['Y'].tree.child {
 			v.get_raw_condition(tree.child['Y'].tree)
 		} else {
-			v.get_value(tree.child['Y'].tree)
+			v.get_name(tree.child['Y'].tree, .ignore)
 		}
 
+		// parentheses
 		if cond == '&&' || cond == '||' {
 			return '($x $cond $y)'
 		} else {
 			return '$x $cond $y'
 		}
 	} else {
-		return v.get_value(tree)
+		// value part
+		return v.get_name(tree, .ignore)
 	}
 }
 
@@ -215,7 +204,7 @@ fn (mut v VAST) get_var(tree Tree) VariableStmt {
 	mut values := []Statement{}
 
 	for _, name in tree.child['Lhs'].tree.child {
-		names << v.get_namespaces(name.tree)
+		names << v.get_name(name.tree, .ignore)
 	}
 	for _, val in tree.child['Rhs'].tree.child {
 		values << v.get_stmt(val.tree)
@@ -231,7 +220,7 @@ fn (mut v VAST) get_var(tree Tree) VariableStmt {
 // get the increment statement (IncDecStmt) from a tree
 fn (mut v VAST) get_inc_dec(tree Tree) IncDecStmt {
 	return IncDecStmt{
-		var: v.get_namespaces(tree)
+		var: v.get_name(tree, .ignore)
 		inc: tree.child['Tok'].val
 	}
 }
@@ -259,7 +248,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			mut values := []Statement{}
 
 			for _, var in base.child['Names'].tree.child {
-				names << v.get_name(var.tree, false, true)
+				names << v.get_name(var.tree, .ignore)
 			}
 			for _, var in base.child['Values'].tree.child {
 				values << v.get_stmt(var.tree)
@@ -269,8 +258,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				names: names
 				middle: ':='
 				values: values
-				@type: transpiler.get_type[v.get_name(base.child['Type'].tree, false,
-					true)]
+				@type: v.get_name(base.child['Type'].tree, .ignore)
 			}
 		}
 		// `:=` & `=` syntax
@@ -279,13 +267,13 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		}
 		// basic value
 		'*ast.BasicLit', '*ast.Ident', '*ast.SelectorExpr' {
-			return BasicValueStmt{v.get_namespaces(tree)}
+			return BasicValueStmt{v.get_name(tree, .ignore)}
 		}
 		// (almost) basic variable value
 		// eg: -1
 		'*ast.UnaryExpr' {
 			op := if tree.child['Op'].val != 'range' { tree.child['Op'].val } else { '' }
-			return BasicValueStmt{op + v.get_value(tree.child['X'].tree)}
+			return BasicValueStmt{op + v.get_name(tree, .ignore)}
 		}
 		// arrays & `Struct{}` syntaxt
 		'*ast.CompositeLit' {
@@ -295,15 +283,11 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				// arrays
 				'*ast.ArrayType' {
 					mut array := ArrayStmt{
-						@type: v.get_type(tree, true)[2..] // remove `[]`
-						len: v.get_value(base.child['Len'].tree)
+						@type: v.get_type(tree)[2..] // remove `[]`
+						len: v.get_name(base.child['Len'].tree, .ignore)
 					}
 					for _, el in tree.child['Elts'].tree.child {
-						if v.get_value(el.tree.child['Type'].tree).len > 0 {
-							array.values << v.get_value(el.tree.child['Type'].tree)
-						} else {
-							array.values << v.get_value(el.tree)
-						}
+						array.values << v.get_stmt(el.tree)
 					}
 					return array
 				}
@@ -313,7 +297,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 						name: if base.name == '' {
 							v.current_implicit_map_type
 						} else {
-							v.get_name(base, false, false)
+							v.get_name(base, .ignore)
 						}
 					}
 
@@ -328,12 +312,12 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				// maps
 				'*ast.MapType' {
 					// short `{"key": "value"}` syntax
-					v.current_implicit_map_type = v.get_type(base.child['Value'].tree,
-						false)
+					v.current_implicit_map_type = v.get_name(base.child['Value'].tree,
+						.ignore)
 
 					// TODO: rename to `map` once https://github.com/vlang/v/issues/13663 gets fixed
 					mut map_stmt := MapStmt{
-						key_type: v.get_type(base.child['Key'].tree, false)
+						key_type: v.get_name(base.child['Key'].tree, .ignore)
 						value_type: v.current_implicit_map_type
 					}
 
@@ -346,23 +330,23 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 					return map_stmt
 				}
 				else {
-					return not_implemented('*ast.CompositeLit/$base.name')
+					return not_implemented(tree)
 				}
 			}
 		}
 		// `key: value` syntax
 		'*ast.KeyValueExpr' {
 			return KeyValStmt{
-				key: v.get_namespaces(tree.child['Key'].tree)
+				key: v.get_name(tree.child['Key'].tree, .ignore)
 				value: v.get_stmt(tree.child['Value'].tree)
 			}
 		}
 		// slices (slicing)
 		'*ast.SliceExpr' {
 			return SliceStmt{
-				value: v.get_namespaces(tree.child['X'].tree)
-				low: v.get_value(tree.child['Low'].tree)
-				high: v.get_value(tree.child['High'].tree)
+				value: v.get_name(tree.child['X'].tree, .ignore)
+				low: v.get_name(tree.child['Low'].tree, .ignore)
+				high: v.get_name(tree.child['High'].tree, .ignore)
 			}
 		}
 		// (nested) function/method call
@@ -370,7 +354,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			base := if tree.name == '*ast.ExprStmt' { tree.child['X'].tree } else { tree }
 
 			mut clall_stmt := CallStmt{
-				namespaces: v.get_namespaces(base.child['Fun'].tree)
+				namespaces: v.get_name(base.child['Fun'].tree, .snake_case)
 			}
 
 			// function/method arguments
@@ -475,7 +459,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				forin_stmt.variable = temp_var.values[0] or { BasicValueStmt{'_'} }
 			} else {
 				// `for range variable {` syntax
-				forin_stmt.variable = BasicValueStmt{v.get_namespaces(tree)}
+				forin_stmt.variable = BasicValueStmt{v.get_name(tree, .ignore)}
 			}
 
 			// body
@@ -497,7 +481,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		}
 		'*ast.IndexExpr' {
 			return IndexStmt{
-				value: v.get_namespaces(tree)
+				value: v.get_name(tree, .ignore)
 			}
 		}
 		'*ast.SwitchStmt' {
@@ -531,10 +515,29 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		else {}
 	}
 
-	return not_implemented(tree.name)
+	return not_implemented(tree)
 }
 
-fn not_implemented(feature string) Statement {
-	eprintln("A feature in your Go code named `$feature` isn't currently implemented in Go2V, please check the resulting V code and report the missing feature at https://github.com/vlang/go2v/issues/new")
+fn not_implemented(tree Tree) Statement {
+	mut hint := ''
+
+	if 'TokPos' in tree.child {
+		hint = 'at character ${tree.child['TokPos'].val}'
+	} else if 'NamePos' in tree.child {
+		hint = 'at character ${tree.child['NamePos'].val}'
+	} else if 'Lbrace' in tree.child {
+		hint = 'from character ${tree.child['Lbrace'].val} to character ${tree.child['Rbrace'].val}'
+	} else if 'Lparen' in tree.child {
+		hint = 'from character ${tree.child['Lparen'].val} to character ${tree.child['Rparen'].val}'
+	} else {
+		hint = 'at unknown character'
+	}
+
+	if hint != 'at unknown character' {
+		eprintln('Go feature `$tree.name` $hint not currently implemented.\nPlease report the missing feature at https://github.com/vlang/go2v/issues/new')
+	} else {
+		not_implemented(tree.child['X'].tree)
+	}
+
 	return NotImplYetStmt{}
 }

@@ -78,7 +78,7 @@ mut:
 struct ArrayStmt {
 mut:
 	@type  string
-	values []string
+	values []Statement
 	len    string
 }
 

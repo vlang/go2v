@@ -224,7 +224,8 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 				v.out.write_string(']${stmt.@type}{}')
 			} else {
 				for el in stmt.values {
-					v.out.write_string('$el, ')
+					v.handle_stmt(el, true)
+					v.out.write_rune(`,`)
 				}
 
 				mut i := stmt.values.len
