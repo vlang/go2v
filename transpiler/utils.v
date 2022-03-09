@@ -536,7 +536,9 @@ fn not_implemented(tree Tree) Statement {
 	if hint != 'at unknown character' {
 		eprintln('Go feature `$tree.name` $hint not currently implemented.\nPlease report the missing feature at https://github.com/vlang/go2v/issues/new')
 	} else {
-		not_implemented(tree.child['X'].tree)
+		if 'Tok' in tree.child {
+			not_implemented(tree.child['X'].tree)
+		}
 	}
 
 	return NotImplYetStmt{}
