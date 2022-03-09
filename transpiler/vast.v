@@ -53,11 +53,11 @@ type Statement = ArrayStmt
 	| ForStmt
 	| IfStmt
 	| IncDecStmt
-	| IndexStmt
 	| KeyValStmt
 	| MapStmt
 	| MatchStmt
 	| NotImplYetStmt
+	| PushStmt
 	| ReturnStmt
 	| SliceStmt
 	| StructStmt
@@ -147,11 +147,6 @@ mut:
 	value Statement
 }
 
-struct IndexStmt {
-mut:
-	value string
-}
-
 struct MatchStmt {
 mut:
 	init  Statement
@@ -181,4 +176,10 @@ mut:
 	key_type   string
 	value_type string
 	values     []Statement
+}
+
+struct PushStmt {
+mut:
+	stmt  Statement
+	value Statement
 }

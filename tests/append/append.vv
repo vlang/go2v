@@ -1,0 +1,7 @@
+module main
+
+fn main() {
+	mut s := []int{}
+	s << 1
+	s << [2, 3, 4]
+}

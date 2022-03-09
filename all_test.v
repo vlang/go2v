@@ -22,7 +22,8 @@ fn prepare_go2v_executable() string {
 }
 
 fn test_all() ? {
-	all_tests := os.ls('$go2v_path/tests') or { []string{} }
+	mut all_tests := os.ls('$go2v_path/tests') or { []string{} }
+	all_tests.sort()
 	mut failures := []string{}
 
 	for tidx, dir in all_tests {
