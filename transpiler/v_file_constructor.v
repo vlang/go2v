@@ -273,9 +273,6 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 			v.handle_stmt(stmt.value, true)
 			v.out.write_rune(`}`)
 		}
-		IndexStmt {
-			v.out.write_string(stmt.value)
-		}
 		MatchStmt {
 			v.handle_stmt(stmt.init, true)
 
@@ -324,7 +321,14 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 				v.out.write_string('map[$stmt.key_type]$stmt.value_type')
 			}
 		}
-		NotImplYetStmt {}
+		PushStmt {
+			v.handle_stmt(stmt.stmt, true)
+			v.out.write_string('<<')
+			v.handle_stmt(stmt.value, true)
+		}
+		NotImplYetStmt {
+			v.out.write_string('NOT_IMPLEMENTED_YET')
+		}
 	}
 
 	if !is_value {

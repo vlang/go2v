@@ -28,6 +28,7 @@ enum Case {
 	camel_case
 }
 
+// format a given value as needed
 fn format_value(str string, case Case) string {
 	raw := match str[1] {
 		`\\` { "'" + str#[3..-3].replace('\\\\', '\\').replace("'", "\\'") + "'" } // strings
@@ -140,7 +141,7 @@ fn (mut v VAST) get_name(tree Tree, case Case) string {
 	return out
 }
 
-// check if the tree contains an embedded declaration, and extract it if so
+// check if the tree contains an embedded declaration and extract it if so
 fn (mut v VAST) get_embedded(tree Tree) {
 	if 'Obj' in tree.child {
 		v.extract_declaration(tree.child['Obj'].tree, true)
@@ -199,22 +200,26 @@ fn (mut v VAST) get_condition(tree Tree) string {
 }
 
 // get the variable statement (VariableStmt) from a tree
-fn (mut v VAST) get_var(tree Tree) VariableStmt {
-	mut names := []string{}
-	mut values := []Statement{}
+fn (mut v VAST) get_var(tree Tree, short bool) VariableStmt {
+	base := if short { tree } else { tree.child['Decl'].tree.child['Specs'].tree.child['0'].tree }
+	left_hand := if short { base.child['Lhs'].tree.child } else { base.child['Names'].tree.child }
+	right_hand := if short { base.child['Rhs'].tree.child } else { base.child['Values'].tree.child }
 
-	for _, name in tree.child['Lhs'].tree.child {
-		names << v.get_name(name.tree, .ignore)
-	}
-	for _, val in tree.child['Rhs'].tree.child {
-		values << v.get_stmt(val.tree)
+	mut var_stmt := VariableStmt{
+		middle: if short { base.child['Tok'].val } else { ':=' }
+		@type: if short { '' } else { v.get_name(base.child['Type'].tree, .ignore) }
 	}
 
-	return VariableStmt{
-		names: names
-		middle: tree.child['Tok'].val
-		values: values
+	for _, name in left_hand {
+		var_stmt.names << v.get_name(name.tree, .ignore)
 	}
+	for _, val in right_hand {
+		var_stmt.values << v.get_stmt(val.tree)
+	}
+
+	var_stmt.values = v.v_style(var_stmt.values)
+
+	return var_stmt
 }
 
 // get the increment statement (IncDecStmt) from a tree
@@ -225,7 +230,8 @@ fn (mut v VAST) get_inc_dec(tree Tree) IncDecStmt {
 	}
 }
 
-// get the body of a function/if/for/match statement etc. Basically everything that contains a block of code
+// get the body of a function/if/for/match statement etc.
+// basically everything that contains a block of code
 fn (mut v VAST) get_body(tree Tree) []Statement {
 	mut body := []Statement{}
 
@@ -237,37 +243,26 @@ fn (mut v VAST) get_body(tree Tree) []Statement {
 	return v.v_style(body)
 }
 
+// extract a single statement
 fn (mut v VAST) get_stmt(tree Tree) Statement {
 	match tree.name {
 		// `var` syntax
 		'*ast.DeclStmt' {
-			// TODO: remake that to reuse the get_var function
-			base := tree.child['Decl'].tree.child['Specs'].tree.child['0'].tree
-
-			mut names := []string{}
-			mut values := []Statement{}
-
-			for _, var in base.child['Names'].tree.child {
-				names << v.get_name(var.tree, .ignore)
-			}
-			for _, var in base.child['Values'].tree.child {
-				values << v.get_stmt(var.tree)
-			}
-
-			return VariableStmt{
-				names: names
-				middle: ':='
-				values: values
-				@type: v.get_name(base.child['Type'].tree, .ignore)
-			}
+			return v.get_var(tree, false)
 		}
-		// `:=` & `=` syntax
+		// `:=`, `+=` etc. syntax
 		'*ast.AssignStmt' {
-			return v.get_var(tree)
+			return v.get_var(tree, true)
 		}
 		// basic value
-		'*ast.BasicLit', '*ast.Ident', '*ast.SelectorExpr' {
+		'*ast.BasicLit', '*ast.Ident', '*ast.SelectorExpr', '*ast.IndexExpr' {
 			return BasicValueStmt{v.get_name(tree, .ignore)}
+		}
+		'*ast.MapType' {
+			return MapStmt{
+				key_type: v.get_name(tree.child['Key'].tree, .ignore)
+				value_type: v.get_name(tree.child['Value'].tree, .ignore)
+			}
 		}
 		// (almost) basic variable value
 		// eg: -1
@@ -315,7 +310,6 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 					v.current_implicit_map_type = v.get_name(base.child['Value'].tree,
 						.ignore)
 
-					// TODO: rename to `map` once https://github.com/vlang/v/issues/13663 gets fixed
 					mut map_stmt := MapStmt{
 						key_type: v.get_name(base.child['Key'].tree, .ignore)
 						value_type: v.current_implicit_map_type
@@ -381,7 +375,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				mut if_else := IfElse{}
 
 				// `if z := 0; z < 10` syntax
-				var := v.get_var(temp.child['Init'].tree)
+				var := v.get_var(temp.child['Init'].tree, true)
 				if var.names.len > 0 {
 					if_else.body << var
 					// TODO: support https://go.dev/tour/flowcontrol/7
@@ -423,7 +417,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			mut for_stmt := ForStmt{}
 
 			// init
-			for_stmt.init = v.get_var(tree.child['Init'].tree)
+			for_stmt.init = v.get_var(tree.child['Init'].tree, true)
 			for_stmt.init.mutable = false
 
 			// condition
@@ -454,7 +448,8 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				forin_stmt.idx = tree.child['Key'].tree.child['Name'].val#[1..-1]
 
 				// element & variable
-				temp_var := v.get_var(tree.child['Key'].tree.child['Obj'].tree.child['Decl'].tree)
+				temp_var := v.get_var(tree.child['Key'].tree.child['Obj'].tree.child['Decl'].tree,
+					true)
 				forin_stmt.element = temp_var.names[1] or { '_' }
 				forin_stmt.variable = temp_var.values[0] or { BasicValueStmt{'_'} }
 			} else {
@@ -479,18 +474,13 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		'*ast.DeferStmt' {
 			return DeferStmt{v.get_stmt(tree.child['Call'].tree)}
 		}
-		'*ast.IndexExpr' {
-			return IndexStmt{
-				value: v.get_name(tree, .ignore)
-			}
-		}
 		'*ast.SwitchStmt' {
 			mut match_stmt := MatchStmt{
 				value: v.get_stmt(tree.child['Tag'].tree)
 			}
 
 			// `switch z := 0; z < 10` syntax
-			var := v.get_var(tree.child['Init'].tree)
+			var := v.get_var(tree.child['Init'].tree, true)
 			if var.names.len > 0 {
 				// TODO: have a system to prefix the variable name & a system to change all it's occurences in the match statement cases
 				match_stmt.init = var
@@ -518,7 +508,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 	return not_implemented(tree)
 }
 
-fn not_implemented(tree Tree) Statement {
+fn not_implemented(tree Tree) NotImplYetStmt {
 	mut hint := ''
 
 	if 'TokPos' in tree.child {
