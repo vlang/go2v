@@ -3,7 +3,8 @@ go2v
 go2v.exe
 
 #Testing
-temp
+path_test_area/
+temp/
 tests/**/out.vv
 test.go
 test.v
