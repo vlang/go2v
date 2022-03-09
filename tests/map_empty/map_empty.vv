@@ -1,8 +1,8 @@
 module main
 
 struct Vertex {
-	lat  float64
-	long float64
+	lat  f64
+	long f64
 }
 
 fn main() {

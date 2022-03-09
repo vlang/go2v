@@ -60,7 +60,7 @@ fn (mut v VAST) extract_declaration(tree Tree, embedded bool) {
 }
 
 fn (mut v VAST) extract_module_name(tree Tree) {
-	v.@module = v.get_name(tree, true, true)
+	v.@module = v.get_name(tree, .ignore)
 }
 
 fn (mut v VAST) extract_imports(tree Tree) {
@@ -72,21 +72,20 @@ fn (mut v VAST) extract_imports(tree Tree) {
 
 fn (mut v VAST) extract_struct(tree Tree) StructLike {
 	mut @struct := StructLike{
-		name: v.get_name(tree, true, false)
+		name: v.get_name(tree, .ignore)
 	}
 
 	for _, field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
 		// support `A, B int` syntax
 		for _, name in field.tree.child['Names'].tree.child {
-			@struct.fields[v.get_name(name.tree, false, true)] = v.get_type(field.tree,
-				true)
+			@struct.fields[v.get_name(name.tree, .snake_case)] = v.get_type(field.tree)
 		}
 	}
 	return @struct
 }
 
 fn (mut v VAST) extract_sumtype(tree Tree) {
-	v.types[v.get_name(tree, true, false)] = v.get_type(tree, true)
+	v.types[v.get_name(tree, .ignore)] = v.get_type(tree)
 }
 
 fn (mut v VAST) extract_const_or_enum(tree Tree) {
@@ -96,13 +95,13 @@ fn (mut v VAST) extract_const_or_enum(tree Tree) {
 	for _, @const in tree.child {
 		name_base := @const.tree.child['Names'].tree.child['0'].tree
 
-		mut val := v.get_value(@const.tree.child['Values'].tree.child['0'].tree)
+		mut val := v.get_name(@const.tree.child['Values'].tree.child['0'].tree, .ignore)
 
 		// enums
 		if val == 'iota' && !is_enum {
 			// begining of enum
 			is_enum = true
-			temp_enum.name = v.get_type(@const.tree, true)
+			temp_enum.name = v.get_type(@const.tree)
 			temp_enum.fields[name_base.child['Name'].val#[1..-1]] = ''
 			// delete type used as enum name (Go enums implentation is so weird)
 			v.types.delete(temp_enum.name)
@@ -127,7 +126,7 @@ fn (mut v VAST) extract_const_or_enum(tree Tree) {
 
 fn (mut v VAST) extract_function(tree Tree) {
 	mut func := Function{
-		name: v.get_name(tree, true, true)
+		name: v.get_name(tree, .ignore)
 	}
 
 	// comments on top functions (docstrings)
@@ -137,29 +136,28 @@ fn (mut v VAST) extract_function(tree Tree) {
 	}
 
 	// public/private
-	temp_name := tree.child['Name'].tree.child['Name'].val#[1..-1]
-	if `A` <= temp_name[0] && temp_name[0] <= `Z` {
+	if `A` <= func.name[0] && func.name[0] <= `Z` {
 		func.public = true
+		func.name = (func.name[0] + 32).ascii_str() + func.name[1..]
 	}
 
 	// arguments
 	for _, arg in tree.child['Type'].tree.child['Params'].tree.child['List'].tree.child {
-		func.args[v.get_name(arg.tree.child['Names'].tree.child['0'].tree, false, true)] = v.get_type(arg.tree,
-			true)
+		func.args[v.get_name(arg.tree.child['Names'].tree.child['0'].tree, .ignore)] = v.get_type(arg.tree)
 	}
 
 	// method
 	if 'Recv' in tree.child {
 		base := tree.child['Recv'].tree.child['List'].tree.child['0'].tree
 		func.method = [
-			v.get_name(base.child['Names'].tree.child['0'].tree, false, true),
-			v.get_type(base, true),
+			v.get_name(base.child['Names'].tree.child['0'].tree, .ignore),
+			v.get_type(base),
 		]
 	}
 
 	// return value(s)
 	for _, arg in tree.child['Type'].tree.child['Results'].tree.child['List'].tree.child {
-		func.ret_vals << v.get_type(arg.tree, true)
+		func.ret_vals << v.get_type(arg.tree)
 	}
 
 	// body
