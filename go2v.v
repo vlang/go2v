@@ -87,7 +87,7 @@ fn main() {
 						os.execvp('${@VEXE}', [
 							'-stats',
 							'test',
-							os.resource_abs_path(test_to_run),
+							'${os.resource_abs_path(test_to_run)}/all_test.v',
 						]) ?
 					}
 					return
