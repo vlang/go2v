@@ -62,24 +62,50 @@ fn format_value(str string, case Case) string {
 
 // get the type of property/function arguments etc.
 fn (mut v VAST) get_type(tree Tree) string {
-	mut type_prefix := ''
 	mut temp := tree.child['Type'].tree
+	mut type_prefix := ''
+	mut @type := ''
+	mut near_end := if 'X' in temp.child { false } else { true }
 
-	// arrays
-	if temp.name == '*ast.ArrayType' {
-		type_prefix = '[]'
-		temp = temp.child['Elt'].tree
+	for ('X' in temp.child) || near_end {
+		// pointers
+		if temp.name == '*ast.StarExpr' {
+			type_prefix += '&'
+		}
+		if 'X' in temp.child {
+			temp = temp.child['X'].tree
+		}
+
+		// arrays
+		if temp.name == '*ast.ArrayType' {
+			type_prefix += '[]'
+			temp = temp.child['Elt'].tree
+		}
+
+		// pointers
+		if temp.name == '*ast.StarExpr' {
+			type_prefix += '&'
+		}
+
+		@type += v.get_name(temp, .ignore)
+
+		v.get_embedded(temp)
+
+		temp = temp.child['X'].tree
+
+		if near_end {
+			break
+		}
+		if !('X' in temp.child['X'].tree.child || 'Sel' in temp.child) {
+			near_end = true
+		}
 	}
 
-	v.get_embedded(temp)
-
-	raw := v.get_name(temp, .ignore)
-
-	return type_prefix + if raw in transpiler.get_type {
+	return type_prefix + if @type in transpiler.get_type {
 		// transform Go types into V ones
-		transpiler.get_type[raw]
+		transpiler.get_type[@type]
 	} else {
-		raw
+		@type
 	}
 }
 
@@ -90,7 +116,7 @@ fn (mut v VAST) get_name(tree Tree, case Case) string {
 	// All `near_end` related code is a trick to repeat one more time the loop
 	mut near_end := if 'X' in temp.child { false } else { true }
 
-	for (('X' in temp.child) || near_end) {
+	for ('X' in temp.child) || near_end {
 		// name
 		if 'Name' in temp.child {
 			if 'Name' in temp.child['Name'].tree.child {
@@ -149,12 +175,12 @@ fn (mut v VAST) get_embedded(tree Tree) {
 }
 
 // get the condition string from a tree for if/for/match statements
-fn (mut v VAST) get_raw_condition(tree Tree) string {
+fn (mut v VAST) get_raw_operation(tree Tree) string {
 	// logic part
 	if 'Name' !in tree.child {
 		// left-hand
 		x := if 'X' in tree.child['X'].tree.child {
-			v.get_raw_condition(tree.child['X'].tree)
+			v.get_raw_operation(tree.child['X'].tree)
 		} else {
 			v.get_name(tree.child['X'].tree, .ignore)
 		}
@@ -164,7 +190,7 @@ fn (mut v VAST) get_raw_condition(tree Tree) string {
 
 		// right-hand
 		y := if 'Y' in tree.child['Y'].tree.child {
-			v.get_raw_condition(tree.child['Y'].tree)
+			v.get_raw_operation(tree.child['Y'].tree)
 		} else {
 			v.get_name(tree.child['Y'].tree, .ignore)
 		}
@@ -181,9 +207,9 @@ fn (mut v VAST) get_raw_condition(tree Tree) string {
 	}
 }
 
-// format the condition string obtained from get_raw_condition
-fn (mut v VAST) get_condition(tree Tree) string {
-	mut cond := v.get_raw_condition(tree)
+// format the condition string obtained from get_raw_operation
+fn (mut v VAST) get_operation(tree Tree) string {
+	mut cond := v.get_raw_operation(tree)
 
 	mut out := []rune{}
 	mut space_count := 0
@@ -382,7 +408,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				}
 
 				// condition
-				if_else.condition = v.get_condition(temp.child['Cond'].tree)
+				if_else.condition = v.get_operation(temp.child['Cond'].tree)
 				if var.names.len != 0 {
 					if var.values[0] is BasicValueStmt {
 						if_else.condition = if_else.condition.replace(var.names[0], (var.values[0] as BasicValueStmt).value)
@@ -421,7 +447,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			for_stmt.init.mutable = false
 
 			// condition
-			for_stmt.condition = v.get_condition(tree.child['Cond'].tree)
+			for_stmt.condition = v.get_operation(tree.child['Cond'].tree)
 
 			// post
 			post_base := tree.child['Post'].tree
@@ -502,6 +528,12 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 
 			return match_stmt
 		}
+		'*ast.BinaryExpr' {
+			return BasicValueStmt{v.get_operation(tree)}
+		}
+		'*ast.FuncLit' {
+			return v.get_function(tree)
+		}
 		else {}
 	}
 
@@ -515,6 +547,8 @@ fn not_implemented(tree Tree) NotImplYetStmt {
 		hint = 'at character ${tree.child['TokPos'].val}'
 	} else if 'NamePos' in tree.child {
 		hint = 'at character ${tree.child['NamePos'].val}'
+	} else if 'OpPos' in tree.child {
+		hint = 'at character ${tree.child['OpPos'].val}'
 	} else if 'Lbrace' in tree.child {
 		hint = 'from character ${tree.child['Lbrace'].val} to character ${tree.child['Rbrace'].val}'
 	} else if 'Lparen' in tree.child {

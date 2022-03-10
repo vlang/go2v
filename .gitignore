@@ -9,7 +9,8 @@ tests/**/out.vv
 test.go
 test.v
 z
+out
 
 #MacOS
-.DS_Store
+.DS_Store/
 *.dSYM/

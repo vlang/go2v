@@ -51,9 +51,9 @@ fn (mut v VAST) extract_declaration(tree Tree, embedded bool) {
 		else {
 			// functions
 			if tree.name == '*ast.FuncDecl' && !embedded {
-				v.extract_function(tree)
+				v.functions << v.get_function(tree)
 			} else if simplified_base.name == '*ast.FuncDecl' {
-				v.extract_function(simplified_base)
+				v.functions << v.get_function(simplified_base)
 			}
 		}
 	}
@@ -124,9 +124,9 @@ fn (mut v VAST) extract_const_or_enum(tree Tree) {
 	}
 }
 
-fn (mut v VAST) extract_function(tree Tree) {
-	mut func := Function{
-		name: v.get_name(tree, .ignore)
+fn (mut v VAST) get_function(tree Tree) FunctionStmt {
+	mut func := FunctionStmt{
+		name: if 'Name' in tree.child { v.get_name(tree, .ignore) } else { '' }
 	}
 
 	// comments on top functions (docstrings)
@@ -136,7 +136,7 @@ fn (mut v VAST) extract_function(tree Tree) {
 	}
 
 	// public/private
-	if `A` <= func.name[0] && func.name[0] <= `Z` {
+	if func.name.len > 0 && `A` <= func.name[0] && func.name[0] <= `Z` {
 		func.public = true
 		func.name = (func.name[0] + 32).ascii_str() + func.name[1..]
 	}
@@ -163,5 +163,5 @@ fn (mut v VAST) extract_function(tree Tree) {
 	// body
 	func.body = v.get_body(tree.child['Body'].tree)
 
-	v.functions << func
+	return func
 }

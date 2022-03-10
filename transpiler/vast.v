@@ -15,7 +15,7 @@ mut:
 	interfaces []StructLike
 	enums      []StructLike
 	types      map[string]string
-	functions  []Function
+	functions  []FunctionStmt
 	// `v_file_constructor.v`
 	out strings.Builder = strings.new_builder(400)
 	// `v_style.v`
@@ -31,17 +31,6 @@ mut:
 	fields map[string]string
 }
 
-struct Function {
-mut:
-	comment  string
-	public   bool
-	method   []string
-	name     string
-	args     map[string]string
-	ret_vals []string
-	body     []Statement
-}
-
 // body
 
 type Statement = ArrayStmt
@@ -51,6 +40,7 @@ type Statement = ArrayStmt
 	| DeferStmt
 	| ForInStmt
 	| ForStmt
+	| FunctionStmt
 	| IfStmt
 	| IncDecStmt
 	| KeyValStmt
@@ -64,6 +54,17 @@ type Statement = ArrayStmt
 	| VariableStmt
 
 struct NotImplYetStmt {}
+
+struct FunctionStmt {
+mut:
+	comment  string
+	public   bool
+	method   []string
+	name     string
+	args     map[string]string
+	ret_vals []string
+	body     []Statement
+}
 
 struct VariableStmt {
 mut:

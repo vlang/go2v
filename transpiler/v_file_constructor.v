@@ -76,44 +76,7 @@ fn (mut v VAST) handle_enums() {
 
 fn (mut v VAST) handle_functions() {
 	for func in v.functions {
-		// comment
-		v.out.writeln(func.comment)
-		// public/private
-		if func.public {
-			v.out.write_string('pub ')
-		}
-		// keyword
-		v.out.write_string('fn ')
-		// method
-		if func.method.len != 0 {
-			v.out.write_string('(${func.method[0]} ${func.method[1]}) ')
-		}
-		// name
-		v.out.write_string('${func.name}(')
-		// arguments
-		for name, @type in func.args {
-			v.out.write_string('$name ${@type}, ')
-		}
-		v.out.write_string(')')
-		// return value(s)
-
-		if func.ret_vals.len > 0 {
-			v.out.write_string(' (')
-			mut len := func.ret_vals.len
-			for i, val in func.ret_vals {
-				// TODO: useless after https://github.com/vlang/v/issues/13592 gets fixed
-				if i != len - 1 {
-					v.out.write_string('$val, ')
-				} else {
-					v.out.write_string('$val')
-				}
-			}
-			v.out.write_string(')')
-		}
-		// body
-		v.out.write_string(' {')
-		v.handle_body(func.body)
-		v.out.writeln('}')
+		v.handle_stmt(func, false)
 	}
 }
 
@@ -125,6 +88,46 @@ fn (mut v VAST) handle_body(body []Statement) {
 
 fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 	match stmt {
+		FunctionStmt {
+			// comment
+			v.out.writeln(stmt.comment)
+			// public/private
+			if stmt.public {
+				v.out.write_string('pub ')
+			}
+			// keyword
+			v.out.write_string('fn ')
+			// method
+			if stmt.method.len != 0 {
+				v.out.write_string('(${stmt.method[0]} ${stmt.method[1]}) ')
+			}
+			// name
+			v.out.write_string('${stmt.name}(')
+			// arguments
+			for name, @type in stmt.args {
+				v.out.write_string('$name ${@type}, ')
+			}
+			v.out.write_string(')')
+			// return value(s)
+
+			if stmt.ret_vals.len > 0 {
+				v.out.write_string(' (')
+				mut len := stmt.ret_vals.len
+				for i, val in stmt.ret_vals {
+					// TODO: useless after https://github.com/vlang/v/issues/13592 gets fixed
+					if i != len - 1 {
+						v.out.write_string('$val, ')
+					} else {
+						v.out.write_string('$val')
+					}
+				}
+				v.out.write_string(')')
+			}
+			// body
+			v.out.write_string(' {')
+			v.handle_body(stmt.body)
+			v.out.writeln('}')
+		}
 		VariableStmt {
 			has_explicit_type := stmt.@type.len > 0
 			stop := stmt.names.len - 1
@@ -263,9 +266,12 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 		}
 		ReturnStmt {
 			v.out.write_string('return ')
-			for el in stmt.values {
+			for i, el in stmt.values {
 				v.handle_stmt(el, true)
-				v.out.write_rune(`,`)
+				// TODO: useless after https://github.com/vlang/v/issues/13592 gets fixed
+				if i != stmt.values.len - 1 {
+					v.out.write_rune(`,`)
+				}
 			}
 		}
 		DeferStmt {

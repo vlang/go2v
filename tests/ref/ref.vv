@@ -1,0 +1,11 @@
+module main
+
+import crypto.aes
+
+struct BinTree {
+	value string
+	left  &BinTree
+	right &BinTree
+	list  []&BinTree
+	exter []&aes.KeySizeError
+}
