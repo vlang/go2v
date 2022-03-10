@@ -96,9 +96,14 @@ fn (mut v VAST) extract_const_or_enum(tree Tree) {
 		mut var_stmt := v.get_var(el.tree, false)
 		var_stmt.middle = '='
 
+		is_iota := if var_stmt.values[0] is BasicValueStmt {
+			(var_stmt.values[0] as BasicValueStmt).value == 'iota'
+		} else {
+			false
+		}
+
 		// first field of enum
-		if var_stmt.values.len > 0
-			&& (var_stmt.values[0] as BasicValueStmt).value == 'iota' && !is_enum {
+		if var_stmt.values.len > 0 && is_iota && !is_enum {
 			enum_stmt.name = var_stmt.@type
 			is_enum = true
 
