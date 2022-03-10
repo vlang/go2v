@@ -48,12 +48,12 @@ fn (mut v VAST) handle_structs() {
 fn (mut v VAST) handle_consts() {
 	if v.consts.len != 0 {
 		if v.consts.len == 1 {
-			key := v.consts.keys()[0]
-			v.out.writeln('const $key = ${v.consts[key]}')
+			v.out.write_string('const ')
+			v.handle_stmt(v.consts[0], false)
 		} else {
 			v.out.writeln('const (')
-			for key, val in v.consts {
-				v.out.writeln('$key = $val')
+			for @const in v.consts {
+				v.handle_stmt(@const, false)
 			}
 			v.out.writeln(')')
 		}

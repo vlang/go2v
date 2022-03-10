@@ -227,13 +227,12 @@ fn (mut v VAST) get_operation(tree Tree) string {
 
 // get the variable statement (VariableStmt) from a tree
 fn (mut v VAST) get_var(tree Tree, short bool) VariableStmt {
-	base := if short { tree } else { tree.child['Decl'].tree.child['Specs'].tree.child['0'].tree }
-	left_hand := if short { base.child['Lhs'].tree.child } else { base.child['Names'].tree.child }
-	right_hand := if short { base.child['Rhs'].tree.child } else { base.child['Values'].tree.child }
+	left_hand := if short { tree.child['Lhs'].tree.child } else { tree.child['Names'].tree.child }
+	right_hand := if short { tree.child['Rhs'].tree.child } else { tree.child['Values'].tree.child }
 
 	mut var_stmt := VariableStmt{
-		middle: if short { base.child['Tok'].val } else { ':=' }
-		@type: if short { '' } else { v.get_name(base.child['Type'].tree, .ignore) }
+		middle: tree.child['Tok'].val
+		@type: v.get_type(tree)
 	}
 
 	for _, name in left_hand {
@@ -274,7 +273,11 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 	match tree.name {
 		// `var` syntax
 		'*ast.DeclStmt' {
-			return v.get_var(tree, false)
+			mut var_stmt := v.get_var(tree.child['Decl'].tree.child['Specs'].tree.child['0'].tree,
+				false)
+			var_stmt.middle = ':='
+
+			return var_stmt
 		}
 		// `:=`, `+=` etc. syntax
 		'*ast.AssignStmt' {
