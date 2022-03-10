@@ -35,14 +35,23 @@ pub fn go_to_v(input_path string, output_path string) ? {
 		} else {
 			out_path = '${input_path.all_before_last('.go')}.v'
 		}
-	} else if out_path.ends_with(os.path_separator) {
+	}
+
+	if out_path.ends_with(os.path_separator) {
 		out_path = os.dir(out_path)
+
 		if os.is_file(out_path) {
-			return error('"${os.dir(out_path)}" is a file, not a directory')
+			return error('"$out_path" is a file, not a directory')
 		}
-	} else if input_is_file && os.is_dir(out_path) {
+
+		if input_is_file {
+			out_path = os.join_path_single(out_path, '${os.file_name(input_path).all_before_last('.go')}.v')
+		}
+	}
+
+	if input_is_file && os.is_dir(out_path) {
 		return error('"$input_path" is a file, but "$output_path" is a directory\n' +
-			' - add trailing `/` to output if you wish the .v file to be generated in that directory')
+			' - add trailing `$os.path_separator` to output if you wish the .v file to be generated in that directory')
 	}
 
 	if input_is_dir && os.is_file(out_path) {
