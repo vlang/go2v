@@ -122,6 +122,7 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 
 	mut prefs := &pref.Preferences{
 		output_mode: .silent
+		is_fmt: true
 	}
 	table := ast.new_table()
 	result := parser.parse_text(raw_v_file, output_path, table, .parse_comments, prefs)
