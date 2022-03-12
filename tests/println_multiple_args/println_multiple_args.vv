@@ -7,5 +7,5 @@ fn main() {
 	for idx, el in arr {
 		println('$idx $el')
 	}
-	println('${strings.repeat('Hello\n', 10)} ${34} ${'hello'}')
+	println('${'Hello\n'.repeat(10)} ${34} ${'hello'}')
 }

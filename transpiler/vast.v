@@ -37,6 +37,7 @@ type Statement = ArrayStmt
 	| BasicValueStmt
 	| BranchStmt
 	| CallStmt
+	| ComplexValueStmt
 	| DeferStmt
 	| ForInStmt
 	| ForStmt
@@ -46,14 +47,20 @@ type Statement = ArrayStmt
 	| KeyValStmt
 	| MapStmt
 	| MatchStmt
-	| NotImplYetStmt
+	| MultipleStmt
+	| NotYetImplStmt
 	| PushStmt
 	| ReturnStmt
 	| SliceStmt
 	| StructStmt
 	| VariableStmt
 
-struct NotImplYetStmt {}
+struct NotYetImplStmt {}
+
+struct MultipleStmt {
+mut:
+	stmts []Statement
+}
 
 struct FunctionStmt {
 mut:
@@ -92,6 +99,11 @@ mut:
 
 struct BasicValueStmt {
 	value string
+}
+
+struct ComplexValueStmt {
+	op    string
+	value Statement
 }
 
 struct IncDecStmt {

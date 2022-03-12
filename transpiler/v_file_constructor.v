@@ -178,7 +178,7 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 				if branch.condition != ' ' {
 					v.out.write_string('if $branch.condition ')
 				}
-				v.out.write_rune(`{`)
+				v.out.write_string('{\n')
 				v.handle_body(branch.body)
 				v.out.write_rune(`}`)
 			}
@@ -196,7 +196,7 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 				v.out.write_string(stmt.condition)
 			}
 			// for bare loops no need to write anything
-			v.out.write_rune(`{`)
+			v.out.write_string('{\n')
 			v.handle_body(stmt.body)
 			v.out.write_rune(`}`)
 		}
@@ -207,7 +207,7 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 				v.out.write_string('for _ in ')
 			}
 			v.handle_stmt(stmt.variable, true)
-			v.out.write_rune(`{`)
+			v.out.write_string('{\n')
 			v.handle_body(stmt.body)
 			v.out.write_rune(`}`)
 		}
@@ -296,7 +296,7 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 				} else {
 					v.out.write_string('else')
 				}
-				v.out.write_rune(`{`)
+				v.out.write_string('{\n')
 				v.handle_body(case.body)
 				v.out.write_rune(`}`)
 			}
@@ -332,8 +332,17 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 			v.out.write_string('<<')
 			v.handle_stmt(stmt.value, true)
 		}
-		NotImplYetStmt {
-			v.out.write_string('NOT_IMPLEMENTED_YET')
+		ComplexValueStmt {
+			v.out.write_string(stmt.op)
+			v.handle_stmt(stmt.value, true)
+		}
+		MultipleStmt {
+			for el in stmt.stmts {
+				v.handle_stmt(el, true)
+			}
+		}
+		NotYetImplStmt {
+			v.out.write_string('NOT_YET_IMPLEMENTED')
 		}
 	}
 
