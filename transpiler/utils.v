@@ -31,9 +31,15 @@ enum Case {
 // format a given value as needed
 fn format_value(str string, case Case) string {
 	raw := match str[1] {
-		`\\` { "'" + str#[3..-3].replace('\\\\', '\\').replace("'", "\\'") + "'" } // strings
-		`'` { '`${str#[2..-2]}`' } // runes
-		else { str#[1..-1] } // everything else
+		`\\` {
+			"'" + str#[3..-3].replace('\\\\', '\\').replace("'", "\\'") + "'"
+		} // strings
+		`'` {
+			'`${str#[2..-2].replace('\\\\', '\\')}`'
+		} // runes
+		else {
+			str#[1..-1]
+		} // everything else
 	}
 
 	if case == .snake_case {
@@ -346,6 +352,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 					// short `{"key": "value"}` syntax
 					v.current_implicit_map_type = v.get_name(base.child['Value'].tree,
 						.ignore)
+					no_type := v.current_implicit_map_type.len == 0
 
 					mut map_stmt := MapStmt{
 						key_type: v.get_name(base.child['Key'].tree, .ignore)
@@ -353,7 +360,23 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 					}
 
 					for _, el in tree.child['Elts'].tree.child {
-						map_stmt.values << v.get_stmt(el.tree)
+						raw := v.get_stmt(el.tree)
+
+						if no_type {
+							// direct values
+							mut key_val_stmt := raw as KeyValStmt
+							mut array := ArrayStmt{}
+
+							for field in (key_val_stmt.value as StructStmt).fields {
+								array.values << field
+							}
+
+							key_val_stmt.value = array
+							map_stmt.values << key_val_stmt
+						} else {
+							// normal
+							map_stmt.values << raw
+						}
 					}
 
 					v.get_embedded(base)

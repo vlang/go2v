@@ -168,6 +168,7 @@ mut:
 }
 
 struct KeyValStmt {
+mut:
 	key   string
 	value Statement
 }
