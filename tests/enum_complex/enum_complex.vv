@@ -1,7 +1,7 @@
 module main
 
 enum EnumFieldTest {
-	EnumFieidZero
-	EnumFieldFive = 5
-	EnumFieldSix
+	enum_fieid_zero
+	enum_field_five = 5
+	enum_field_six
 }

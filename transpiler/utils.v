@@ -38,16 +38,20 @@ fn format_value(str string, case Case) string {
 
 	if case == .snake_case {
 		mut out := []rune{}
+		mut prev_ch := ` `
 
 		for i, ch in raw {
+			if `A` <= ch && ch <= `Z` && i != 0 && !(`A` <= prev_ch && prev_ch <= `Z`) {
+				out << `_`
+			}
+
 			if `A` <= ch && ch <= `Z` {
-				if i != 0 {
-					out << `_`
-				}
 				out << ch + 32
-			} else {
+			} else if ch != `_` || !(`A` <= prev_ch && prev_ch <= `Z`) {
 				out << ch
 			}
+
+			prev_ch = ch
 		}
 
 		return out.string()
@@ -236,7 +240,7 @@ fn (mut v VAST) get_var(tree Tree, short bool) VariableStmt {
 	}
 
 	for _, name in left_hand {
-		var_stmt.names << v.get_name(name.tree, .ignore)
+		var_stmt.names << v.get_name(name.tree, .snake_case)
 	}
 	for _, val in right_hand {
 		var_stmt.values << v.get_stmt(val.tree)
@@ -284,8 +288,12 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			return v.get_var(tree, true)
 		}
 		// basic value
-		'*ast.BasicLit', '*ast.Ident', '*ast.SelectorExpr', '*ast.IndexExpr' {
+		'*ast.BasicLit' {
 			return BasicValueStmt{v.get_name(tree, .ignore)}
+		}
+		// variable, function call, etc.
+		'*ast.Ident', '*ast.IndexExpr', '*ast.SelectorExpr' {
+			return BasicValueStmt{v.get_name(tree, .snake_case)}
 		}
 		'*ast.MapType' {
 			return MapStmt{
@@ -523,10 +531,15 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 
 				for _, case_stmt in case.tree.child['Body'].tree.child {
 					match_case.body << v.get_stmt(case_stmt.tree)
-					match_case.body = v.v_style(match_case.body)
 				}
+				match_case.body = v.v_style(match_case.body)
 
 				match_stmt.cases << match_case
+			}
+
+			// add an else statement if not already present
+			if match_stmt.cases.last().values.len != 0 {
+				match_stmt.cases << MatchCase{}
 			}
 
 			return match_stmt

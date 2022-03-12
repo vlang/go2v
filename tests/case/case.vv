@@ -1,0 +1,17 @@
+module main
+
+const (
+	uppercase_with_underscores = 0
+	lowercase_with_underscores = 0
+	camel_case                 = 0
+	upper_camel_case           = 0
+	uppercase                  = 0
+	lowercase                  = 0
+)
+
+fn ok() {
+	mut erfd_fs324 := ['a', 'b', 'c', 'd']
+	mut id_weird := 0
+	println(erfd_fs324[id_weird])
+	println(erfd_fs324)
+}

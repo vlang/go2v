@@ -96,7 +96,7 @@ fn (mut v VAST) extract_const_or_enum(tree Tree) {
 		mut var_stmt := v.get_var(el.tree, false)
 		var_stmt.middle = '='
 
-		is_iota := if var_stmt.values[0] is BasicValueStmt {
+		is_iota := if var_stmt.values.len > 0 && var_stmt.values[0] is BasicValueStmt {
 			(var_stmt.values[0] as BasicValueStmt).value == 'iota'
 		} else {
 			false
@@ -132,7 +132,7 @@ fn (mut v VAST) extract_const_or_enum(tree Tree) {
 
 fn (mut v VAST) get_function(tree Tree) FunctionStmt {
 	mut func := FunctionStmt{
-		name: if 'Name' in tree.child { v.get_name(tree, .ignore) } else { '' }
+		name: if 'Name' in tree.child { v.get_name(tree, .snake_case) } else { '' }
 	}
 
 	// comments on top functions (docstrings)
@@ -142,9 +142,9 @@ fn (mut v VAST) get_function(tree Tree) FunctionStmt {
 	}
 
 	// public/private
-	if func.name.len > 0 && `A` <= func.name[0] && func.name[0] <= `Z` {
+	raw_fn_name := v.get_name(tree, .ignore)
+	if raw_fn_name.len > 0 && `A` <= raw_fn_name[0] && raw_fn_name[0] <= `Z` {
 		func.public = true
-		func.name = (func.name[0] + 32).ascii_str() + func.name[1..]
 	}
 
 	// arguments
