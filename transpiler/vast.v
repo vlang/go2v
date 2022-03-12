@@ -9,7 +9,7 @@ mut:
 	// AST
 	@module    string
 	imports    []string
-	consts     map[string]string
+	consts     []VariableStmt
 	structs    []StructLike
 	unions     []StructLike
 	interfaces []StructLike

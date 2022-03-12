@@ -106,6 +106,29 @@ fn (mut v VAST) v_style(body []Statement) []Statement {
 			if mut stmt.value is CallStmt {
 				stmt.value = v.style_print(stmt.value)
 			}
+		} else if mut stmt is MatchStmt {
+			//	switch variable {
+			//	case "a", "b", "c", "d":
+			//		return true
+			//	}
+			// ->
+			//	if ['a', 'b', 'c', 'd'].includes(variable) {
+			//		return true
+			//	}
+			if stmt.cases.len == 2 && stmt.cases[1].body.len == 0 {
+				b.delete(i)
+
+				array := ArrayStmt{
+					values: stmt.cases[0].values
+				}
+
+				b.insert(i, IfStmt{[
+					IfElse{
+						condition: '${v.stmt_to_string(array)}.includes(${v.stmt_to_string(stmt.value)})'
+						body: stmt.cases[0].body
+					},
+				]})
+			}
 		}
 	}
 

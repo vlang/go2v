@@ -1,0 +1,8 @@
+module main
+
+fn main() {
+	mut variable := 'uppercase'
+	if ['a', 'b', 'c', 'd'].includes(variable) {
+		println('a, b, c, or d')
+	}
+}

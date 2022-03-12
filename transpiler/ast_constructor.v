@@ -45,7 +45,7 @@ fn (mut v VAST) extract_declaration(tree Tree, embedded bool) {
 			}
 			// TODO: support interfaces
 		}
-		'const' {
+		'const', 'var' {
 			v.extract_const_or_enum(base)
 		}
 		else {
@@ -89,44 +89,50 @@ fn (mut v VAST) extract_sumtype(tree Tree) {
 }
 
 fn (mut v VAST) extract_const_or_enum(tree Tree) {
+	mut enum_stmt := StructLike{}
 	mut is_enum := false
-	mut temp_enum := StructLike{}
 
-	for _, @const in tree.child {
-		name_base := @const.tree.child['Names'].tree.child['0'].tree
+	for _, el in tree.child {
+		mut var_stmt := v.get_var(el.tree, false)
+		var_stmt.middle = '='
 
-		mut val := v.get_name(@const.tree.child['Values'].tree.child['0'].tree, .ignore)
+		is_iota := if var_stmt.values.len > 0 && var_stmt.values[0] is BasicValueStmt {
+			(var_stmt.values[0] as BasicValueStmt).value == 'iota'
+		} else {
+			false
+		}
+
+		// first field of enum
+		if var_stmt.values.len > 0 && is_iota && !is_enum {
+			enum_stmt.name = var_stmt.@type
+			is_enum = true
+
+			// delete type used as enum name (Go enums implentation is so weird)
+			v.types.delete(var_stmt.@type)
+		}
 
 		// enums
-		if val == 'iota' && !is_enum {
-			// begining of enum
-			is_enum = true
-			temp_enum.name = v.get_type(@const.tree)
-			temp_enum.fields[name_base.child['Name'].val#[1..-1]] = ''
-			// delete type used as enum name (Go enums implentation is so weird)
-			v.types.delete(temp_enum.name)
-		} else if is_enum {
-			// inside of enum
-			val = match val {
-				'' { '' }
-				'iota' { '' }
-				else { val }
+		if is_enum {
+			value := if var_stmt.values.len > 0 {
+				(var_stmt.values[0] as BasicValueStmt).value
+			} else {
+				''
 			}
-			temp_enum.fields[name_base.child['Name'].val#[1..-1]] = val
+			enum_stmt.fields[var_stmt.names[0]] = if value != 'iota' { value } else { '' }
 		} else {
 			// consts
-			v.consts[name_base.child['Name'].val#[1..-1]] = val
+			v.consts << var_stmt
 		}
 	}
 
 	if is_enum {
-		v.enums << temp_enum
+		v.enums << enum_stmt
 	}
 }
 
 fn (mut v VAST) get_function(tree Tree) FunctionStmt {
 	mut func := FunctionStmt{
-		name: if 'Name' in tree.child { v.get_name(tree, .ignore) } else { '' }
+		name: if 'Name' in tree.child { v.get_name(tree, .snake_case) } else { '' }
 	}
 
 	// comments on top functions (docstrings)
@@ -136,9 +142,9 @@ fn (mut v VAST) get_function(tree Tree) FunctionStmt {
 	}
 
 	// public/private
-	if func.name.len > 0 && `A` <= func.name[0] && func.name[0] <= `Z` {
+	raw_fn_name := v.get_name(tree, .ignore)
+	if raw_fn_name.len > 0 && `A` <= raw_fn_name[0] && raw_fn_name[0] <= `Z` {
 		func.public = true
-		func.name = (func.name[0] + 32).ascii_str() + func.name[1..]
 	}
 
 	// arguments
