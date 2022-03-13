@@ -20,6 +20,11 @@ const (
 		'float64': 'f64'
 	}
 	go_types = get_type.keys()
+	keywords = ['as', 'asm', 'assert', 'atomic', 'break', 'const', 'continue', 'defer', 'else',
+		'embed', 'enum', 'false', 'fn', 'for', 'go', 'goto', 'if', 'import', 'in', 'interface',
+		'is', 'lock', 'match', 'module', 'mut', 'none', 'or', 'pub', 'return', 'rlock', 'select',
+		'shared', 'sizeof', 'static', 'struct', 'true', 'type', 'typeof', 'union', 'unsafe',
+		'volatile', '__offsetof']
 )
 
 enum Case {
@@ -30,43 +35,49 @@ enum Case {
 
 // format a given value as needed
 fn format_value(str string, case Case) string {
-	raw := match str[1] {
-		`\\` {
-			"'" + str#[3..-3].replace('\\\\', '\\').replace("'", "\\'") + "'"
-		} // strings
-		`'` {
-			'`${str#[2..-2].replace('\\\\', '\\')}`'
-		} // runes
-		else {
-			str#[1..-1]
-		} // everything else
-	}
-
-	if case == .snake_case {
-		mut out := []rune{}
-		mut prev_ch := ` `
-
-		for i, ch in raw {
-			if `A` <= ch && ch <= `Z` && i != 0 && !(`A` <= prev_ch && prev_ch <= `Z`) {
-				out << `_`
-			}
-
-			if `A` <= ch && ch <= `Z` {
-				out << ch + 32
-			} else if ch != `_` || !(`A` <= prev_ch && prev_ch <= `Z`) {
-				out << ch
-			}
-
-			prev_ch = ch
+	if str.len > 0 {
+		raw := match str[1] {
+			`\\` {
+				"'" + str#[3..-3].replace('\\\\', '\\').replace("'", "\\'") + "'"
+			} // strings
+			`'` {
+				'`${str#[2..-2].replace('\\\\', '\\')}`'
+			} // runes
+			else {
+				str#[1..-1]
+			} // everything else
 		}
 
-		return out.string()
-	} else if case == .camel_case {
-		sub := if `A` <= raw[0] && raw[0] <= `Z` { 0 } else { 32 }
+		is_string := raw[0] == `'` || raw[0] == `\``
 
-		return (raw[0] - byte(sub)).ascii_str() + raw[1..]
+		if case == .snake_case && !is_string {
+			mut out := []rune{}
+			mut prev_ch := ` `
+
+			for i, ch in raw {
+				if `A` <= ch && ch <= `Z` && i != 0 && !(`A` <= prev_ch && prev_ch <= `Z`) {
+					out << `_`
+				}
+
+				if `A` <= ch && ch <= `Z` {
+					out << ch + 32
+				} else if ch != `_` || !(`A` <= prev_ch && prev_ch <= `Z`) {
+					out << ch
+				}
+
+				prev_ch = ch
+			}
+
+			return out.string()
+		} else if case == .camel_case && !is_string {
+			sub := if `A` <= raw[0] && raw[0] <= `Z` { 0 } else { 32 }
+
+			return (raw[0] - byte(sub)).ascii_str() + raw[1..]
+		} else {
+			return raw
+		}
 	} else {
-		return raw
+		return str
 	}
 }
 
@@ -75,9 +86,9 @@ fn (mut v VAST) get_type(tree Tree) string {
 	mut temp := tree.child['Type'].tree
 	mut type_prefix := ''
 	mut @type := ''
-	mut near_end := if 'X' in temp.child { false } else { true }
+	mut next_is_end := if 'X' in temp.child { false } else { true }
 
-	for ('X' in temp.child) || near_end {
+	for ('X' in temp.child) || next_is_end {
 		// pointers
 		if temp.name == '*ast.StarExpr' {
 			type_prefix += '&'
@@ -103,11 +114,11 @@ fn (mut v VAST) get_type(tree Tree) string {
 
 		temp = temp.child['X'].tree
 
-		if near_end {
+		if next_is_end {
 			break
 		}
 		if !('X' in temp.child['X'].tree.child || 'Sel' in temp.child) {
-			near_end = true
+			next_is_end = true
 		}
 	}
 
@@ -123,16 +134,26 @@ fn (mut v VAST) get_type(tree Tree) string {
 fn (mut v VAST) get_name(tree Tree, case Case) string {
 	mut temp := tree
 	mut namespaces := []string{}
-	// All `near_end` related code is a trick to repeat one more time the loop
-	mut near_end := if 'X' in temp.child { false } else { true }
+	// All `next_is_end` related code is a trick to repeat one more time the loop
+	mut next_is_end := if 'X' in temp.child { false } else { true }
 
-	for ('X' in temp.child) || near_end {
+	for ('X' in temp.child) || next_is_end {
 		// name
 		if 'Name' in temp.child {
 			if 'Name' in temp.child['Name'].tree.child {
 				namespaces << v.get_name(temp.child['Name'].tree, case)
 			} else {
-				namespaces << format_value(temp.child['Name'].val, case)
+				formatted_value := format_value(temp.child['Name'].val, case)
+
+				// excape reserved keywords
+				// reserved keywords are already formatted
+				// that's why checking if the unformatted value is the same as the formatted one is great test
+				if temp.child['Name'].val#[1..-1] != formatted_value
+					&& transpiler.keywords.contains(formatted_value) {
+					namespaces << '@$formatted_value'
+				} else {
+					namespaces << formatted_value
+				}
 			}
 		}
 
@@ -150,16 +171,16 @@ fn (mut v VAST) get_name(tree Tree, case Case) string {
 
 		// `a[idx]` syntax
 		if 'Index' in temp.child {
-			namespaces << '[' + v.get_name(temp.child['Index'].tree, case) + ']'
+			namespaces << '[' + v.stmt_to_string(v.get_stmt(temp.child['Index'].tree)) + ']'
 		}
 
 		temp = temp.child['X'].tree
 
-		if near_end {
+		if next_is_end {
 			break
 		}
-		if !('X' in temp.child['X'].tree.child || 'Sel' in temp.child) {
-			near_end = true
+		if !('X' in temp.child || 'Sel' in temp.child || 'Index' in temp.child) {
+			next_is_end = true
 		}
 	}
 
@@ -189,25 +210,34 @@ fn (mut v VAST) get_raw_operation(tree Tree) string {
 	// logic part
 	if 'Name' !in tree.child {
 		// left-hand
-		x := if 'X' in tree.child['X'].tree.child {
+		x := if tree.child['X'].tree.name == '*ast.ParenExpr'
+			|| tree.child['X'].tree.name == '*ast.BinaryExpr' {
 			v.get_raw_operation(tree.child['X'].tree)
+		} else if 'X' in tree.child {
+			v.stmt_to_string(v.get_stmt(tree.child['X'].tree))
 		} else {
-			v.get_name(tree.child['X'].tree, .ignore)
+			''
 		}
 
 		// operator
 		cond := tree.child['Op'].val
 
 		// right-hand
-		y := if 'Y' in tree.child['Y'].tree.child {
+		y := if tree.child['Y'].tree.name == '*ast.ParenExpr'
+			|| tree.child['Y'].tree.name == '*ast.BinaryExpr' {
 			v.get_raw_operation(tree.child['Y'].tree)
+		} else if 'Y' in tree.child {
+			v.stmt_to_string(v.get_stmt(tree.child['Y'].tree))
 		} else {
-			v.get_name(tree.child['Y'].tree, .ignore)
+			''
 		}
 
 		// parentheses
 		if cond == '&&' || cond == '||' {
 			return '($x $cond $y)'
+		} else if cond.len + x.len + y.len == 0 {
+			stmt := v.get_stmt(tree)
+			return if stmt is NotYetImplStmt { ' ' } else { v.stmt_to_string(stmt) }
 		} else {
 			return '$x $cond $y'
 		}
@@ -252,8 +282,6 @@ fn (mut v VAST) get_var(tree Tree, short bool) VariableStmt {
 		var_stmt.values << v.get_stmt(val.tree)
 	}
 
-	var_stmt.values = v.v_style(var_stmt.values)
-
 	return var_stmt
 }
 
@@ -275,11 +303,13 @@ fn (mut v VAST) get_body(tree Tree) []Statement {
 		body << v.get_stmt(stmt.tree)
 	}
 
-	return v.v_style(body)
+	return body
 }
 
 // extract a single statement
 fn (mut v VAST) get_stmt(tree Tree) Statement {
+	mut ret := Statement(NotYetImplStmt{})
+
 	match tree.name {
 		// `var` syntax
 		'*ast.DeclStmt' {
@@ -287,22 +317,23 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				false)
 			var_stmt.middle = ':='
 
-			return var_stmt
+			ret = var_stmt
 		}
 		// `:=`, `+=` etc. syntax
 		'*ast.AssignStmt' {
-			return v.get_var(tree, true)
+			ret = v.get_var(tree, true)
 		}
 		// basic value
 		'*ast.BasicLit' {
-			return BasicValueStmt{v.get_name(tree, .ignore)}
+			ret = BasicValueStmt{v.get_name(tree, .ignore)}
 		}
 		// variable, function call, etc.
 		'*ast.Ident', '*ast.IndexExpr', '*ast.SelectorExpr' {
-			return BasicValueStmt{v.get_name(tree, .snake_case)}
+			ret = BasicValueStmt{v.get_name(tree, .snake_case)}
+			v.get_embedded(tree)
 		}
 		'*ast.MapType' {
-			return MapStmt{
+			ret = MapStmt{
 				key_type: v.get_name(tree.child['Key'].tree, .ignore)
 				value_type: v.get_name(tree.child['Value'].tree, .ignore)
 			}
@@ -311,7 +342,10 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		// eg: -1
 		'*ast.UnaryExpr' {
 			op := if tree.child['Op'].val != 'range' { tree.child['Op'].val } else { '' }
-			return BasicValueStmt{op + v.get_name(tree, .ignore)}
+			ret = ComplexValueStmt{
+				op: op
+				value: v.get_stmt(tree.child['X'].tree)
+			}
 		}
 		// arrays & `Struct{}` syntaxt
 		'*ast.CompositeLit' {
@@ -327,7 +361,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 					for _, el in tree.child['Elts'].tree.child {
 						array.values << v.get_stmt(el.tree)
 					}
-					return array
+					ret = array
 				}
 				// structs
 				'*ast.Ident', '' {
@@ -345,7 +379,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 
 					v.get_embedded(base)
 
-					return @struct
+					ret = @struct
 				}
 				// maps
 				'*ast.MapType' {
@@ -381,57 +415,63 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 
 					v.get_embedded(base)
 
-					return map_stmt
+					ret = map_stmt
 				}
 				else {
-					return not_implemented(tree)
+					ret = not_implemented(tree)
 				}
 			}
 		}
 		// `key: value` syntax
 		'*ast.KeyValueExpr' {
-			return KeyValStmt{
-				key: v.get_name(tree.child['Key'].tree, .ignore)
+			ret = KeyValStmt{
+				key: v.get_name(tree.child['Key'].tree, .snake_case)
 				value: v.get_stmt(tree.child['Value'].tree)
 			}
 		}
 		// slices (slicing)
 		'*ast.SliceExpr' {
-			return SliceStmt{
+			mut slice_stmt := SliceStmt{
 				value: v.get_name(tree.child['X'].tree, .ignore)
-				low: v.get_name(tree.child['Low'].tree, .ignore)
-				high: v.get_name(tree.child['High'].tree, .ignore)
+				low: BasicValueStmt{}
+				high: BasicValueStmt{}
 			}
+			if 'Low' in tree.child {
+				slice_stmt.low = v.get_stmt(tree.child['Low'].tree)
+			}
+			if 'High' in tree.child {
+				slice_stmt.high = v.get_stmt(tree.child['High'].tree)
+			}
+			ret = slice_stmt
 		}
 		// (nested) function/method call
 		'*ast.ExprStmt', '*ast.CallExpr' {
 			base := if tree.name == '*ast.ExprStmt' { tree.child['X'].tree } else { tree }
 
-			mut clall_stmt := CallStmt{
+			mut call_stmt := CallStmt{
 				namespaces: v.get_name(base.child['Fun'].tree, .snake_case)
 			}
 
 			// function/method arguments
 			for _, arg in base.child['Args'].tree.child {
-				clall_stmt.args << v.get_stmt(arg.tree)
+				call_stmt.args << v.get_stmt(arg.tree)
 			}
-			clall_stmt.args = v.v_style(clall_stmt.args)
 
 			v.get_embedded(base.child['Fun'].tree)
 
-			return clall_stmt
+			ret = call_stmt
 		}
 		// `i++` & `i--`
 		'*ast.IncDecStmt' {
-			return v.get_inc_dec(tree)
+			ret = v.get_inc_dec(tree)
 		}
 		// if/else
 		'*ast.IfStmt' {
 			mut if_stmt := IfStmt{}
 			mut temp := tree
-			mut near_end := if 'Else' in temp.child { false } else { true }
+			mut next_is_end := if 'Else' in temp.child { false } else { true }
 
-			for ('Else' in temp.child || near_end) {
+			for ('Else' in temp.child || next_is_end) {
 				mut if_else := IfElse{}
 
 				// `if z := 0; z < 10` syntax
@@ -461,16 +501,16 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 
 				if_stmt.branchs << if_else
 
-				if near_end {
+				if next_is_end {
 					break
 				}
 				if 'Else' !in temp.child['Else'].tree.child {
-					near_end = true
+					next_is_end = true
 				}
 				temp = temp.child['Else'].tree
 			}
 
-			return if_stmt
+			ret = if_stmt
 		}
 		// condition for/bare for/C-style for
 		'*ast.ForStmt' {
@@ -492,11 +532,11 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			// body
 			for_stmt.body = v.get_body(tree.child['Body'].tree)
 
-			return for_stmt
+			ret = for_stmt
 		}
 		// break/continue
 		'*ast.BranchStmt' {
-			return BranchStmt{tree.child['Tok'].val}
+			ret = BranchStmt{tree.child['Tok'].val}
 		}
 		// for in
 		'*ast.RangeStmt' {
@@ -520,7 +560,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			// body
 			forin_stmt.body = v.get_body(tree.child['Body'].tree)
 
-			return forin_stmt
+			ret = forin_stmt
 		}
 		'*ast.ReturnStmt' {
 			mut return_stmt := ReturnStmt{}
@@ -529,10 +569,10 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				return_stmt.values << v.get_stmt(el.tree)
 			}
 
-			return return_stmt
+			ret = return_stmt
 		}
 		'*ast.DeferStmt' {
-			return DeferStmt{v.get_stmt(tree.child['Call'].tree)}
+			ret = DeferStmt{v.get_stmt(tree.child['Call'].tree)}
 		}
 		'*ast.SwitchStmt' {
 			mut match_stmt := MatchStmt{
@@ -555,7 +595,6 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				for _, case_stmt in case.tree.child['Body'].tree.child {
 					match_case.body << v.get_stmt(case_stmt.tree)
 				}
-				match_case.body = v.v_style(match_case.body)
 
 				match_stmt.cases << match_case
 			}
@@ -565,21 +604,23 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				match_stmt.cases << MatchCase{}
 			}
 
-			return match_stmt
+			ret = match_stmt
 		}
 		'*ast.BinaryExpr' {
-			return BasicValueStmt{v.get_operation(tree)}
+			ret = BasicValueStmt{v.get_operation(tree)}
 		}
 		'*ast.FuncLit' {
-			return v.get_function(tree)
+			ret = v.get_function(tree)
 		}
-		else {}
+		else {
+			ret = not_implemented(tree)
+		}
 	}
 
-	return not_implemented(tree)
+	return v.style_stmt(ret)
 }
 
-fn not_implemented(tree Tree) NotImplYetStmt {
+fn not_implemented(tree Tree) NotYetImplStmt {
 	mut hint := ''
 
 	if 'TokPos' in tree.child {
@@ -602,5 +643,5 @@ fn not_implemented(tree Tree) NotImplYetStmt {
 		eprintln('Go feature `$tree.name` $hint not currently implemented.\nPlease report the missing feature at https://github.com/vlang/go2v/issues/new')
 	}
 
-	return NotImplYetStmt{}
+	return NotYetImplStmt{}
 }
