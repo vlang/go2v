@@ -1,6 +1,6 @@
 module main
 
 import crypto.aes
-import strings
+import crypto.cipher
 
 fn main() {}

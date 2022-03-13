@@ -19,8 +19,11 @@ mut:
 	// `v_file_constructor.v`
 	out strings.Builder = strings.new_builder(400)
 	// `v_style.v`
-	fmt_import_count       int
-	fmt_supported_fn_count int
+	// module_name: [initial_number_of_use, number_of_use_after_v_style]
+	imports_count map[string][]int = {
+		'fmt':     [0, 0]
+		'strings': [0, 0]
+	}
 	// maps
 	current_implicit_map_type string
 }
@@ -93,8 +96,8 @@ mut:
 struct SliceStmt {
 mut:
 	value string
-	low   string
-	high  string
+	low   Statement
+	high  Statement
 }
 
 struct BasicValueStmt {

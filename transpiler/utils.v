@@ -35,45 +35,49 @@ enum Case {
 
 // format a given value as needed
 fn format_value(str string, case Case) string {
-	raw := match str[1] {
-		`\\` {
-			"'" + str#[3..-3].replace('\\\\', '\\').replace("'", "\\'") + "'"
-		} // strings
-		`'` {
-			'`${str#[2..-2].replace('\\\\', '\\')}`'
-		} // runes
-		else {
-			str#[1..-1]
-		} // everything else
-	}
-
-	is_string := raw[0] == `'` || raw[0] == `\``
-
-	if case == .snake_case && !is_string {
-		mut out := []rune{}
-		mut prev_ch := ` `
-
-		for i, ch in raw {
-			if `A` <= ch && ch <= `Z` && i != 0 && !(`A` <= prev_ch && prev_ch <= `Z`) {
-				out << `_`
-			}
-
-			if `A` <= ch && ch <= `Z` {
-				out << ch + 32
-			} else if ch != `_` || !(`A` <= prev_ch && prev_ch <= `Z`) {
-				out << ch
-			}
-
-			prev_ch = ch
+	if str.len > 0 {
+		raw := match str[1] {
+			`\\` {
+				"'" + str#[3..-3].replace('\\\\', '\\').replace("'", "\\'") + "'"
+			} // strings
+			`'` {
+				'`${str#[2..-2].replace('\\\\', '\\')}`'
+			} // runes
+			else {
+				str#[1..-1]
+			} // everything else
 		}
 
-		return out.string()
-	} else if case == .camel_case && !is_string {
-		sub := if `A` <= raw[0] && raw[0] <= `Z` { 0 } else { 32 }
+		is_string := raw[0] == `'` || raw[0] == `\``
 
-		return (raw[0] - byte(sub)).ascii_str() + raw[1..]
+		if case == .snake_case && !is_string {
+			mut out := []rune{}
+			mut prev_ch := ` `
+
+			for i, ch in raw {
+				if `A` <= ch && ch <= `Z` && i != 0 && !(`A` <= prev_ch && prev_ch <= `Z`) {
+					out << `_`
+				}
+
+				if `A` <= ch && ch <= `Z` {
+					out << ch + 32
+				} else if ch != `_` || !(`A` <= prev_ch && prev_ch <= `Z`) {
+					out << ch
+				}
+
+				prev_ch = ch
+			}
+
+			return out.string()
+		} else if case == .camel_case && !is_string {
+			sub := if `A` <= raw[0] && raw[0] <= `Z` { 0 } else { 32 }
+
+			return (raw[0] - byte(sub)).ascii_str() + raw[1..]
+		} else {
+			return raw
+		}
 	} else {
-		return raw
+		return str
 	}
 }
 
@@ -82,9 +86,9 @@ fn (mut v VAST) get_type(tree Tree) string {
 	mut temp := tree.child['Type'].tree
 	mut type_prefix := ''
 	mut @type := ''
-	mut near_end := if 'X' in temp.child { false } else { true }
+	mut next_is_end := if 'X' in temp.child { false } else { true }
 
-	for ('X' in temp.child) || near_end {
+	for ('X' in temp.child) || next_is_end {
 		// pointers
 		if temp.name == '*ast.StarExpr' {
 			type_prefix += '&'
@@ -110,11 +114,11 @@ fn (mut v VAST) get_type(tree Tree) string {
 
 		temp = temp.child['X'].tree
 
-		if near_end {
+		if next_is_end {
 			break
 		}
 		if !('X' in temp.child['X'].tree.child || 'Sel' in temp.child) {
-			near_end = true
+			next_is_end = true
 		}
 	}
 
@@ -130,10 +134,10 @@ fn (mut v VAST) get_type(tree Tree) string {
 fn (mut v VAST) get_name(tree Tree, case Case) string {
 	mut temp := tree
 	mut namespaces := []string{}
-	// All `near_end` related code is a trick to repeat one more time the loop
-	mut near_end := if 'X' in temp.child { false } else { true }
+	// All `next_is_end` related code is a trick to repeat one more time the loop
+	mut next_is_end := if 'X' in temp.child { false } else { true }
 
-	for ('X' in temp.child) || near_end {
+	for ('X' in temp.child) || next_is_end {
 		// name
 		if 'Name' in temp.child {
 			if 'Name' in temp.child['Name'].tree.child {
@@ -167,16 +171,16 @@ fn (mut v VAST) get_name(tree Tree, case Case) string {
 
 		// `a[idx]` syntax
 		if 'Index' in temp.child {
-			namespaces << '[' + v.get_name(temp.child['Index'].tree, case) + ']'
+			namespaces << '[' + v.stmt_to_string(v.get_stmt(temp.child['Index'].tree)) + ']'
 		}
 
 		temp = temp.child['X'].tree
 
-		if near_end {
+		if next_is_end {
 			break
 		}
-		if !('X' in temp.child['X'].tree.child || 'Sel' in temp.child) {
-			near_end = true
+		if !('X' in temp.child || 'Sel' in temp.child || 'Index' in temp.child) {
+			next_is_end = true
 		}
 	}
 
@@ -206,7 +210,8 @@ fn (mut v VAST) get_raw_operation(tree Tree) string {
 	// logic part
 	if 'Name' !in tree.child {
 		// left-hand
-		x := if 'X' in tree.child['X'].tree.child {
+		x := if tree.child['X'].tree.name == '*ast.ParenExpr'
+			|| tree.child['X'].tree.name == '*ast.BinaryExpr' {
 			v.get_raw_operation(tree.child['X'].tree)
 		} else if 'X' in tree.child {
 			v.stmt_to_string(v.get_stmt(tree.child['X'].tree))
@@ -218,7 +223,8 @@ fn (mut v VAST) get_raw_operation(tree Tree) string {
 		cond := tree.child['Op'].val
 
 		// right-hand
-		y := if 'Y' in tree.child['Y'].tree.child {
+		y := if tree.child['Y'].tree.name == '*ast.ParenExpr'
+			|| tree.child['Y'].tree.name == '*ast.BinaryExpr' {
 			v.get_raw_operation(tree.child['Y'].tree)
 		} else if 'Y' in tree.child {
 			v.stmt_to_string(v.get_stmt(tree.child['Y'].tree))
@@ -229,6 +235,9 @@ fn (mut v VAST) get_raw_operation(tree Tree) string {
 		// parentheses
 		if cond == '&&' || cond == '||' {
 			return '($x $cond $y)'
+		} else if cond.len + x.len + y.len == 0 {
+			stmt := v.get_stmt(tree)
+			return if stmt is NotYetImplStmt { ' ' } else { v.stmt_to_string(stmt) }
 		} else {
 			return '$x $cond $y'
 		}
@@ -321,6 +330,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		// variable, function call, etc.
 		'*ast.Ident', '*ast.IndexExpr', '*ast.SelectorExpr' {
 			ret = BasicValueStmt{v.get_name(tree, .snake_case)}
+			v.get_embedded(tree)
 		}
 		'*ast.MapType' {
 			ret = MapStmt{
@@ -421,11 +431,18 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		}
 		// slices (slicing)
 		'*ast.SliceExpr' {
-			ret = SliceStmt{
+			mut slice_stmt := SliceStmt{
 				value: v.get_name(tree.child['X'].tree, .ignore)
-				low: v.get_name(tree.child['Low'].tree, .ignore)
-				high: v.get_name(tree.child['High'].tree, .ignore)
+				low: BasicValueStmt{}
+				high: BasicValueStmt{}
 			}
+			if 'Low' in tree.child {
+				slice_stmt.low = v.get_stmt(tree.child['Low'].tree)
+			}
+			if 'High' in tree.child {
+				slice_stmt.high = v.get_stmt(tree.child['High'].tree)
+			}
+			ret = slice_stmt
 		}
 		// (nested) function/method call
 		'*ast.ExprStmt', '*ast.CallExpr' {
@@ -452,9 +469,9 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		'*ast.IfStmt' {
 			mut if_stmt := IfStmt{}
 			mut temp := tree
-			mut near_end := if 'Else' in temp.child { false } else { true }
+			mut next_is_end := if 'Else' in temp.child { false } else { true }
 
-			for ('Else' in temp.child || near_end) {
+			for ('Else' in temp.child || next_is_end) {
 				mut if_else := IfElse{}
 
 				// `if z := 0; z < 10` syntax
@@ -484,11 +501,11 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 
 				if_stmt.branchs << if_else
 
-				if near_end {
+				if next_is_end {
 					break
 				}
 				if 'Else' !in temp.child['Else'].tree.child {
-					near_end = true
+					next_is_end = true
 				}
 				temp = temp.child['Else'].tree
 			}

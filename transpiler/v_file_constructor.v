@@ -1,5 +1,14 @@
 module transpiler
 
+fn default_val(@type string) string {
+	return match @type {
+		'string' { "''" }
+		'int' { '0' }
+		'bool' { 'false' }
+		else { '${@type}{}' }
+	}
+}
+
 fn v_file_constructor(v_ast VAST) string {
 	mut v := v_ast
 	v.handle_module()
@@ -21,10 +30,11 @@ fn (mut v VAST) handle_module() {
 }
 
 fn (mut v VAST) handle_imports() {
-	for imp in v.imports {
+	for @import in v.imports {
 		// remove useless `fmt` import
-		if !(imp == 'fmt' && v.fmt_import_count == v.fmt_supported_fn_count) {
-			v.out.writeln('import $imp')
+		if !(@import in v.imports_count
+			&& v.imports_count[@import][0] == v.imports_count[@import][1]) {
+			v.out.writeln('import ${@import}')
 		}
 	}
 }
@@ -129,33 +139,39 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 			v.out.writeln('}')
 		}
 		VariableStmt {
-			has_explicit_type := stmt.@type.len > 0
-			stop := stmt.names.len - 1
+			if stmt.names.len > 0 {
+				has_explicit_type := stmt.@type.len > 0
+				stop := stmt.names.len - 1
 
-			if stmt.mutable && stmt.middle == ':=' {
-				v.out.write_string('mut ')
-			}
-
-			// name(s)
-			for i, name in stmt.names {
-				v.out.write_string(name)
-				v.out.write_string(if i != stop { ',' } else { '' })
-			}
-
-			// eg: `:=`, `+=`, `=`
-			v.out.write_string(stmt.middle)
-
-			// value(s)
-			for i, value in stmt.values {
-				// explicit type
-				if has_explicit_type {
-					v.out.write_string('${stmt.@type}(')
+				if stmt.mutable && stmt.middle == ':=' {
+					v.out.write_string('mut ')
 				}
-				v.handle_stmt(value, true)
-				if has_explicit_type {
-					v.out.write_rune(`)`)
+
+				// name(s)
+				for i, name in stmt.names {
+					v.out.write_string(name)
+					v.out.write_string(if i != stop { ',' } else { '' })
 				}
-				v.out.write_string(if i != stop { ',' } else { '' })
+
+				// eg: `:=`, `+=`, `=`
+				v.out.write_string(stmt.middle)
+
+				// value(s)
+				if stmt.values.len > 0 {
+					for i, value in stmt.values {
+						// explicit type
+						if has_explicit_type {
+							v.out.write_string('${stmt.@type}(')
+						}
+						v.handle_stmt(value, true)
+						if has_explicit_type {
+							v.out.write_rune(`)`)
+						}
+						v.out.write_string(if i != stop { ',' } else { '' })
+					}
+				} else {
+					v.out.write_string(default_val(stmt.@type))
+				}
 			}
 		}
 		IncDecStmt {
@@ -233,20 +249,13 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 
 				mut i := stmt.values.len
 				if is_fixed_size && i < stmt.len.int() {
-					default_val := match stmt.@type {
-						'string' { "''" }
-						'int' { '0' }
-						'bool' { 'false' }
-						else { '${stmt.@type}{}' }
-					}
-
 					mut is_first := true
 					for i != stmt.len.int() {
 						if is_first {
 							is_first = false
-							v.out.write_string('$default_val')
+							v.out.write_string(default_val(stmt.@type))
 						} else {
-							v.out.write_string(', $default_val')
+							v.out.write_string(', ${default_val(stmt.@type)}')
 						}
 						i++
 					}
@@ -262,7 +271,11 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 			v.out.write_string(stmt.value)
 		}
 		SliceStmt {
-			v.out.write_string('$stmt.value[${stmt.low}..$stmt.high]')
+			v.out.write_string('$stmt.value[')
+			v.handle_stmt(stmt.low, true)
+			v.out.write_string('..')
+			v.handle_stmt(stmt.high, true)
+			v.out.write_rune(`]`)
 		}
 		ReturnStmt {
 			v.out.write_string('return ')
@@ -346,7 +359,9 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 		}
 	}
 
-	if !is_value {
+	if is_value {
+		v.out.write_rune(` `)
+	} else {
 		v.out.write_rune(`\n`)
 	}
 }

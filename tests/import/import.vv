@@ -1,6 +1,6 @@
 module main
 
+import aes
 import io
-import strings
 
 fn main() {}

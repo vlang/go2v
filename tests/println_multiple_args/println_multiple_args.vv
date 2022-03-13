@@ -1,7 +1,5 @@
 module main
 
-import strings
-
 fn main() {
 	mut arr := ['hello', 'world']
 	for idx, el in arr {

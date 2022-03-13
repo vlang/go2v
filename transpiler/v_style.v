@@ -16,10 +16,10 @@ fn (mut v VAST) style_print(stmt CallStmt) CallStmt {
 	ns_array := s.namespaces.split('.')
 
 	if ns_array[0] == 'fmt' {
-		v.fmt_import_count++
+		v.imports_count['fmt'][0]++
 
 		if ns_array[1] == 'println' || ns_array[1] == 'print' {
-			v.fmt_supported_fn_count++
+			v.imports_count['fmt'][1]++
 			s.namespaces = ns_array[1]
 
 			// `println(a, b)` -> `println('${a} ${b}')`
@@ -56,15 +56,19 @@ fn (mut v VAST) style_stmt(s Statement) Statement {
 				namespaces: '${v.stmt_to_string(stmt.args[0])}.delete'
 				args: [stmt.args[1]]
 			}
-		} else if ns[0] == 'strings' && transpiler.strings_to_builtin.contains(ns[1]) {
-			if stmt.args.len == 1 {
-				stmt = CallStmt{
-					namespaces: '${v.stmt_to_string(stmt.args[0])}.${ns[1]}'
-				}
-			} else {
-				stmt = CallStmt{
-					namespaces: '${v.stmt_to_string(stmt.args[0])}.${ns[1]}'
-					args: [stmt.args[1]]
+		} else if ns[0] == 'strings' {
+			v.imports_count['strings'][0]++
+			if transpiler.strings_to_builtin.contains(ns[1]) {
+				v.imports_count['strings'][1]++
+				if stmt.args.len == 1 {
+					stmt = CallStmt{
+						namespaces: '${v.stmt_to_string(stmt.args[0])}.${ns[1]}'
+					}
+				} else {
+					stmt = CallStmt{
+						namespaces: '${v.stmt_to_string(stmt.args[0])}.${ns[1]}'
+						args: [stmt.args[1]]
+					}
 				}
 			}
 		} else if stmt.namespaces == 'rune' {

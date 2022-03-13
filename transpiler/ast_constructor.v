@@ -14,6 +14,7 @@ fn ast_constructor(tree Tree) VAST {
 	return v_ast
 }
 
+// TODO: better system, this one is clumsy
 fn (mut v VAST) extract_declaration(tree Tree, embedded bool) {
 	base := tree.child['Specs'].tree
 	mut simplified_base := base.child['0'].tree
@@ -46,7 +47,11 @@ fn (mut v VAST) extract_declaration(tree Tree, embedded bool) {
 			// TODO: support interfaces
 		}
 		'const', 'var' {
-			v.extract_const_or_enum(base)
+			if !embedded {
+				v.extract_const_or_enum(base)
+			} else {
+				v.extract_embedded_const(simplified_base)
+			}
 		}
 		else {
 			// functions
@@ -86,6 +91,12 @@ fn (mut v VAST) extract_struct(tree Tree) StructLike {
 
 fn (mut v VAST) extract_sumtype(tree Tree) {
 	v.types[v.get_name(tree, .ignore)] = v.get_type(tree)
+}
+
+fn (mut v VAST) extract_embedded_const(tree Tree) {
+	mut @const := v.get_var(tree, false)
+	@const.middle = '='
+	v.consts << @const
 }
 
 fn (mut v VAST) extract_const_or_enum(tree Tree) {
