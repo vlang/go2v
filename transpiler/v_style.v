@@ -35,7 +35,7 @@ fn (mut v VAST) style_print(stmt CallStmt) CallStmt {
 fn (mut v VAST) v_style(body []Statement) []Statement {
 	mut b := body.clone()
 
-	for i, stmt in b {
+	for i, mut stmt in b {
 		if mut stmt is CallStmt {
 			// `len(array)` -> `array.len`
 			// `cap(array)` -> `array.cap`
