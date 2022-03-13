@@ -83,19 +83,19 @@ fn (mut v VAST) style_stmt(s Statement) Statement {
 	} else if mut stmt is VariableStmt {
 		mut push_stmts := []PushStmt{}
 
-		for j, value in stmt.values {
+		for i, value in stmt.values {
 			if value is CallStmt {
 				if value.namespaces == 'append' {
 					// `append(array, value)` -> `array << value`
 					if value.args.len < 3 {
 						push_stmts << PushStmt{
-							stmt: BasicValueStmt{stmt.names[j]}
+							stmt: BasicValueStmt{stmt.names[i]}
 							value: value.args[1]
 						}
 						// `append(array, value1, value2)` -> `array << [value1, value2]`
 					} else {
 						mut push_stmt := PushStmt{
-							stmt: BasicValueStmt{stmt.names[j]}
+							stmt: BasicValueStmt{stmt.names[i]}
 						}
 						mut array := ArrayStmt{}
 
@@ -107,8 +107,8 @@ fn (mut v VAST) style_stmt(s Statement) Statement {
 						push_stmts << push_stmt
 					}
 
-					stmt.names.delete(j)
-					stmt.values.delete(j)
+					stmt.names.delete(i)
+					stmt.values.delete(i)
 				}
 			}
 		}
