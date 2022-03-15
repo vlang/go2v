@@ -75,6 +75,10 @@ fn (mut v VAST) style_stmt(s Statement) Statement {
 			stmt = CallStmt{
 				namespaces: '${v.stmt_to_string(stmt.args[0])}.runes'
 			}
+		} else if stmt.namespaces == 'string' {
+			stmt = CallStmt{
+				namespaces: '${v.stmt_to_string(stmt.args[0])}.str '
+			}
 		} else {
 			// `fmt.println(a)` -> `println(a)`
 			stmt = v.style_print(stmt)

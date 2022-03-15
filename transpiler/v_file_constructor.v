@@ -141,7 +141,6 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 		VariableStmt {
 			if stmt.names.len > 0 {
 				has_explicit_type := stmt.@type.len > 0
-				stop := stmt.names.len - 1
 
 				if stmt.mutable && stmt.middle == ':=' {
 					v.out.write_string('mut ')
@@ -150,7 +149,7 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 				// name(s)
 				for i, name in stmt.names {
 					v.out.write_string(name)
-					v.out.write_string(if i != stop { ',' } else { '' })
+					v.out.write_string(if i != stmt.names.len - 1 { ',' } else { '' })
 				}
 
 				// eg: `:=`, `+=`, `=`
@@ -167,7 +166,7 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 						if has_explicit_type {
 							v.out.write_rune(`)`)
 						}
-						v.out.write_string(if i != stop { ',' } else { '' })
+						v.out.write_string(if i != stmt.values.len - 1 { ',' } else { '' })
 					}
 				} else {
 					v.out.write_string(default_val(stmt.@type))

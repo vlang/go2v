@@ -93,6 +93,7 @@ fn (mut v VAST) get_type(tree Tree) string {
 		if temp.name == '*ast.StarExpr' {
 			type_prefix += '&'
 		}
+		// TODO: rework that
 		if 'X' in temp.child {
 			temp = temp.child['X'].tree
 		}
@@ -106,6 +107,12 @@ fn (mut v VAST) get_type(tree Tree) string {
 		// pointers
 		if temp.name == '*ast.StarExpr' {
 			type_prefix += '&'
+		}
+
+		// maps
+		if temp.name == '*ast.MapType' {
+			@type += 'map[' + v.get_name(temp.child['Key'].tree, .ignore) + ']' +
+				v.get_name(temp.child['Value'].tree, .ignore)
 		}
 
 		@type += v.get_name(temp, .ignore)
@@ -238,6 +245,8 @@ fn (mut v VAST) get_raw_operation(tree Tree) string {
 		} else if cond.len + x.len + y.len == 0 {
 			stmt := v.get_stmt(tree)
 			return if stmt is NotYetImplStmt { ' ' } else { v.stmt_to_string(stmt) }
+		} else if y.len == 0 {
+			return '$cond $x'
 		} else {
 			return '$x $cond $y'
 		}
@@ -639,7 +648,7 @@ fn not_implemented(tree Tree) NotYetImplStmt {
 
 	if hint == 'at unknown character' && 'Tok' in tree.child {
 		return not_implemented(tree.child['X'].tree)
-	} else {
+	} else if tree.name.len > 0 {
 		eprintln('Go feature `$tree.name` $hint not currently implemented.\nPlease report the missing feature at https://github.com/vlang/go2v/issues/new')
 	}
 

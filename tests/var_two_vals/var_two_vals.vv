@@ -1,0 +1,10 @@
+module main
+
+fn two_fn() (int, int) {
+	return 1, 2
+}
+
+fn main() {
+	mut a, b := 1, 2
+	mut c, d := two_fn()
+}
