@@ -20,10 +20,13 @@ mut:
 	out strings.Builder = strings.new_builder(400)
 	// `v_style.v`
 	// module_name: [initial_number_of_use, number_of_use_after_v_style]
+	// TODO: rework this
 	imports_count map[string][]int = {
 		'fmt':     [0, 0]
 		'strings': [0, 0]
+		'bytes':   [0, 0]
 	}
+	string_builder_vars []string
 	// maps
 	current_implicit_map_type string
 }
@@ -52,10 +55,12 @@ type Statement = ArrayStmt
 	| MatchStmt
 	| MultipleStmt
 	| NotYetImplStmt
+	| OptionalStmt
 	| PushStmt
 	| ReturnStmt
 	| SliceStmt
 	| StructStmt
+	| UnsafeStmt
 	| VariableStmt
 
 struct NotYetImplStmt {}
@@ -107,6 +112,10 @@ struct BasicValueStmt {
 struct ComplexValueStmt {
 	op    string
 	value Statement
+}
+
+struct OptionalStmt {
+	stmt Statement
 }
 
 struct IncDecStmt {
@@ -161,6 +170,11 @@ mut:
 struct DeferStmt {
 mut:
 	value Statement
+}
+
+struct UnsafeStmt {
+mut:
+	body []Statement
 }
 
 struct MatchStmt {
