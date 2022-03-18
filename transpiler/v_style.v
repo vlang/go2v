@@ -52,9 +52,16 @@ fn (mut v VAST) style_string_builder(stmt CallStmt, left string, right string) S
 			return BasicValueStmt{stmt.namespaces}
 		}
 		'reset' {
-			return UnsafeStmt{[CallStmt{
-				namespaces: '${left}.free'
-			}]}
+			return UnsafeStmt{[
+				CallStmt{
+					namespaces: '${left}.free'
+				},
+				VariableStmt{
+					names: ['${left}.offset', '${left}.len']
+					middle: '='
+					values: [BasicValueStmt{'0'}, BasicValueStmt{'0'}]
+				},
+			]}
 		}
 		'string' {
 			return CallStmt{

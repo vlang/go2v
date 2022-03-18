@@ -12,5 +12,6 @@ fn main() {
 	buf.str()
 	unsafe {
 		buf.free()
+		buf.offset, buf.len = 0, 0
 	}
 }
