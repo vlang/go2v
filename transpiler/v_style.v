@@ -1,9 +1,12 @@
 module transpiler
 
-const strings_to_builtin = ['compare', 'contains', 'contains_any', 'count', 'fields', 'index',
-	'index_any', 'index_byte', 'last_index', 'last_index_byte', 'repeat', 'split', 'title',
-	'to_lower', 'to_upper', 'trim', 'trim_left', 'trim_prefix', 'trim_right', 'trim_space',
-	'trim_suffix']
+const (
+	strings_to_builtin   = ['compare', 'contains', 'contains_any', 'count', 'fields', 'index',
+		'index_any', 'index_byte', 'last_index', 'last_index_byte', 'repeat', 'split', 'title',
+		'to_lower', 'to_upper', 'trim', 'trim_left', 'trim_prefix', 'trim_right', 'trim_space',
+		'trim_suffix']
+	string_builder_diffs = ['cap', 'grow', 'len', 'reset', 'string', 'write']
+)
 
 fn (mut v VAST) stmt_to_string(stmt Statement) string {
 	v.handle_stmt(stmt, true)
@@ -37,11 +40,48 @@ fn (mut v VAST) style_print(stmt CallStmt) CallStmt {
 	return s
 }
 
+fn (mut v VAST) style_string_builder(stmt CallStmt, left string, right string) Statement {
+	match right {
+		'grow' {
+			return CallStmt{
+				namespaces: '${left}.ensure_cap'
+				args: stmt.args
+			}
+		}
+		'cap', 'len' {
+			return BasicValueStmt{stmt.namespaces}
+		}
+		'reset' {
+			return UnsafeStmt{[
+				CallStmt{
+					namespaces: '${left}.free'
+				},
+				VariableStmt{
+					names: ['${left}.offset', '${left}.len']
+					middle: '='
+					values: [BasicValueStmt{'0'}, BasicValueStmt{'0'}]
+				},
+			]}
+		}
+		'string' {
+			return CallStmt{
+				namespaces: '${left}.str'
+			}
+		}
+		'write' {
+			return OptionalStmt{stmt}
+		}
+		else {}
+	}
+	return stmt
+}
+
 fn (mut v VAST) style_stmt(s Statement) Statement {
 	mut stmt := s
 
 	if mut stmt is CallStmt {
 		ns := stmt.namespaces.split('.')
+		last_ns := ns.last()
 
 		// `len(array)` -> `array.len`
 		// `cap(array)` -> `array.cap`
@@ -60,6 +100,7 @@ fn (mut v VAST) style_stmt(s Statement) Statement {
 			v.imports_count['strings'][0]++
 			if transpiler.strings_to_builtin.contains(ns[1]) {
 				v.imports_count['strings'][1]++
+
 				if stmt.args.len == 1 {
 					stmt = CallStmt{
 						namespaces: '${v.stmt_to_string(stmt.args[0])}.${ns[1]}'
@@ -71,10 +112,16 @@ fn (mut v VAST) style_stmt(s Statement) Statement {
 					}
 				}
 			}
+		} else if ns[0] == 'bytes' {
+			v.imports_count['bytes'][0]++
 		} else if stmt.namespaces == 'rune' {
 			stmt = CallStmt{
 				namespaces: '${v.stmt_to_string(stmt.args[0])}.runes'
 			}
+		} else if v.string_builder_vars.contains(stmt.namespaces#[..-last_ns.len - 1])
+			&& transpiler.string_builder_diffs.contains(last_ns) {
+			stmt = v.style_string_builder(stmt, stmt.namespaces#[..-last_ns.len - 1],
+				last_ns)
 		} else if stmt.namespaces == 'string' {
 			stmt = CallStmt{
 				namespaces: '${v.stmt_to_string(stmt.args[0])}.str '
@@ -113,6 +160,8 @@ fn (mut v VAST) style_stmt(s Statement) Statement {
 
 					stmt.names.delete(i)
 					stmt.values.delete(i)
+				} else if value.namespaces == 'strings.new_builder' {
+					v.string_builder_vars << stmt.names[i]
 				}
 			}
 		}
@@ -151,6 +200,19 @@ fn (mut v VAST) style_stmt(s Statement) Statement {
 					body: stmt.cases[0].body
 				},
 			]}
+		}
+	} else if mut stmt is ComplexValueStmt {
+		if stmt.value is StructStmt {
+			if stmt.value.name == 'bytes.Buffer' || stmt.value.name == 'strings.Builder' {
+				module_name := stmt.value.name.split('.')[0]
+				v.imports_count[module_name][0]++
+				v.imports_count[module_name][1]++
+
+				stmt = CallStmt{
+					namespaces: 'strings.new_builder'
+					args: [BasicValueStmt{'0'}]
+				}
+			}
 		}
 	}
 

@@ -19,7 +19,6 @@ const (
 		'float32': 'f32'
 		'float64': 'f64'
 	}
-	go_types = get_type.keys()
 	keywords = ['as', 'asm', 'assert', 'atomic', 'break', 'const', 'continue', 'defer', 'else',
 		'embed', 'enum', 'false', 'fn', 'for', 'go', 'goto', 'if', 'import', 'in', 'interface',
 		'is', 'lock', 'match', 'module', 'mut', 'none', 'or', 'pub', 'return', 'rlock', 'select',
@@ -192,7 +191,7 @@ fn (mut v VAST) get_name(tree Tree, case Case) string {
 	}
 
 	// transform Go types into V ones for type casting
-	if namespaces.len == 1 && namespaces[0] in transpiler.go_types {
+	if namespaces.len == 1 && namespaces[0] in transpiler.get_type {
 		namespaces[0] = transpiler.get_type[namespaces[0]]
 	}
 
@@ -373,7 +372,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 					ret = array
 				}
 				// structs
-				'*ast.Ident', '' {
+				'*ast.Ident', '', '*ast.SelectorExpr' {
 					mut @struct := StructStmt{
 						name: if base.name == '' {
 							v.current_implicit_map_type

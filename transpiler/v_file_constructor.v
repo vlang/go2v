@@ -291,6 +291,11 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 			v.handle_stmt(stmt.value, true)
 			v.out.write_rune(`}`)
 		}
+		UnsafeStmt {
+			v.out.write_string('unsafe {')
+			v.handle_body(stmt.body)
+			v.out.write_rune(`}`)
+		}
 		MatchStmt {
 			v.handle_stmt(stmt.init, true)
 
@@ -347,6 +352,10 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 		ComplexValueStmt {
 			v.out.write_string(stmt.op)
 			v.handle_stmt(stmt.value, true)
+		}
+		OptionalStmt {
+			v.handle_stmt(stmt.stmt, true)
+			v.out.write_rune(`?`)
 		}
 		MultipleStmt {
 			for el in stmt.stmts {
