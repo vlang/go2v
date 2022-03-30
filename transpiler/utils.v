@@ -346,6 +346,11 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				value_type: v.get_name(tree.child['Value'].tree, .ignore)
 			}
 		}
+		'*ast.ArrayType' {
+			ret = ArrayStmt{
+				@type: v.get_name(tree.child['Elt'].tree, .ignore)
+			}
+		}
 		// (almost) basic variable value
 		// eg: -1
 		'*ast.UnaryExpr' {
