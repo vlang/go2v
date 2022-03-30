@@ -4,6 +4,8 @@ import strings
 
 // root
 
+const supported_modules = ['fmt', 'strings', 'bytes', 'strconv']
+
 struct VAST {
 mut:
 	// AST
@@ -18,17 +20,20 @@ mut:
 	functions  []FunctionStmt
 	// `v_file_constructor.v`
 	out strings.Builder = strings.new_builder(400)
-	// `v_style.v`
-	// module_name: [initial_number_of_use, number_of_use_after_v_style]
-	// TODO: rework this
-	imports_count map[string][]int = {
-		'fmt':     [0, 0]
-		'strings': [0, 0]
-		'bytes':   [0, 0]
-	}
+	// module_name utils
+	// [initial_number_of_use, number_of_use_after_v_style]
+	unused_import map[string]bool
+	// string builders utils
+	current_var_name    string
 	string_builder_vars []string
-	// maps
+	// maps utils
 	current_implicit_map_type string
+}
+
+fn (mut v VAST) build_imports_count() {
+	for module_name in transpiler.supported_modules {
+		v.unused_import[module_name] = false
+	}
 }
 
 struct StructLike {
@@ -169,7 +174,7 @@ mut:
 
 struct DeferStmt {
 mut:
-	value Statement
+	stmt Statement
 }
 
 struct UnsafeStmt {

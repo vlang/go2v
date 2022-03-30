@@ -32,8 +32,7 @@ fn (mut v VAST) handle_module() {
 fn (mut v VAST) handle_imports() {
 	for @import in v.imports {
 		// remove useless `fmt` import
-		if !(@import in v.imports_count
-			&& v.imports_count[@import][0] == v.imports_count[@import][1]) {
+		if !(@import in supported_modules && !v.unused_import[@import]) {
 			v.out.writeln('import ${@import}')
 		}
 	}
@@ -288,7 +287,7 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 		}
 		DeferStmt {
 			v.out.write_string('defer {')
-			v.handle_stmt(stmt.value, true)
+			v.handle_stmt(stmt.stmt, true)
 			v.out.write_rune(`}`)
 		}
 		UnsafeStmt {
