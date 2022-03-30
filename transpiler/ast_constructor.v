@@ -4,6 +4,7 @@ module transpiler
 
 fn ast_constructor(tree Tree) VAST {
 	mut v_ast := VAST{}
+	v_ast.build_imports_count()
 
 	v_ast.extract_module_name(tree)
 	// go through each declaration node & extract the corresponding declaration
