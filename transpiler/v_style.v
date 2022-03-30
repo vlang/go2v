@@ -91,7 +91,16 @@ fn (mut v VAST) style_fn_to_decl(stmt CallStmt, left string) Statement {
 
 // `make(map[string]int)` -> `map[string]int{}`
 fn (mut v VAST) style_make(stmt CallStmt) Statement {
-	return BasicValueStmt{'${v.stmt_to_string(stmt.args[0])}{}'}
+	raw := v.stmt_to_string(stmt.args[0])
+	mut out := if raw[raw.len - 2] == `}` { raw#[..-3] } else { raw }
+
+	if stmt.args.len > 1 {
+		out += '{len: ${v.stmt_to_string(stmt.args[1])}}'
+	} else {
+		out += '{}'
+	}
+
+	return BasicValueStmt{out}
 }
 
 // `delete(map, key)` -> `map.delete(key)`
