@@ -1,0 +1,8 @@
+module main
+
+struct Ok {
+	aaa string
+	bbb fn ()
+	ccc fn (int)
+	ddd fn (Ok) u16
+}

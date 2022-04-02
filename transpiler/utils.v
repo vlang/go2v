@@ -114,6 +114,11 @@ fn (mut v VAST) get_type(tree Tree) string {
 				v.get_name(temp.child['Value'].tree, .ignore)
 		}
 
+		// functions
+		if temp.name == '*ast.FuncType' {
+			@type += v.stmt_to_string(v.get_function(temp.parent))
+		}
+
 		@type += v.get_name(temp, .ignore)
 
 		v.get_embedded(temp)

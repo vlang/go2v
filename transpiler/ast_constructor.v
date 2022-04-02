@@ -84,7 +84,7 @@ fn (mut v VAST) extract_struct(tree Tree) StructLike {
 	for _, field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
 		// support `A, B int` syntax
 		for _, name in field.tree.child['Names'].tree.child {
-			@struct.fields[v.get_name(name.tree, .snake_case)] = v.get_type(field.tree)
+			@struct.fields[v.get_name(name.tree, .snake_case)] = BasicValueStmt{v.get_type(field.tree)}
 		}
 	}
 	return @struct
@@ -130,7 +130,11 @@ fn (mut v VAST) extract_const_or_enum(tree Tree) {
 			} else {
 				''
 			}
-			enum_stmt.fields[var_stmt.names[0]] = if value != 'iota' { value } else { '' }
+			enum_stmt.fields[var_stmt.names[0]] = BasicValueStmt{if value != 'iota' {
+				value
+			} else {
+				''
+			}}
 		} else {
 			// consts
 			v.consts << var_stmt
@@ -145,6 +149,7 @@ fn (mut v VAST) extract_const_or_enum(tree Tree) {
 fn (mut v VAST) get_function(tree Tree) FunctionStmt {
 	mut func := FunctionStmt{
 		name: if 'Name' in tree.child { v.get_name(tree, .snake_case) } else { '' }
+		type_ctx: 'Names' in tree.child // detect function used as the type of a struct's field
 	}
 
 	// comments on top functions (docstrings)

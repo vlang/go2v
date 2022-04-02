@@ -48,7 +48,9 @@ fn (mut v VAST) handle_structs() {
 	for strct in v.structs {
 		v.out.write_string('struct $strct.name {')
 		for field, typ in strct.fields {
-			v.out.writeln('$field $typ')
+			v.out.write_string('$field ')
+			v.handle_stmt(typ, true)
+			v.out.write_rune(`\n`)
 		}
 		v.out.writeln('}')
 	}
@@ -73,10 +75,11 @@ fn (mut v VAST) handle_enums() {
 	for enm in v.enums {
 		v.out.writeln('enum $enm.name {')
 		for name, val in enm.fields {
-			if val.len == 0 {
+			if val is BasicValueStmt && (val as BasicValueStmt).value.len == 0 {
 				v.out.writeln(name)
 			} else {
-				v.out.writeln('$name = $val')
+				v.out.writeln('$name = ')
+				v.handle_stmt(val, true)
 			}
 		}
 		v.out.writeln('}')
@@ -99,7 +102,9 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 	match stmt {
 		FunctionStmt {
 			// comment
-			v.out.writeln(stmt.comment)
+			if stmt.comment.len > 0 {
+				v.out.writeln(stmt.comment)
+			}
 			// public/private
 			if stmt.public {
 				v.out.write_string('pub ')
@@ -113,18 +118,24 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 			// name
 			v.out.write_string('${stmt.name}(')
 			// arguments
+			// useless after https://github.com/vlang/v/issues/13909 gets fixed
+			mut i := 0
 			for name, @type in stmt.args {
-				v.out.write_string('$name ${@type}, ')
+				if i != stmt.args.len - 1 {
+					v.out.write_string('$name ${@type}, ')
+				} else {
+					v.out.write_string('$name ${@type}')
+				}
+				i++
 			}
 			v.out.write_string(')')
 			// return value(s)
 
 			if stmt.ret_vals.len > 0 {
 				v.out.write_string(' (')
-				mut len := stmt.ret_vals.len
-				for i, val in stmt.ret_vals {
+				for j, val in stmt.ret_vals {
 					// TODO: useless after https://github.com/vlang/v/issues/13592 gets fixed
-					if i != len - 1 {
+					if j != stmt.ret_vals.len - 1 {
 						v.out.write_string('$val, ')
 					} else {
 						v.out.write_string('$val')
@@ -133,9 +144,11 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 				v.out.write_string(')')
 			}
 			// body
-			v.out.write_string(' {')
-			v.handle_body(stmt.body)
-			v.out.writeln('}')
+			if !stmt.type_ctx {
+				v.out.write_string(' {')
+				v.handle_body(stmt.body)
+				v.out.writeln('}')
+			}
 		}
 		VariableStmt {
 			if stmt.names.len > 0 {

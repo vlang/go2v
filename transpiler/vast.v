@@ -39,7 +39,7 @@ fn (mut v VAST) build_imports_count() {
 struct StructLike {
 mut:
 	name   string
-	fields map[string]string
+	fields map[string]Statement
 }
 
 // body
@@ -83,6 +83,7 @@ mut:
 	name     string
 	args     map[string]string
 	ret_vals []string
+	type_ctx bool
 	body     []Statement
 }
 
