@@ -71,7 +71,7 @@ fn format_value(str string, case Case) string {
 		} else if case == .camel_case && !is_string {
 			sub := if `A` <= raw[0] && raw[0] <= `Z` { 0 } else { 32 }
 
-			return (raw[0] - byte(sub)).ascii_str() + raw[1..]
+			return (raw[0] - u8(sub)).ascii_str() + raw[1..]
 		} else {
 			return raw
 		}
