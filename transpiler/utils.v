@@ -330,7 +330,7 @@ fn (mut v VAST) get_var(tree Tree, short bool) VariableStmt {
 	}
 
 	for _, name in left_hand {
-		var_stmt.names << v.get_name(name.tree, .snake_case, true)
+		var_stmt.names << v.get_name(name.tree, .snake_case, var_stmt.middle == ':=')
 	}
 	for _, val in right_hand {
 		var_stmt.values << v.get_stmt(val.tree)
