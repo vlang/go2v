@@ -28,6 +28,10 @@ mut:
 	string_builder_vars []string
 	// maps utils
 	current_implicit_map_type string
+	// duplicate names utils
+	declared_vars_old []string
+	declared_vars_new []string
+	declared_fns      map[string]string
 }
 
 fn (mut v VAST) build_imports_count() {

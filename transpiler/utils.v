@@ -5,7 +5,7 @@ const (
 	get_type = {
 		'bool':    'bool'
 		'string':  'string'
-		'byte':    'byte'
+		'byte':    'u8'
 		'rune':    'rune'
 		'int':     'int'
 		'int8':    'i8'
@@ -71,7 +71,7 @@ fn format_value(str string, case Case) string {
 		} else if case == .camel_case && !is_string {
 			sub := if `A` <= raw[0] && raw[0] <= `Z` { 0 } else { 32 }
 
-			return (raw[0] - byte(sub)).ascii_str() + raw[1..]
+			return (raw[0] - u8(sub)).ascii_str() + raw[1..]
 		} else {
 			return raw
 		}
@@ -110,8 +110,8 @@ fn (mut v VAST) get_type(tree Tree) string {
 
 		// maps
 		if temp.name == '*ast.MapType' {
-			@type += 'map[' + v.get_name(temp.child['Key'].tree, .ignore) + ']' +
-				v.get_name(temp.child['Value'].tree, .ignore)
+			@type += 'map[' + v.get_name(temp.child['Key'].tree, .ignore, false) + ']' +
+				v.get_name(temp.child['Value'].tree, .ignore, false)
 		}
 
 		// functions
@@ -119,7 +119,7 @@ fn (mut v VAST) get_type(tree Tree) string {
 			@type += v.stmt_to_string(v.get_function(temp.parent))
 		}
 
-		@type += v.get_name(temp, .ignore)
+		@type += v.get_name(temp, .ignore, false)
 
 		v.get_embedded(temp)
 
@@ -141,30 +141,77 @@ fn (mut v VAST) get_type(tree Tree) string {
 	}
 }
 
+// TODO: make it work for things like `a[i]`
+// TODO: comment this and find a better name
+fn (mut v VAST) get_name(tree Tree, case Case, from_declaration bool) string {
+	raw_name := v.get_initial_name(tree, .ignore)
+	formatted_name := v.get_initial_name(tree, case)
+	already_declared := v.declared_vars_old.contains(raw_name)
+
+	if from_declaration {
+		println('from declaration')
+		// suffix the name with an int and increment it until it's unique
+		mut suffix := 1
+		mut new_name := formatted_name
+
+		if v.declared_vars_new.contains(new_name) {
+			for (v.declared_vars_new.contains(new_name)) {
+				new_name = '${formatted_name}_${int(suffix)}'
+				suffix++
+			}
+		}
+
+		v.declared_vars_old << raw_name
+		v.declared_vars_new << new_name
+
+		return new_name
+	} else {
+		if already_declared {
+			println('already declared: $raw_name')
+			println(v.declared_vars_old)
+			println(v.declared_vars_new)
+			return v.declared_vars_new[v.declared_vars_old.index(raw_name)]
+		}
+		return formatted_name
+	}
+}
+
 // get the name of a variable/property/function etc.
-fn (mut v VAST) get_name(tree Tree, case Case) string {
+fn (mut v VAST) get_initial_name(tree Tree, case Case) string {
 	mut temp := tree
 	mut namespaces := []string{}
 	// All `next_is_end` related code is a trick to repeat one more time the loop
 	mut next_is_end := if 'X' in temp.child { false } else { true }
 
 	for ('X' in temp.child) || next_is_end {
+		// `a.b.c` syntax
+		if 'Sel' in temp.child {
+			raw_value := temp.child['Sel'].tree.child['Name'].val
+			formatted_value := format_value(raw_value, case)
+			// excape reserved keywords
+			// reserved keywords are already formatted
+			// that's why checking if the unformatted value is the same as the formatted one is great test
+			if raw_value#[1..-1] != formatted_value && transpiler.keywords.contains(formatted_value) {
+				namespaces << '.@$formatted_value'
+			} else {
+				namespaces << '.$formatted_value'
+			}
+		}
+
 		// name
 		if 'Name' in temp.child {
 			if 'Name' in temp.child['Name'].tree.child {
-				namespaces << v.get_name(temp.child['Name'].tree, case)
+				temp = temp.child['Name'].tree
+			}
+			raw_value := temp.child['Name'].val
+			formatted_value := format_value(raw_value, case)
+			// excape reserved keywords
+			// reserved keywords are already formatted
+			// that's why checking if the unformatted value is the same as the formatted one is great test
+			if raw_value#[1..-1] != formatted_value && transpiler.keywords.contains(formatted_value) {
+				namespaces << '@$formatted_value'
 			} else {
-				formatted_value := format_value(temp.child['Name'].val, case)
-
-				// excape reserved keywords
-				// reserved keywords are already formatted
-				// that's why checking if the unformatted value is the same as the formatted one is great test
-				if temp.child['Name'].val#[1..-1] != formatted_value
-					&& transpiler.keywords.contains(formatted_value) {
-					namespaces << '@$formatted_value'
-				} else {
-					namespaces << formatted_value
-				}
+				namespaces << formatted_value
 			}
 		}
 
@@ -175,22 +222,16 @@ fn (mut v VAST) get_name(tree Tree, case Case) string {
 			v.get_embedded(temp)
 		}
 
-		// `a.b.c` syntax
-		if 'Sel' in temp.child {
-			namespaces << '.' + v.get_name(temp.child['Sel'].tree, case)
-		}
-
 		// `a[idx]` syntax
 		if 'Index' in temp.child {
 			namespaces << '[' + v.stmt_to_string(v.get_stmt(temp.child['Index'].tree)) + ']'
 		}
 
 		temp = temp.child['X'].tree
-
 		if next_is_end {
 			break
 		}
-		if !('X' in temp.child || 'Sel' in temp.child || 'Index' in temp.child) {
+		if 'X' !in temp.child {
 			next_is_end = true
 		}
 	}
@@ -256,7 +297,7 @@ fn (mut v VAST) get_raw_operation(tree Tree) string {
 		}
 	} else {
 		// value part
-		return v.get_name(tree, .ignore)
+		return v.get_name(tree, .ignore, false)
 	}
 }
 
@@ -289,7 +330,7 @@ fn (mut v VAST) get_var(tree Tree, short bool) VariableStmt {
 	}
 
 	for _, name in left_hand {
-		var_stmt.names << v.get_name(name.tree, .snake_case)
+		var_stmt.names << v.get_name(name.tree, .snake_case, true)
 	}
 	for _, val in right_hand {
 		var_stmt.values << v.get_stmt(val.tree)
@@ -301,7 +342,7 @@ fn (mut v VAST) get_var(tree Tree, short bool) VariableStmt {
 // get the increment statement (IncDecStmt) from a tree
 fn (mut v VAST) get_inc_dec(tree Tree) IncDecStmt {
 	return IncDecStmt{
-		var: v.get_name(tree, .ignore)
+		var: v.get_name(tree, .ignore, false)
 		inc: tree.child['Tok'].val
 	}
 }
@@ -310,11 +351,18 @@ fn (mut v VAST) get_inc_dec(tree Tree) IncDecStmt {
 // basically everything that contains a block of code
 fn (mut v VAST) get_body(tree Tree) []Statement {
 	mut body := []Statement{}
+	// all the variables declared after this limit will go out of scope at the end of the function
+	limit := v.declared_vars_old.len
 
 	// go through every statement
 	for _, stmt in tree.child['List'].tree.child {
 		body << v.get_stmt(stmt.tree)
 	}
+	// TODO: remove this
+	dump(v.declared_vars_old)
+	dump(v.declared_vars_new)
+	v.declared_vars_old = v.declared_vars_old[..limit]
+	v.declared_vars_new = v.declared_vars_new[..limit]
 
 	return body
 }
@@ -338,22 +386,22 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		}
 		// basic value
 		'*ast.BasicLit' {
-			ret = BasicValueStmt{v.get_name(tree, .ignore)}
+			ret = BasicValueStmt{v.get_name(tree, .ignore, false)}
 		}
 		// variable, function call, etc.
 		'*ast.Ident', '*ast.IndexExpr', '*ast.SelectorExpr' {
-			ret = BasicValueStmt{v.get_name(tree, .snake_case)}
+			ret = BasicValueStmt{v.get_name(tree, .snake_case, false)}
 			v.get_embedded(tree)
 		}
 		'*ast.MapType' {
 			ret = MapStmt{
-				key_type: v.get_name(tree.child['Key'].tree, .ignore)
-				value_type: v.get_name(tree.child['Value'].tree, .ignore)
+				key_type: v.get_name(tree.child['Key'].tree, .ignore, false)
+				value_type: v.get_name(tree.child['Value'].tree, .ignore, false)
 			}
 		}
 		'*ast.ArrayType' {
 			ret = ArrayStmt{
-				@type: v.get_name(tree.child['Elt'].tree, .ignore)
+				@type: v.get_name(tree.child['Elt'].tree, .ignore, false)
 			}
 		}
 		// (almost) basic variable value
@@ -374,7 +422,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				'*ast.ArrayType' {
 					mut array := ArrayStmt{
 						@type: v.get_type(tree)[2..] // remove `[]`
-						len: v.get_name(base.child['Len'].tree, .ignore)
+						len: v.get_name(base.child['Len'].tree, .ignore, false)
 					}
 					for _, el in tree.child['Elts'].tree.child {
 						array.values << v.get_stmt(el.tree)
@@ -387,7 +435,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 						name: if base.name == '' {
 							v.current_implicit_map_type
 						} else {
-							v.get_name(base, .ignore)
+							v.get_name(base, .ignore, false)
 						}
 					}
 
@@ -403,11 +451,11 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				'*ast.MapType' {
 					// short `{"key": "value"}` syntax
 					v.current_implicit_map_type = v.get_name(base.child['Value'].tree,
-						.ignore)
+						.ignore, false)
 					no_type := v.current_implicit_map_type.len == 0
 
 					mut map_stmt := MapStmt{
-						key_type: v.get_name(base.child['Key'].tree, .ignore)
+						key_type: v.get_name(base.child['Key'].tree, .ignore, false)
 						value_type: v.current_implicit_map_type
 					}
 
@@ -443,14 +491,14 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		// `key: value` syntax
 		'*ast.KeyValueExpr' {
 			ret = KeyValStmt{
-				key: v.get_name(tree.child['Key'].tree, .snake_case)
+				key: v.get_name(tree.child['Key'].tree, .snake_case, false)
 				value: v.get_stmt(tree.child['Value'].tree)
 			}
 		}
 		// slices (slicing)
 		'*ast.SliceExpr' {
 			mut slice_stmt := SliceStmt{
-				value: v.get_name(tree.child['X'].tree, .ignore)
+				value: v.get_name(tree.child['X'].tree, .ignore, false)
 				low: BasicValueStmt{}
 				high: BasicValueStmt{}
 			}
@@ -467,7 +515,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			base := if tree.name == '*ast.ExprStmt' { tree.child['X'].tree } else { tree }
 
 			mut call_stmt := CallStmt{
-				namespaces: v.get_name(base.child['Fun'].tree, .snake_case)
+				namespaces: v.get_name(base.child['Fun'].tree, .snake_case, false)
 			}
 
 			// function/method arguments
@@ -572,7 +620,7 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				forin_stmt.variable = temp_var.values[0] or { BasicValueStmt{'_'} }
 			} else {
 				// `for range variable {` syntax
-				forin_stmt.variable = BasicValueStmt{v.get_name(tree, .ignore)}
+				forin_stmt.variable = BasicValueStmt{v.get_name(tree, .ignore, false)}
 			}
 
 			// body

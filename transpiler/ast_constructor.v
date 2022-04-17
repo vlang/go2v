@@ -36,10 +36,10 @@ fn (mut v VAST) extract_declaration(tree Tree, embedded bool) {
 				// structs
 				if !embedded {
 					for _, decl in base.child {
-						v.structs << v.extract_struct(decl.tree)
+						v.extract_struct(decl.tree)
 					}
 				} else {
-					v.structs << v.extract_struct(simplified_base)
+					v.extract_struct(simplified_base)
 				}
 				// sumtypes
 			} else if simplified_base.name != '' {
@@ -66,7 +66,7 @@ fn (mut v VAST) extract_declaration(tree Tree, embedded bool) {
 }
 
 fn (mut v VAST) extract_module_name(tree Tree) {
-	v.@module = v.get_name(tree, .ignore)
+	v.@module = v.get_name(tree, .ignore, false)
 }
 
 fn (mut v VAST) extract_imports(tree Tree) {
@@ -76,22 +76,28 @@ fn (mut v VAST) extract_imports(tree Tree) {
 	}
 }
 
-fn (mut v VAST) extract_struct(tree Tree) StructLike {
-	mut @struct := StructLike{
-		name: v.get_name(tree, .ignore)
-	}
+fn (mut v VAST) extract_struct(tree Tree) {
+	name := v.get_name(tree, .ignore, false)
 
-	for _, field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
-		// support `A, B int` syntax
-		for _, name in field.tree.child['Names'].tree.child {
-			@struct.fields[v.get_name(name.tree, .snake_case)] = BasicValueStmt{v.get_type(field.tree)}
+	// fix a bug with false/empty structs
+	if name.len > 0 {
+		mut @struct := StructLike{
+			name: name
 		}
+
+		for _, field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
+			// support `A, B int` syntax
+			for _, field_name in field.tree.child['Names'].tree.child {
+				@struct.fields[v.get_name(field_name.tree, .snake_case, false)] = BasicValueStmt{v.get_type(field.tree)}
+			}
+		}
+
+		v.structs << @struct
 	}
-	return @struct
 }
 
 fn (mut v VAST) extract_sumtype(tree Tree) {
-	v.types[v.get_name(tree, .ignore)] = v.get_type(tree)
+	v.types[v.get_name(tree, .ignore, false)] = v.get_type(tree)
 }
 
 fn (mut v VAST) extract_embedded_const(tree Tree) {
@@ -148,7 +154,8 @@ fn (mut v VAST) extract_const_or_enum(tree Tree) {
 
 fn (mut v VAST) get_function(tree Tree) FunctionStmt {
 	mut func := FunctionStmt{
-		name: if 'Name' in tree.child { v.get_name(tree, .snake_case) } else { '' }
+		// TODO: optimize this
+		name: if 'Name' in tree.child { v.get_name(tree, .snake_case, false) } else { '' }
 		type_ctx: 'Names' in tree.child // detect function used as the type of a struct's field
 	}
 
@@ -159,21 +166,22 @@ fn (mut v VAST) get_function(tree Tree) FunctionStmt {
 	}
 
 	// public/private
-	raw_fn_name := v.get_name(tree, .ignore)
+	// TODO: optimize this
+	raw_fn_name := v.get_name(tree, .ignore, false)
 	if raw_fn_name.len > 0 && `A` <= raw_fn_name[0] && raw_fn_name[0] <= `Z` {
 		func.public = true
 	}
 
 	// arguments
 	for _, arg in tree.child['Type'].tree.child['Params'].tree.child['List'].tree.child {
-		func.args[v.get_name(arg.tree.child['Names'].tree.child['0'].tree, .ignore)] = v.get_type(arg.tree)
+		func.args[v.get_name(arg.tree.child['Names'].tree.child['0'].tree, .ignore, false)] = v.get_type(arg.tree)
 	}
 
 	// method
 	if 'Recv' in tree.child {
 		base := tree.child['Recv'].tree.child['List'].tree.child['0'].tree
 		func.method = [
-			v.get_name(base.child['Names'].tree.child['0'].tree, .ignore),
+			v.get_name(base.child['Names'].tree.child['0'].tree, .ignore, false),
 			v.get_type(base),
 		]
 	}

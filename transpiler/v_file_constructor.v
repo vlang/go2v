@@ -145,7 +145,7 @@ fn (mut v VAST) handle_stmt(stmt Statement, is_value bool) {
 			}
 			// body
 			if !stmt.type_ctx {
-				v.out.write_string(' {')
+				v.out.write_string(' {\n')
 				v.handle_body(stmt.body)
 				v.out.writeln('}')
 			}
