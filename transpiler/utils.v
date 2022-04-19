@@ -93,6 +93,8 @@ fn format_value(str string, case Case) string {
 		}
 		if !(raw_str[0] == `'` || raw_str[0] == `\``) {
 			return set_case(raw_str, case)
+		} else {
+			return raw_str
 		}
 	}
 	return str
@@ -357,7 +359,7 @@ fn (mut v VAST) get_raw_operation(tree Tree) string {
 		}
 	} else {
 		// value part
-		return v.get_name(tree, .ignore, .other)
+		return v.get_name(tree, .ignore, .var_decl)
 	}
 }
 
