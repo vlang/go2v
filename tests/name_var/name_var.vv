@@ -1,0 +1,10 @@
+module main
+
+fn main() {
+	mut a := 4
+	mut a_1 := [1, 2, 3]
+	println(a, a_1[0])
+	if true {
+		mut a_2 := 6
+	}
+}

@@ -146,38 +146,43 @@ fn (mut v VAST) get_type(tree Tree) string {
 fn (mut v VAST) get_name(tree Tree, case Case, from_declaration bool) string {
 	raw_name := v.get_initial_name(tree, .ignore)
 	formatted_name := v.get_initial_name(tree, case)
-	already_declared := v.declared_vars_old.contains(raw_name)
+	mut out := ''
 
-	if from_declaration {
-		println('from declaration')
-		// suffix the name with an int and increment it until it's unique
-		mut suffix := 1
-		mut new_name := formatted_name
+	for i := raw_name.len - 1; i >= 0; i-- {
+		if from_declaration {
+			println('from declaration')
+			// suffix the name with an int and increment it until it's unique
+			mut suffix := 1
+			mut new_name := formatted_name[i]
 
-		if v.declared_vars_new.contains(new_name) {
-			for (v.declared_vars_new.contains(new_name)) {
-				new_name = '${formatted_name}_${int(suffix)}'
-				suffix++
+			if v.declared_vars_new.contains(new_name) {
+				for (v.declared_vars_new.contains(new_name)) {
+					new_name = '${formatted_name[i]}_${int(suffix)}'
+					suffix++
+				}
+			}
+
+			v.declared_vars_old << raw_name[i]
+			v.declared_vars_new << new_name
+
+			out += new_name
+		} else {
+			if v.declared_vars_old.contains(raw_name[i]) {
+				println('already declared: ${raw_name[i]}')
+				println(v.declared_vars_old)
+				println(v.declared_vars_new)
+				out += v.declared_vars_new[v.declared_vars_old.index(raw_name[i])]
+			} else {
+				out += formatted_name[i]
 			}
 		}
-
-		v.declared_vars_old << raw_name
-		v.declared_vars_new << new_name
-
-		return new_name
-	} else {
-		if already_declared {
-			println('already declared: $raw_name')
-			println(v.declared_vars_old)
-			println(v.declared_vars_new)
-			return v.declared_vars_new[v.declared_vars_old.index(raw_name)]
-		}
-		return formatted_name
 	}
+
+	return out
 }
 
 // get the name of a variable/property/function etc.
-fn (mut v VAST) get_initial_name(tree Tree, case Case) string {
+fn (mut v VAST) get_initial_name(tree Tree, case Case) []string {
 	mut temp := tree
 	mut namespaces := []string{}
 	// All `next_is_end` related code is a trick to repeat one more time the loop
@@ -241,13 +246,7 @@ fn (mut v VAST) get_initial_name(tree Tree, case Case) string {
 		namespaces[0] = transpiler.get_type[namespaces[0]]
 	}
 
-	mut out := ''
-
-	for i := namespaces.len - 1; i >= 0; i-- {
-		out += namespaces[i]
-	}
-
-	return out
+	return namespaces
 }
 
 // check if the tree contains an embedded declaration and extract it if so
