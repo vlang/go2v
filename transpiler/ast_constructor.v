@@ -66,7 +66,7 @@ fn (mut v VAST) extract_declaration(tree Tree, embedded bool) {
 }
 
 fn (mut v VAST) extract_module_name(tree Tree) {
-	v.@module = v.get_name(tree, .ignore, false)
+	v.@module = v.get_name(tree, .ignore, .other)
 }
 
 fn (mut v VAST) extract_imports(tree Tree) {
@@ -77,7 +77,7 @@ fn (mut v VAST) extract_imports(tree Tree) {
 }
 
 fn (mut v VAST) extract_struct(tree Tree) {
-	name := v.get_name(tree, .ignore, false)
+	name := v.get_name(tree, .camel_case, .global_decl)
 
 	// fix a bug with false/empty structs
 	if name.len > 0 {
@@ -88,7 +88,7 @@ fn (mut v VAST) extract_struct(tree Tree) {
 		for _, field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
 			// support `A, B int` syntax
 			for _, field_name in field.tree.child['Names'].tree.child {
-				@struct.fields[v.get_name(field_name.tree, .snake_case, false)] = BasicValueStmt{v.get_type(field.tree)}
+				@struct.fields[v.get_name(field_name.tree, .snake_case, .other)] = BasicValueStmt{v.get_type(field.tree)}
 			}
 		}
 
@@ -97,7 +97,7 @@ fn (mut v VAST) extract_struct(tree Tree) {
 }
 
 fn (mut v VAST) extract_sumtype(tree Tree) {
-	v.types[v.get_name(tree, .ignore, false)] = v.get_type(tree)
+	v.types[v.get_name(tree, .ignore, .global_decl)] = v.get_type(tree)
 }
 
 fn (mut v VAST) extract_embedded_const(tree Tree) {
@@ -153,9 +153,15 @@ fn (mut v VAST) extract_const_or_enum(tree Tree) {
 }
 
 fn (mut v VAST) get_function(tree Tree) FunctionStmt {
+	// we don't directly format the function name because we need the raw function name first in order to detect if the function is public or not
+	raw_fn_name := v.get_name(tree, .ignore, .fn_decl)
+	is_named := raw_fn_name.len > 0
+	fn_name := if is_named { v.find_unused_name(set_case(raw_fn_name, .snake_case)) } else { '' }
+	v.declared_global_old << raw_fn_name
+	v.declared_global_new << fn_name
+
 	mut func := FunctionStmt{
-		// TODO: optimize this
-		name: if 'Name' in tree.child { v.get_name(tree, .snake_case, false) } else { '' }
+		name: fn_name
 		type_ctx: 'Names' in tree.child // detect function used as the type of a struct's field
 	}
 
@@ -166,22 +172,20 @@ fn (mut v VAST) get_function(tree Tree) FunctionStmt {
 	}
 
 	// public/private
-	// TODO: optimize this
-	raw_fn_name := v.get_name(tree, .ignore, false)
-	if raw_fn_name.len > 0 && `A` <= raw_fn_name[0] && raw_fn_name[0] <= `Z` {
+	if is_named && `A` <= raw_fn_name[0] && raw_fn_name[0] <= `Z` {
 		func.public = true
 	}
 
 	// arguments
 	for _, arg in tree.child['Type'].tree.child['Params'].tree.child['List'].tree.child {
-		func.args[v.get_name(arg.tree.child['Names'].tree.child['0'].tree, .ignore, false)] = v.get_type(arg.tree)
+		func.args[v.get_name(arg.tree.child['Names'].tree.child['0'].tree, .ignore, .other)] = v.get_type(arg.tree)
 	}
 
 	// method
 	if 'Recv' in tree.child {
 		base := tree.child['Recv'].tree.child['List'].tree.child['0'].tree
 		func.method = [
-			v.get_name(base.child['Names'].tree.child['0'].tree, .ignore, false),
+			v.get_name(base.child['Names'].tree.child['0'].tree, .ignore, .global_decl),
 			v.get_type(base),
 		]
 	}

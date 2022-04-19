@@ -29,10 +29,10 @@ mut:
 	// maps utils
 	current_implicit_map_type string
 	// duplicate names utils
-	declared_vars_old         []string
-	declared_vars_new         []string
-	declared_global_scope_old []string
-	declared_global_scope_new []string
+	declared_vars_old   []string
+	declared_vars_new   []string
+	declared_global_old []string
+	declared_global_new []string
 }
 
 fn (mut v VAST) build_imports_count() {

@@ -1,0 +1,9 @@
+module main
+
+struct Aa {}
+
+fn main() {
+	mut aa := 42
+}
+
+pub fn aa_1() {}
