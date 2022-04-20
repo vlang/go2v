@@ -101,7 +101,7 @@ fn (mut v VAST) extract_sumtype(tree Tree) {
 }
 
 fn (mut v VAST) extract_embedded_const(tree Tree) {
-	mut @const := v.get_var(tree, false)
+	mut @const := v.get_var(tree, false, false)
 	@const.middle = '='
 	v.consts << @const
 }
@@ -111,7 +111,7 @@ fn (mut v VAST) extract_const_or_enum(tree Tree) {
 	mut is_enum := false
 
 	for _, el in tree.child {
-		mut var_stmt := v.get_var(el.tree, false)
+		mut var_stmt := v.get_var(el.tree, false, false)
 		var_stmt.middle = '='
 
 		is_iota := if var_stmt.values.len > 0 && var_stmt.values[0] is BasicValueStmt {
@@ -156,7 +156,11 @@ fn (mut v VAST) get_function(tree Tree) FunctionStmt {
 	// we don't directly format the function name because we need the raw function name first in order to detect if the function is public or not
 	raw_fn_name := v.get_name(tree, .ignore, .fn_decl)
 	is_named := raw_fn_name.len > 0
-	fn_name := if is_named { v.find_unused_name(set_case(raw_fn_name, .snake_case)) } else { '' }
+	fn_name := if is_named {
+		v.find_unused_name(set_case(raw_fn_name, .snake_case), true)
+	} else {
+		''
+	}
 	v.declared_global_old << raw_fn_name
 	v.declared_global_new << fn_name
 

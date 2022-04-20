@@ -33,6 +33,9 @@ mut:
 	declared_vars_new   []string
 	declared_global_old []string
 	declared_global_new []string
+	// this suplementary limit is to add a variable to an inner scope
+	// (useful for variable initialization in `for` or `if` stmts)
+	add_to_scope_limit int
 }
 
 fn (mut v VAST) build_imports_count() {

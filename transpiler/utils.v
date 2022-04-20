@@ -162,14 +162,20 @@ fn (mut v VAST) get_type(tree Tree) string {
 }
 
 // make sure the given name is unique, if not, make it unique
-fn (mut v VAST) find_unused_name(original_name string) string {
+fn (mut v VAST) find_unused_name(original_name string, search_global bool) string {
 	// suffix the name with an int and increment it until it's unique
 	mut suffix := 1
 	mut new_name := original_name
-
-	for v.declared_vars_new.contains(new_name) || v.declared_global_new.contains(new_name) {
-		new_name = '${original_name}_${int(suffix)}'
-		suffix++
+	if search_global {
+		for v.declared_vars_new.contains(new_name) || v.declared_global_new.contains(new_name) {
+			new_name = '${original_name}_${int(suffix)}'
+			suffix++
+		}
+	} else {
+		for v.declared_vars_new.contains(new_name) {
+			new_name = '${original_name}_${int(suffix)}'
+			suffix++
+		}
 	}
 
 	return new_name
@@ -186,7 +192,7 @@ fn (mut v VAST) get_name(tree Tree, case Case, origin Origin) string {
 
 		match origin {
 			.var_decl {
-				new_name := v.find_unused_name(formatted_name[i])
+				new_name := v.find_unused_name(formatted_name[i], false)
 
 				v.declared_vars_old << raw_name[i]
 				v.declared_vars_new << new_name
@@ -201,12 +207,12 @@ fn (mut v VAST) get_name(tree Tree, case Case, origin Origin) string {
 				}
 			}
 			.fn_decl {
-				new_name := v.find_unused_name(formatted_name[i])
+				new_name := v.find_unused_name(formatted_name[i], false)
 
 				out += new_name
 			}
 			.global_decl {
-				new_name := v.find_unused_name(formatted_name[i])
+				new_name := v.find_unused_name(formatted_name[i], false)
 
 				v.declared_global_old << raw_name[i]
 				v.declared_global_new << new_name
@@ -382,7 +388,7 @@ fn (mut v VAST) get_operation(tree Tree) string {
 }
 
 // get the variable statement (VariableStmt) from a tree
-fn (mut v VAST) get_var(tree Tree, short bool) VariableStmt {
+fn (mut v VAST) get_var(tree Tree, short bool, enforce_other_origin bool) VariableStmt {
 	left_hand := if short { tree.child['Lhs'].tree.child } else { tree.child['Names'].tree.child }
 	right_hand := if short { tree.child['Rhs'].tree.child } else { tree.child['Values'].tree.child }
 
@@ -391,9 +397,14 @@ fn (mut v VAST) get_var(tree Tree, short bool) VariableStmt {
 		@type: v.get_type(tree)
 	}
 
-	from_decl := if var_stmt.middle == ':=' { Origin.var_decl } else { Origin.other }
+	origin := if var_stmt.middle == ':=' && !enforce_other_origin {
+		Origin.var_decl
+	} else {
+		Origin.other
+	}
+
 	for _, name in left_hand {
-		var_stmt.names << v.get_name(name.tree, .snake_case, from_decl)
+		var_stmt.names << v.get_name(name.tree, .snake_case, origin)
 	}
 	for _, val in right_hand {
 		var_stmt.values << v.get_stmt(val.tree)
@@ -415,7 +426,7 @@ fn (mut v VAST) get_inc_dec(tree Tree) IncDecStmt {
 fn (mut v VAST) get_body(tree Tree) []Statement {
 	mut body := []Statement{}
 	// all the variables declared after this limit will go out of scope at the end of the function
-	limit := v.declared_vars_old.len
+	limit := v.declared_vars_old.len - v.add_to_scope_limit
 
 	// go through every statement
 	for _, stmt in tree.child['List'].tree.child {
@@ -426,6 +437,7 @@ fn (mut v VAST) get_body(tree Tree) []Statement {
 	v.declared_global_new << v.declared_vars_new
 	v.declared_vars_old = v.declared_vars_old[..limit]
 	v.declared_vars_new = v.declared_vars_new[..limit]
+	v.add_to_scope_limit = 0
 
 	return body
 }
@@ -438,14 +450,14 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 		// `var` syntax
 		'*ast.DeclStmt' {
 			mut var_stmt := v.get_var(tree.child['Decl'].tree.child['Specs'].tree.child['0'].tree,
-				false)
+				false, false)
 			var_stmt.middle = ':='
 
 			ret = var_stmt
 		}
 		// `:=`, `+=` etc. syntax
 		'*ast.AssignStmt' {
-			ret = v.get_var(tree, true)
+			ret = v.get_var(tree, true, false)
 		}
 		// basic value
 		'*ast.BasicLit' {
@@ -604,10 +616,11 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 				mut if_else := IfElse{}
 
 				// `if z := 0; z < 10` syntax
-				var := v.get_var(temp.child['Init'].tree, true)
+				var := v.get_var(temp.child['Init'].tree, true, false)
 				if var.names.len > 0 {
 					if_else.body << var
 					// TODO: support https://go.dev/tour/flowcontrol/7
+					v.add_to_scope_limit++
 				}
 
 				// condition
@@ -646,8 +659,11 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			mut for_stmt := ForStmt{}
 
 			// init
-			for_stmt.init = v.get_var(tree.child['Init'].tree, true)
+			for_stmt.init = v.get_var(tree.child['Init'].tree, true, false)
 			for_stmt.init.mutable = false
+			if for_stmt.init.names.len > 0 {
+				v.add_to_scope_limit++
+			}
 
 			// condition
 			for_stmt.condition = v.get_operation(tree.child['Cond'].tree)
@@ -678,12 +694,12 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 
 				// element & variable
 				temp_var := v.get_var(tree.child['Key'].tree.child['Obj'].tree.child['Decl'].tree,
-					true)
+					true, true)
 				forin_stmt.element = temp_var.names[1] or { '_' }
 				forin_stmt.variable = temp_var.values[0] or { BasicValueStmt{'_'} }
 			} else {
 				// `for range variable {` syntax
-				forin_stmt.variable = BasicValueStmt{v.get_name(tree, .ignore, .var_decl)}
+				forin_stmt.variable = BasicValueStmt{v.get_name(tree, .snake_case, .other)}
 			}
 
 			// body
@@ -709,10 +725,10 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			}
 
 			// `switch z := 0; z < 10` syntax
-			var := v.get_var(tree.child['Init'].tree, true)
+			var := v.get_var(tree.child['Init'].tree, true, false)
 			if var.names.len > 0 {
-				// TODO: have a system to prefix the variable name & a system to change all it's occurences in the match statement cases
 				match_stmt.init = var
+				v.add_to_scope_limit++
 			}
 
 			// cases
