@@ -91,7 +91,7 @@ fn format_value(str string, case Case) string {
 				str#[1..-1]
 			} // everything else
 		}
-		if !(raw_str[0] == `'` || raw_str[0] == `\`) {
+		if !(raw_str[0] == `'` || raw_str[0] == `\``) {
 			return set_case(raw_str, case)
 		} else {
 			return raw_str
