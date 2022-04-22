@@ -1,6 +1,7 @@
 module main
 
 struct Ok {
+mut:
 	aaa string
 	bbb fn ()
 	ccc fn (int)

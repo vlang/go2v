@@ -81,14 +81,19 @@ fn (mut v VAST) extract_struct(tree Tree) {
 
 	// fix a bug with false/empty structs
 	if name.len > 0 {
-		mut @struct := StructLike{
+		mut @struct := Struct{
 			name: name
 		}
 
 		for _, field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
 			// support `A, B int` syntax
-			for _, field_name in field.tree.child['Names'].tree.child {
-				@struct.fields[v.get_name(field_name.tree, .snake_case, .other)] = BasicValueStmt{v.get_type(field.tree)}
+			if 'Names' in field.tree.child {
+				for _, field_name in field.tree.child['Names'].tree.child {
+					@struct.fields[v.get_name(field_name.tree, .snake_case, .other)] = BasicValueStmt{v.get_type(field.tree)}
+				}
+			} else {
+				// struct embedding
+				@struct.embedded_structs << v.get_type(field.tree)
 			}
 		}
 
@@ -189,7 +194,7 @@ fn (mut v VAST) get_function(tree Tree) FunctionStmt {
 	if 'Recv' in tree.child {
 		base := tree.child['Recv'].tree.child['List'].tree.child['0'].tree
 		func.method = [
-			v.get_name(base.child['Names'].tree.child['0'].tree, .ignore, .global_decl),
+			v.get_name(base.child['Names'].tree.child['0'].tree, .ignore, .other),
 			v.get_type(base),
 		]
 	}

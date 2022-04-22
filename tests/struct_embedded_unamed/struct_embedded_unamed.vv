@@ -1,0 +1,18 @@
+module main
+
+struct AA {
+mut:
+	aa int
+}
+
+struct BB {
+	AA
+mut:
+	bb int
+}
+
+fn main() {
+	mut b := BB{}
+	b.bb = 2
+	b.a.aa = 4
+}

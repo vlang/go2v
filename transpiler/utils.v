@@ -1,5 +1,7 @@
 module transpiler
 
+import v.token
+
 // TODO: refactor this and the `ast_constructor.v` file
 
 // types equivalence (left Go & right V)
@@ -21,11 +23,7 @@ const (
 		'float32': 'f32'
 		'float64': 'f64'
 	}
-	keywords = ['as', 'asm', 'assert', 'atomic', 'break', 'const', 'continue', 'defer', 'else',
-		'embed', 'enum', 'false', 'fn', 'for', 'go', 'goto', 'if', 'import', 'in', 'interface',
-		'is', 'lock', 'match', 'module', 'mut', 'none', 'or', 'pub', 'return', 'rlock', 'select',
-		'shared', 'sizeof', 'static', 'struct', 'true', 'type', 'typeof', 'union', 'unsafe',
-		'volatile', '__offsetof']
+	keywords = token.keywords
 )
 
 enum Case {
@@ -212,7 +210,10 @@ fn (mut v VAST) get_name(tree Tree, case Case, origin Origin) string {
 				out += new_name
 			}
 			.global_decl {
-				new_name := v.find_unused_name(formatted_name[i], false)
+				mut new_name := v.find_unused_name(formatted_name[i], false)
+				if new_name.len == 1 {
+					new_name = set_case(new_name + new_name[0].ascii_str(), .camel_case)
+				}
 
 				v.declared_global_old << raw_name[i]
 				v.declared_global_new << new_name
@@ -265,7 +266,7 @@ fn (mut v VAST) get_initial_name(tree Tree, case Case) []string {
 			// excape reserved keywords
 			// reserved keywords are already formatted
 			// that's why checking if the unformatted value is the same as the formatted one is great test
-			if raw_value#[1..-1] != formatted_value && transpiler.keywords.contains(formatted_value) {
+			if raw_value#[1..-1] != formatted_value && formatted_value in transpiler.keywords {
 				namespaces << '.@$formatted_value'
 			} else {
 				namespaces << '.$formatted_value'
@@ -282,7 +283,7 @@ fn (mut v VAST) get_initial_name(tree Tree, case Case) []string {
 			// excape reserved keywords
 			// reserved keywords are already formatted
 			// that's why checking if the unformatted value is the same as the formatted one is great test
-			if raw_value#[1..-1] != formatted_value && transpiler.keywords.contains(formatted_value) {
+			if raw_value#[1..-1] != formatted_value && formatted_value in transpiler.keywords {
 				namespaces << '@$formatted_value'
 			} else {
 				namespaces << formatted_value

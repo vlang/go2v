@@ -12,7 +12,7 @@ mut:
 	@module    string
 	imports    []string
 	consts     []VariableStmt
-	structs    []StructLike
+	structs    []Struct
 	unions     []StructLike
 	interfaces []StructLike
 	enums      []StructLike
@@ -42,6 +42,12 @@ fn (mut v VAST) build_imports_count() {
 	for module_name in transpiler.supported_modules {
 		v.unused_import[module_name] = false
 	}
+}
+
+struct Struct {
+	StructLike
+mut:
+	embedded_structs []string
 }
 
 struct StructLike {
