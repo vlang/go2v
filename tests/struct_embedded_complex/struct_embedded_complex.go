@@ -5,6 +5,7 @@ type A struct {
 }
 
 type B struct {
+	a  int
 	BB int
 	A
 }
@@ -12,5 +13,7 @@ type B struct {
 func main() {
 	b := B{}
 	b.BB = 2
+	b.a = 3
 	b.A.AA = 4
+	println(b.A)
 }

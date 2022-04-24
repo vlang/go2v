@@ -7,7 +7,7 @@ fn main() {
 	} else {
 		if 456 == 0 {
 			mut z := 456
-			println('ok')
+			println(z)
 		}
 	}
 }

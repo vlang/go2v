@@ -89,7 +89,7 @@ fn (mut v VAST) extract_struct(tree Tree) {
 			// support `A, B int` syntax
 			if 'Names' in field.tree.child {
 				for _, field_name in field.tree.child['Names'].tree.child {
-					@struct.fields[v.get_name(field_name.tree, .snake_case, .other)] = BasicValueStmt{v.get_type(field.tree)}
+					@struct.fields[v.get_name(field_name.tree, .snake_case, .field)] = BasicValueStmt{v.get_type(field.tree)}
 				}
 			} else {
 				// struct embedding
@@ -98,6 +98,8 @@ fn (mut v VAST) extract_struct(tree Tree) {
 		}
 
 		v.structs << @struct
+		v.struct_fields_old.clear()
+		v.struct_fields_new.clear()
 	}
 }
 
@@ -162,7 +164,7 @@ fn (mut v VAST) get_function(tree Tree) FunctionStmt {
 	raw_fn_name := v.get_name(tree, .ignore, .fn_decl)
 	is_named := raw_fn_name.len > 0
 	fn_name := if is_named {
-		v.find_unused_name(set_case(raw_fn_name, .snake_case), true)
+		v.find_unused_name(set_case(raw_fn_name, .snake_case), .all_vars_and_global)
 	} else {
 		''
 	}
