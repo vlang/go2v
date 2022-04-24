@@ -5,7 +5,7 @@ func main() {
 		println("ok")
 	} else {
 		if z := 456; z == 0 {
-			println("ok")
+			println(z)
 		}
 	}
 }

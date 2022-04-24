@@ -1,14 +1,17 @@
 module main
 
 struct Bcd {
+mut:
 	a int
 }
 
 struct Abc {
+mut:
 	a int
 }
 
 struct Efg {
+mut:
 	a int
 }
 

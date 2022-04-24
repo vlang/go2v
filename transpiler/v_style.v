@@ -189,6 +189,8 @@ fn (mut v VAST) style_stmt(stmt Statement) Statement {
 					temp_stmt.names.delete(i)
 					temp_stmt.values.delete(i)
 				}
+			} else if mut value is StructStmt {
+				v.vars_with_struct_value[v.current_var_name] = value.name
 			}
 		}
 

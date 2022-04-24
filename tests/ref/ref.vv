@@ -3,6 +3,7 @@ module main
 import crypto.aes
 
 struct BinTree {
+mut:
 	value string
 	left  &BinTree
 	right &BinTree

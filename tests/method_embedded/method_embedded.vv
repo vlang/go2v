@@ -1,6 +1,7 @@
 module main
 
 struct Abc {
+mut:
 	a int
 }
 

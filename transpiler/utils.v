@@ -1,5 +1,7 @@
 module transpiler
 
+import v.token
+
 // TODO: refactor this and the `ast_constructor.v` file
 
 // types equivalence (left Go & right V)
@@ -21,11 +23,7 @@ const (
 		'float32': 'f32'
 		'float64': 'f64'
 	}
-	keywords = ['as', 'asm', 'assert', 'atomic', 'break', 'const', 'continue', 'defer', 'else',
-		'embed', 'enum', 'false', 'fn', 'for', 'go', 'goto', 'if', 'import', 'in', 'interface',
-		'is', 'lock', 'match', 'module', 'mut', 'none', 'or', 'pub', 'return', 'rlock', 'select',
-		'shared', 'sizeof', 'static', 'struct', 'true', 'type', 'typeof', 'union', 'unsafe',
-		'volatile', '__offsetof']
+	keywords = token.keywords
 )
 
 enum Case {
@@ -38,7 +36,15 @@ enum Origin {
 	var_decl
 	fn_decl
 	global_decl
+	field
 	other
+}
+
+enum Domain {
+	var_and_global
+	all_vars_and_global
+	global
+	struct_field
 }
 
 // transform to snake_case, camelCase, or ignore
@@ -162,23 +168,48 @@ fn (mut v VAST) get_type(tree Tree) string {
 }
 
 // make sure the given name is unique, if not, make it unique
-fn (mut v VAST) find_unused_name(original_name string, search_global bool) string {
+fn (v &VAST) find_unused_name(original_name string, domain Domain) string {
 	// suffix the name with an int and increment it until it's unique
 	mut suffix := 1
 	mut new_name := original_name
-	if search_global {
-		for v.declared_vars_new.contains(new_name) || v.declared_global_new.contains(new_name) {
-			new_name = '${original_name}_${int(suffix)}'
-			suffix++
+
+	match domain {
+		.var_and_global {
+			for v.declared_vars_new.contains(new_name) || v.declared_global_new.contains(new_name) {
+				new_name = '${original_name}_${int(suffix)}'
+				suffix++
+			}
 		}
-	} else {
-		for v.declared_vars_new.contains(new_name) {
-			new_name = '${original_name}_${int(suffix)}'
-			suffix++
+		.all_vars_and_global {
+			for v.all_declared_vars.contains(new_name) || v.declared_global_new.contains(new_name) {
+				new_name = '${original_name}_${int(suffix)}'
+				suffix++
+			}
+		}
+		.global {
+			for v.declared_global_new.contains(new_name) {
+				new_name = '${original_name}_${int(suffix)}'
+				suffix++
+			}
+		}
+		.struct_field {
+			for v.struct_fields_new.contains(new_name) {
+				new_name = '${original_name}_${int(suffix)}'
+				suffix++
+			}
 		}
 	}
 
 	return new_name
+}
+
+fn (v &VAST) get_corresponding_struct(struct_name string) Struct {
+	for @struct in v.structs {
+		if @struct.name == struct_name {
+			return @struct
+		}
+	}
+	return Struct{}
 }
 
 // get the name of a variable/property/function etc.
@@ -186,13 +217,16 @@ fn (mut v VAST) get_name(tree Tree, case Case, origin Origin) string {
 	raw_name := v.get_initial_name(tree, .ignore)
 	formatted_name := v.get_initial_name(tree, case)
 	mut out := ''
+	// embedded struct utils
+	mut is_current_struct_defined := false
+	mut current_struct := Struct{}
 
 	for i := raw_name.len - 1; i >= 0; i-- {
 		mut pre_end := false
 
 		match origin {
 			.var_decl {
-				new_name := v.find_unused_name(formatted_name[i], false)
+				new_name := v.find_unused_name(formatted_name[i], .var_and_global)
 
 				v.declared_vars_old << raw_name[i]
 				v.declared_vars_new << new_name
@@ -207,39 +241,61 @@ fn (mut v VAST) get_name(tree Tree, case Case, origin Origin) string {
 				}
 			}
 			.fn_decl {
-				new_name := v.find_unused_name(formatted_name[i], false)
+				new_name := v.find_unused_name(formatted_name[i], .all_vars_and_global)
 
 				out += new_name
 			}
 			.global_decl {
-				new_name := v.find_unused_name(formatted_name[i], false)
+				mut new_name := v.find_unused_name(formatted_name[i], .global)
+				if new_name.len == 1 {
+					new_name = set_case(new_name + new_name[0].ascii_str(), .camel_case)
+				}
 
 				v.declared_global_old << raw_name[i]
 				v.declared_global_new << new_name
 				out += new_name
 			}
+			.field {
+				new_name := v.find_unused_name(formatted_name[i], .struct_field)
+
+				v.struct_fields_old << raw_name[i]
+				v.struct_fields_new << new_name
+
+				out += new_name
+			}
 			.other {
-				if v.declared_vars_old.contains(raw_name[i]) {
+				if raw_name[i] in v.declared_vars_old {
 					new_name := v.declared_vars_new[v.declared_vars_old.index(raw_name[i])]
 					out += new_name
 
-					// `break` prevents `a.a` -> `a.a_1`
-					if pre_end && raw_name[i].runes().any([`[`, `]`, `(`, `)`].contains(it)) {
-						break
+					if raw_name[i] in v.vars_with_struct_value {
+						is_current_struct_defined = true
+						current_struct = v.get_corresponding_struct(v.vars_with_struct_value[raw_name[i]])
 					}
-					if raw_name[i] != new_name {
-						pre_end = true
-					}
-				} else if v.declared_global_old.contains(raw_name[i]) {
+				} else if raw_name[i] in v.declared_global_old {
 					out += v.declared_global_new[v.declared_global_old.index(raw_name[i])]
-					// no `break` allows
-					// fn (s Struct) a {}
-					// fn (s Struct) A {}
-					// `a.A`
-					// ->
-					// fn (s Struct) a {}
-					// fn (s Struct) a_1 {}
-					// `a.a_1`
+				} else if is_current_struct_defined {
+					name_old := raw_name[i][1..]
+					name_new := set_case(name_old + name_old[0].ascii_str(), .camel_case)
+
+					// add `field_name StructName` to embedded_structs
+					for _, val in current_struct.fields {
+						if val is BasicValueStmt {
+							if `A` <= val.value[0] && val.value[0] <= `Z` {
+								current_struct.embedded_structs << val.value
+							}
+						}
+					}
+
+					if name_old in current_struct.embedded_structs {
+						out += '.$name_old'
+						current_struct = v.get_corresponding_struct(name_old)
+					} else if name_new in current_struct.embedded_structs {
+						out += '.$name_new'
+						current_struct = v.get_corresponding_struct(name_new)
+					} else {
+						out += '.${set_case(name_old, .snake_case)}'
+					}
 				} else {
 					out += formatted_name[i]
 				}
@@ -265,7 +321,7 @@ fn (mut v VAST) get_initial_name(tree Tree, case Case) []string {
 			// excape reserved keywords
 			// reserved keywords are already formatted
 			// that's why checking if the unformatted value is the same as the formatted one is great test
-			if raw_value#[1..-1] != formatted_value && transpiler.keywords.contains(formatted_value) {
+			if raw_value#[1..-1] != formatted_value && formatted_value in transpiler.keywords {
 				namespaces << '.@$formatted_value'
 			} else {
 				namespaces << '.$formatted_value'
@@ -282,7 +338,7 @@ fn (mut v VAST) get_initial_name(tree Tree, case Case) []string {
 			// excape reserved keywords
 			// reserved keywords are already formatted
 			// that's why checking if the unformatted value is the same as the formatted one is great test
-			if raw_value#[1..-1] != formatted_value && transpiler.keywords.contains(formatted_value) {
+			if raw_value#[1..-1] != formatted_value && formatted_value in transpiler.keywords {
 				namespaces << '@$formatted_value'
 			} else {
 				namespaces << formatted_value
@@ -365,7 +421,7 @@ fn (mut v VAST) get_raw_operation(tree Tree) string {
 		}
 	} else {
 		// value part
-		return v.get_name(tree, .ignore, .var_decl)
+		return v.get_name(tree, .ignore, .other)
 	}
 }
 
@@ -433,8 +489,7 @@ fn (mut v VAST) get_body(tree Tree) []Statement {
 		body << v.get_stmt(stmt.tree)
 	}
 
-	v.declared_global_old << v.declared_vars_old
-	v.declared_global_new << v.declared_vars_new
+	v.all_declared_vars << v.declared_vars_new
 	v.declared_vars_old = v.declared_vars_old[..limit]
 	v.declared_vars_new = v.declared_vars_new[..limit]
 	v.add_to_scope_limit = 0
@@ -592,7 +647,6 @@ fn (mut v VAST) get_stmt(tree Tree) Statement {
 			mut call_stmt := CallStmt{
 				namespaces: v.get_name(base.child['Fun'].tree, .snake_case, .other)
 			}
-
 			// function/method arguments
 			for _, arg in base.child['Args'].tree.child {
 				call_stmt.args << v.get_stmt(arg.tree)

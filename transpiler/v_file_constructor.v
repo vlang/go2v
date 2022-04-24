@@ -47,10 +47,16 @@ fn (mut v VAST) handle_types() {
 fn (mut v VAST) handle_structs() {
 	for strct in v.structs {
 		v.out.write_string('struct $strct.name {')
-		for field, typ in strct.fields {
-			v.out.write_string('$field ')
-			v.handle_stmt(typ, true)
-			v.out.write_rune(`\n`)
+		for embedded_struct in strct.embedded_structs {
+			v.out.writeln(embedded_struct)
+		}
+		if strct.fields.len > 0 {
+			v.out.write_string('\nmut:\n')
+			for field, typ in strct.fields {
+				v.out.write_string('$field ')
+				v.handle_stmt(typ, true)
+				v.out.write_rune(`\n`)
+			}
 		}
 		v.out.writeln('}')
 	}

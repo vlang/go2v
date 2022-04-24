@@ -3,6 +3,7 @@ module main
 struct Test2 {}
 
 struct Test1 {
+mut:
 	a Test2
 }
 

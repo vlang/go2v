@@ -1,6 +1,7 @@
 module main
 
 struct Struct1 {
+mut:
 	a int
 	b []string
 }
