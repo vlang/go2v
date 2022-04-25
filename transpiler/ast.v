@@ -2,10 +2,6 @@ module transpiler
 
 import strings
 
-// root
-
-const supported_modules = ['fmt', 'strings', 'bytes', 'strconv']
-
 struct VAST {
 mut:
 	// AST
@@ -18,11 +14,16 @@ mut:
 	enums      []StructLike
 	types      map[string]string
 	functions  []FunctionStmt
-	// `v_file_constructor.v`
+	// `file_writer.v`
 	out strings.Builder = strings.new_builder(400)
 	// module_name utils
 	// [initial_number_of_use, number_of_use_after_v_style]
-	unused_import map[string]bool
+	unused_import map[string]bool = {
+		'fmt':     false
+		'strings': false
+		'bytes':   false
+		'strconv': false
+	}
 	// string builders utils
 	current_var_name    string
 	string_builder_vars []string
@@ -43,12 +44,6 @@ mut:
 	vars_with_struct_value map[string]string
 }
 
-fn (mut v VAST) build_imports_count() {
-	for module_name in transpiler.supported_modules {
-		v.unused_import[module_name] = false
-	}
-}
-
 struct Struct {
 	StructLike
 mut:
@@ -61,7 +56,7 @@ mut:
 	fields map[string]Statement
 }
 
-// body
+// statements
 
 type Statement = ArrayStmt
 	| BasicValueStmt

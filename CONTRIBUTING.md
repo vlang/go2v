@@ -7,20 +7,20 @@
 2. Get the Go code (path handling etc.)
 	- `transpiler/go2v.v`
 3. Generate Go AST
-	- `transpiler/get_ast.go`
+	- `transpiler/ast_getter.go`
 	- `transpiler/go2v.v`
 4. Parse Go AST
-   - Tokenize Go AST
-      - `transpiler/tokenizer.v`
-   - Transform the list of tokens into a tree
-      - `transpiler/tree_constructor.v`
+  - `transpiler/ast_parser.v`
 5. Transform the parsed Go AST into a V AST struct
-   - `transpiler/ast_constructor.v`
-   - `transpiler/utils.v`
+   - `transpiler/ast_extractor.v`
 6. Adapt remaining Go-ish things to V-ish things
-   - `transpiler/v_style.v`
+   - `transpiler/ast_transformer.v`
 7. Transform the V AST struct into V Code
-   - `transpiler/v_file_constructor.v`
+   - `transpiler/file_writer.v`
+
+## You can also get a great overview of the project
+
+`v doc -all -comments transpiler/`
 
 ## When adding support for new cases you must add corresponding test(s).
 
