@@ -2,11 +2,9 @@ module transpiler
 
 import v.token
 
-// TODO: refactor this and the `ast_constructor.v` file
-
-// types equivalence (left Go & right V)
 const (
-	get_type = {
+	// types equivalence (left Go & right V)
+	get_v_type = {
 		'bool':    'bool'
 		'string':  'string'
 		'byte':    'u8'
@@ -23,15 +21,18 @@ const (
 		'float32': 'f32'
 		'float64': 'f64'
 	}
+	// keywords to excape with `@`
 	keywords = token.keywords
 )
 
-enum Case {
+// used by `set_naming_style()`
+enum NamingStyle {
 	ignore
 	snake_case
 	camel_case
 }
 
+// used by `VAST.get_name()`
 enum Origin {
 	var_decl
 	fn_decl
@@ -40,6 +41,7 @@ enum Origin {
 	other
 }
 
+// TODO: refactor using: `in_vars_in_scope`, `in_vars_history`, `in_global_scope`, `in_struct_fields`
 enum Domain {
 	var_and_global
 	all_vars_and_global
@@ -47,9 +49,9 @@ enum Domain {
 	struct_field
 }
 
-// transform to snake_case, camelCase, or ignore
-fn set_case(str string, case Case) string {
-	match case {
+// transform to snake_case, camelCase, or do nothing
+fn set_naming_style(str string, naming_style NamingStyle) string {
+	match naming_style {
 		.snake_case {
 			mut out := []rune{}
 			mut prev_ch := ` `
@@ -81,8 +83,8 @@ fn set_case(str string, case Case) string {
 	}
 }
 
-// format a given value as needed
-fn format_value(str string, case Case) string {
+// apply basic formatting plus a specific naming style
+fn format_and_set_naming_style(str string, naming_style NamingStyle) string {
 	not_empty := str.len > 0
 
 	if not_empty {
@@ -98,7 +100,7 @@ fn format_value(str string, case Case) string {
 			} // everything else
 		}
 		if !(raw_str[0] == `'` || raw_str[0] == `\``) {
-			return set_case(raw_str, case)
+			return set_naming_style(raw_str, naming_style)
 		} else {
 			return raw_str
 		}
@@ -106,68 +108,33 @@ fn format_value(str string, case Case) string {
 	return str
 }
 
-// get the type of property/function arguments etc.
-fn (mut v VAST) get_type(tree Tree) string {
-	mut temp := tree.child['Type'].tree
-	mut type_prefix := ''
-	mut @type := ''
-	mut next_is_end := if 'X' in temp.child { false } else { true }
-
-	for ('X' in temp.child) || next_is_end {
-		// pointers
-		if temp.name == '*ast.StarExpr' {
-			type_prefix += '&'
-		}
-		// TODO: rework that
-		if 'X' in temp.child {
-			temp = temp.child['X'].tree
-		}
-
-		// arrays
-		if temp.name == '*ast.ArrayType' {
-			type_prefix += '[]'
-			temp = temp.child['Elt'].tree
-		}
-
-		// pointers
-		if temp.name == '*ast.StarExpr' {
-			type_prefix += '&'
-		}
-
-		// maps
-		if temp.name == '*ast.MapType' {
-			@type += 'map[' + v.get_name(temp.child['Key'].tree, .ignore, .other) + ']' +
-				v.get_name(temp.child['Value'].tree, .ignore, .other)
-		}
-
-		// functions
-		if temp.name == '*ast.FuncType' {
-			@type += v.stmt_to_string(v.get_function(temp.parent))
-		}
-
-		@type += v.get_name(temp, .ignore, .other)
-
-		v.get_embedded(temp)
-
-		temp = temp.child['X'].tree
-
-		if next_is_end {
-			break
-		}
-		if !('X' in temp.child['X'].tree.child || 'Sel' in temp.child) {
-			next_is_end = true
-		}
-	}
-
-	return type_prefix + if @type in transpiler.get_type {
-		// transform Go types into V ones
-		transpiler.get_type[@type]
-	} else {
-		@type
+// get the zero value of a given type
+fn type_to_default_value(@type string) string {
+	return match @type {
+		'string' { "''" }
+		'int' { '0' }
+		'bool' { 'false' }
+		else { '${@type}{}' }
 	}
 }
 
-// make sure the given name is unique, if not, make it unique
+// get the struct corresponding to a given name
+fn (v &VAST) struct_name_to_struct(struct_name string) Struct {
+	for @struct in v.structs {
+		if @struct.name == struct_name {
+			return @struct
+		}
+	}
+	return Struct{}
+}
+
+// get a statement as a string
+fn (mut v VAST) stmt_to_string(stmt Statement) string {
+	v.write_stmt(stmt, true)
+	return v.out.cut_last(v.out.len)
+}
+
+// make sure the given name is unique in its given field/domain, if not, make it unique
 fn (v &VAST) find_unused_name(original_name string, domain Domain) string {
 	// suffix the name with an int and increment it until it's unique
 	mut suffix := 1
@@ -203,19 +170,71 @@ fn (v &VAST) find_unused_name(original_name string, domain Domain) string {
 	return new_name
 }
 
-fn (v &VAST) get_corresponding_struct(struct_name string) Struct {
-	for @struct in v.structs {
-		if @struct.name == struct_name {
-			return @struct
+// get the type of a struct field, a function argument... from a `Tree`
+fn (mut v VAST) get_type(tree Tree) string {
+	mut temp := tree.child['Type'].tree
+	mut type_prefix := ''
+	mut @type := ''
+	mut next_is_end := if 'X' in temp.child { false } else { true }
+
+	for ('X' in temp.child) || next_is_end {
+		// pointers
+		if temp.name == '*ast.StarExpr' {
+			type_prefix += '&'
+		}
+		// TODO: rework that
+		if 'X' in temp.child {
+			temp = temp.child['X'].tree
+		}
+
+		// arrays
+		if temp.name == '*ast.ArrayType' {
+			type_prefix += '[]'
+			temp = temp.child['Elt'].tree
+		}
+
+		// pointers
+		if temp.name == '*ast.StarExpr' {
+			type_prefix += '&'
+		}
+
+		// maps
+		if temp.name == '*ast.MapType' {
+			@type += 'map[' + v.get_name(temp.child['Key'].tree, .ignore, .other) + ']' +
+				v.get_name(temp.child['Value'].tree, .ignore, .other)
+		}
+
+		// functions
+		if temp.name == '*ast.FuncType' {
+			@type += v.stmt_to_string(v.extract_function(temp.parent))
+		}
+
+		@type += v.get_name(temp, .ignore, .other)
+
+		v.extract_embedded_declaration(temp)
+
+		temp = temp.child['X'].tree
+
+		if next_is_end {
+			break
+		}
+		if !('X' in temp.child['X'].tree.child || 'Sel' in temp.child) {
+			next_is_end = true
 		}
 	}
-	return Struct{}
+
+	return type_prefix + if @type in transpiler.get_v_type {
+		// transform Go types into V ones
+		transpiler.get_v_type[@type]
+	} else {
+		@type
+	}
 }
 
-// get the name of a variable/property/function etc.
-fn (mut v VAST) get_name(tree Tree, case Case, origin Origin) string {
+// get the name of a variable, a function, a property... from a `Tree`
+fn (mut v VAST) get_name(tree Tree, naming_style NamingStyle, origin Origin) string {
 	raw_name := v.get_initial_name(tree, .ignore)
-	formatted_name := v.get_initial_name(tree, case)
+	formatted_name := v.get_initial_name(tree, naming_style)
 	mut out := ''
 	// embedded struct utils
 	mut is_current_struct_defined := false
@@ -248,7 +267,7 @@ fn (mut v VAST) get_name(tree Tree, case Case, origin Origin) string {
 			.global_decl {
 				mut new_name := v.find_unused_name(formatted_name[i], .global)
 				if new_name.len == 1 {
-					new_name = set_case(new_name + new_name[0].ascii_str(), .camel_case)
+					new_name = set_naming_style(new_name + new_name[0].ascii_str(), .camel_case)
 				}
 
 				v.declared_global_old << raw_name[i]
@@ -270,13 +289,13 @@ fn (mut v VAST) get_name(tree Tree, case Case, origin Origin) string {
 
 					if raw_name[i] in v.vars_with_struct_value {
 						is_current_struct_defined = true
-						current_struct = v.get_corresponding_struct(v.vars_with_struct_value[raw_name[i]])
+						current_struct = v.struct_name_to_struct(v.vars_with_struct_value[raw_name[i]])
 					}
 				} else if raw_name[i] in v.declared_global_old {
 					out += v.declared_global_new[v.declared_global_old.index(raw_name[i])]
 				} else if is_current_struct_defined {
 					name_old := raw_name[i][1..]
-					name_new := set_case(name_old + name_old[0].ascii_str(), .camel_case)
+					name_new := set_naming_style(name_old + name_old[0].ascii_str(), .camel_case)
 
 					// add `field_name StructName` to embedded_structs
 					for _, val in current_struct.fields {
@@ -289,12 +308,12 @@ fn (mut v VAST) get_name(tree Tree, case Case, origin Origin) string {
 
 					if name_old in current_struct.embedded_structs {
 						out += '.$name_old'
-						current_struct = v.get_corresponding_struct(name_old)
+						current_struct = v.struct_name_to_struct(name_old)
 					} else if name_new in current_struct.embedded_structs {
 						out += '.$name_new'
-						current_struct = v.get_corresponding_struct(name_new)
+						current_struct = v.struct_name_to_struct(name_new)
 					} else {
-						out += '.${set_case(name_old, .snake_case)}'
+						out += '.${set_naming_style(name_old, .snake_case)}'
 					}
 				} else {
 					out += formatted_name[i]
@@ -306,8 +325,8 @@ fn (mut v VAST) get_name(tree Tree, case Case, origin Origin) string {
 	return out
 }
 
-// util for `v.get_name()`
-fn (mut v VAST) get_initial_name(tree Tree, case Case) []string {
+// util for `VAST.get_name()`, it gets the original name without any transformation
+fn (mut v VAST) get_initial_name(tree Tree, naming_style NamingStyle) []string {
 	mut temp := tree
 	mut namespaces := []string{}
 	// All `next_is_end` related code is a trick to repeat one more time the loop
@@ -317,7 +336,7 @@ fn (mut v VAST) get_initial_name(tree Tree, case Case) []string {
 		// `a.b.c` syntax
 		if 'Sel' in temp.child {
 			raw_value := temp.child['Sel'].tree.child['Name'].val
-			formatted_value := format_value(raw_value, case)
+			formatted_value := format_and_set_naming_style(raw_value, naming_style)
 			// excape reserved keywords
 			// reserved keywords are already formatted
 			// that's why checking if the unformatted value is the same as the formatted one is great test
@@ -334,7 +353,7 @@ fn (mut v VAST) get_initial_name(tree Tree, case Case) []string {
 				temp = temp.child['Name'].tree
 			}
 			raw_value := temp.child['Name'].val
-			formatted_value := format_value(raw_value, case)
+			formatted_value := format_and_set_naming_style(raw_value, naming_style)
 			// excape reserved keywords
 			// reserved keywords are already formatted
 			// that's why checking if the unformatted value is the same as the formatted one is great test
@@ -347,14 +366,14 @@ fn (mut v VAST) get_initial_name(tree Tree, case Case) []string {
 
 		// value
 		if 'Value' in temp.child {
-			namespaces << format_value(temp.child['Value'].val, case)
+			namespaces << format_and_set_naming_style(temp.child['Value'].val, naming_style)
 
-			v.get_embedded(temp)
+			v.extract_embedded_declaration(temp)
 		}
 
 		// `a[idx]` syntax
 		if 'Index' in temp.child {
-			namespaces << '[' + v.stmt_to_string(v.get_stmt(temp.child['Index'].tree)) + ']'
+			namespaces << '[' + v.stmt_to_string(v.extract_stmt(temp.child['Index'].tree)) + ']'
 		}
 
 		temp = temp.child['X'].tree
@@ -367,67 +386,16 @@ fn (mut v VAST) get_initial_name(tree Tree, case Case) []string {
 	}
 
 	// transform Go types into V ones for type casting
-	if namespaces.len == 1 && namespaces[0] in transpiler.get_type {
-		namespaces[0] = transpiler.get_type[namespaces[0]]
+	if namespaces.len == 1 && namespaces[0] in transpiler.get_v_type {
+		namespaces[0] = transpiler.get_v_type[namespaces[0]]
 	}
 
 	return namespaces
 }
 
-// check if the tree contains an embedded declaration and extract it if so
-fn (mut v VAST) get_embedded(tree Tree) {
-	if 'Obj' in tree.child {
-		v.extract_declaration(tree.child['Obj'].tree, true)
-	}
-}
-
-// get the condition string from a tree for if/for/match statements
-fn (mut v VAST) get_raw_operation(tree Tree) string {
-	// logic part
-	if 'Name' !in tree.child {
-		// left-hand
-		x := if tree.child['X'].tree.name == '*ast.ParenExpr'
-			|| tree.child['X'].tree.name == '*ast.BinaryExpr' {
-			v.get_raw_operation(tree.child['X'].tree)
-		} else if 'X' in tree.child {
-			v.stmt_to_string(v.get_stmt(tree.child['X'].tree))
-		} else {
-			''
-		}
-
-		// operator
-		cond := tree.child['Op'].val
-
-		// right-hand
-		y := if tree.child['Y'].tree.name == '*ast.ParenExpr'
-			|| tree.child['Y'].tree.name == '*ast.BinaryExpr' {
-			v.get_raw_operation(tree.child['Y'].tree)
-		} else if 'Y' in tree.child {
-			v.stmt_to_string(v.get_stmt(tree.child['Y'].tree))
-		} else {
-			''
-		}
-
-		// parentheses
-		if cond == '&&' || cond == '||' {
-			return '($x $cond $y)'
-		} else if cond.len + x.len + y.len == 0 {
-			stmt := v.get_stmt(tree)
-			return if stmt is NotYetImplStmt { ' ' } else { v.stmt_to_string(stmt) }
-		} else if y.len == 0 {
-			return '$cond $x'
-		} else {
-			return '$x $cond $y'
-		}
-	} else {
-		// value part
-		return v.get_name(tree, .ignore, .other)
-	}
-}
-
-// format the condition string obtained from get_raw_operation
-fn (mut v VAST) get_operation(tree Tree) string {
-	mut cond := v.get_raw_operation(tree)
+// get the condition/operation of an if, for, match... statement from a `Tree`
+fn (mut v VAST) get_condition(tree Tree) string {
+	mut cond := v.get_initial_condition(tree)
 
 	mut out := []rune{}
 	mut space_count := 0
@@ -443,382 +411,52 @@ fn (mut v VAST) get_operation(tree Tree) string {
 	return out.string()
 }
 
-// get the variable statement (VariableStmt) from a tree
-fn (mut v VAST) get_var(tree Tree, short bool, enforce_other_origin bool) VariableStmt {
-	left_hand := if short { tree.child['Lhs'].tree.child } else { tree.child['Names'].tree.child }
-	right_hand := if short { tree.child['Rhs'].tree.child } else { tree.child['Values'].tree.child }
+// util for `VAST.get_condition()`, it gets the original name without any formatting
+fn (mut v VAST) get_initial_condition(tree Tree) string {
+	// logic part
+	if 'Name' !in tree.child {
+		// left-hand
+		x := if tree.child['X'].tree.name == '*ast.ParenExpr'
+			|| tree.child['X'].tree.name == '*ast.BinaryExpr' {
+			v.get_initial_condition(tree.child['X'].tree)
+		} else if 'X' in tree.child {
+			v.stmt_to_string(v.extract_stmt(tree.child['X'].tree))
+		} else {
+			''
+		}
 
-	mut var_stmt := VariableStmt{
-		middle: tree.child['Tok'].val
-		@type: v.get_type(tree)
-	}
+		// operator
+		cond := tree.child['Op'].val
 
-	origin := if var_stmt.middle == ':=' && !enforce_other_origin {
-		Origin.var_decl
+		// right-hand
+		y := if tree.child['Y'].tree.name == '*ast.ParenExpr'
+			|| tree.child['Y'].tree.name == '*ast.BinaryExpr' {
+			v.get_initial_condition(tree.child['Y'].tree)
+		} else if 'Y' in tree.child {
+			v.stmt_to_string(v.extract_stmt(tree.child['Y'].tree))
+		} else {
+			''
+		}
+
+		// parentheses
+		if cond == '&&' || cond == '||' {
+			return '($x $cond $y)'
+		} else if cond.len + x.len + y.len == 0 {
+			stmt := v.extract_stmt(tree)
+			return if stmt is NotYetImplStmt { ' ' } else { v.stmt_to_string(stmt) }
+		} else if y.len == 0 {
+			return '$cond $x'
+		} else {
+			return '$x $cond $y'
+		}
 	} else {
-		Origin.other
-	}
-
-	for _, name in left_hand {
-		var_stmt.names << v.get_name(name.tree, .snake_case, origin)
-	}
-	for _, val in right_hand {
-		var_stmt.values << v.get_stmt(val.tree)
-	}
-
-	return var_stmt
-}
-
-// get the increment statement (IncDecStmt) from a tree
-fn (mut v VAST) get_inc_dec(tree Tree) IncDecStmt {
-	return IncDecStmt{
-		var: v.get_name(tree, .ignore, .other)
-		inc: tree.child['Tok'].val
+		// value part
+		return v.get_name(tree, .ignore, .other)
 	}
 }
 
-// get the body of a function/if/for/match statement etc.
-// basically everything that contains a block of code
-fn (mut v VAST) get_body(tree Tree) []Statement {
-	mut body := []Statement{}
-	// all the variables declared after this limit will go out of scope at the end of the function
-	limit := v.declared_vars_old.len - v.add_to_scope_limit
-
-	// go through every statement
-	for _, stmt in tree.child['List'].tree.child {
-		body << v.get_stmt(stmt.tree)
-	}
-
-	v.all_declared_vars << v.declared_vars_new
-	v.declared_vars_old = v.declared_vars_old[..limit]
-	v.declared_vars_new = v.declared_vars_new[..limit]
-	v.add_to_scope_limit = 0
-
-	return body
-}
-
-// extract a single statement
-fn (mut v VAST) get_stmt(tree Tree) Statement {
-	mut ret := Statement(NotYetImplStmt{})
-
-	match tree.name {
-		// `var` syntax
-		'*ast.DeclStmt' {
-			mut var_stmt := v.get_var(tree.child['Decl'].tree.child['Specs'].tree.child['0'].tree,
-				false, false)
-			var_stmt.middle = ':='
-
-			ret = var_stmt
-		}
-		// `:=`, `+=` etc. syntax
-		'*ast.AssignStmt' {
-			ret = v.get_var(tree, true, false)
-		}
-		// basic value
-		'*ast.BasicLit' {
-			ret = BasicValueStmt{v.get_name(tree, .ignore, .other)}
-		}
-		// variable, function call, etc.
-		'*ast.Ident', '*ast.IndexExpr', '*ast.SelectorExpr' {
-			ret = BasicValueStmt{v.get_name(tree, .snake_case, .other)}
-			v.get_embedded(tree)
-		}
-		'*ast.MapType' {
-			ret = MapStmt{
-				key_type: v.get_name(tree.child['Key'].tree, .ignore, .other)
-				value_type: v.get_name(tree.child['Value'].tree, .ignore, .other)
-			}
-		}
-		'*ast.ArrayType' {
-			ret = ArrayStmt{
-				@type: v.get_name(tree.child['Elt'].tree, .ignore, .other)
-			}
-		}
-		// (almost) basic variable value
-		// eg: -1
-		'*ast.UnaryExpr' {
-			op := if tree.child['Op'].val != 'range' { tree.child['Op'].val } else { '' }
-			ret = ComplexValueStmt{
-				op: op
-				value: v.get_stmt(tree.child['X'].tree)
-			}
-		}
-		// arrays & `Struct{}` syntaxt
-		'*ast.CompositeLit' {
-			base := tree.child['Type'].tree
-
-			match base.name {
-				// arrays
-				'*ast.ArrayType' {
-					mut array := ArrayStmt{
-						@type: v.get_type(tree)[2..] // remove `[]`
-						len: v.get_name(base.child['Len'].tree, .ignore, .other)
-					}
-					for _, el in tree.child['Elts'].tree.child {
-						array.values << v.get_stmt(el.tree)
-					}
-					ret = array
-				}
-				// structs
-				'*ast.Ident', '', '*ast.SelectorExpr' {
-					mut @struct := StructStmt{
-						name: if base.name == '' {
-							v.current_implicit_map_type
-						} else {
-							v.get_name(base, .ignore, .other)
-						}
-					}
-
-					for _, el in tree.child['Elts'].tree.child {
-						@struct.fields << v.get_stmt(el.tree)
-					}
-
-					v.get_embedded(base)
-
-					ret = @struct
-				}
-				// maps
-				'*ast.MapType' {
-					// short `{"key": "value"}` syntax
-					v.current_implicit_map_type = v.get_name(base.child['Value'].tree,
-						.ignore, .other)
-					no_type := v.current_implicit_map_type.len == 0
-
-					mut map_stmt := MapStmt{
-						key_type: v.get_name(base.child['Key'].tree, .ignore, .other)
-						value_type: v.current_implicit_map_type
-					}
-
-					for _, el in tree.child['Elts'].tree.child {
-						raw := v.get_stmt(el.tree)
-
-						if no_type {
-							// direct values
-							mut key_val_stmt := raw as KeyValStmt
-							mut array := ArrayStmt{}
-
-							for field in (key_val_stmt.value as StructStmt).fields {
-								array.values << field
-							}
-
-							key_val_stmt.value = array
-							map_stmt.values << key_val_stmt
-						} else {
-							// normal
-							map_stmt.values << raw
-						}
-					}
-
-					v.get_embedded(base)
-
-					ret = map_stmt
-				}
-				else {
-					ret = not_implemented(tree)
-				}
-			}
-		}
-		// `key: value` syntax
-		'*ast.KeyValueExpr' {
-			ret = KeyValStmt{
-				key: v.get_name(tree.child['Key'].tree, .snake_case, .other)
-				value: v.get_stmt(tree.child['Value'].tree)
-			}
-		}
-		// slices (slicing)
-		'*ast.SliceExpr' {
-			mut slice_stmt := SliceStmt{
-				value: v.get_name(tree.child['X'].tree, .ignore, .other)
-				low: BasicValueStmt{}
-				high: BasicValueStmt{}
-			}
-			if 'Low' in tree.child {
-				slice_stmt.low = v.get_stmt(tree.child['Low'].tree)
-			}
-			if 'High' in tree.child {
-				slice_stmt.high = v.get_stmt(tree.child['High'].tree)
-			}
-			ret = slice_stmt
-		}
-		// (nested) function/method call
-		'*ast.ExprStmt', '*ast.CallExpr' {
-			base := if tree.name == '*ast.ExprStmt' { tree.child['X'].tree } else { tree }
-
-			mut call_stmt := CallStmt{
-				namespaces: v.get_name(base.child['Fun'].tree, .snake_case, .other)
-			}
-			// function/method arguments
-			for _, arg in base.child['Args'].tree.child {
-				call_stmt.args << v.get_stmt(arg.tree)
-			}
-
-			v.get_embedded(base.child['Fun'].tree)
-
-			ret = call_stmt
-		}
-		// `i++` & `i--`
-		'*ast.IncDecStmt' {
-			ret = v.get_inc_dec(tree)
-		}
-		// if/else
-		'*ast.IfStmt' {
-			mut if_stmt := IfStmt{}
-			mut temp := tree
-			mut next_is_end := if 'Else' in temp.child { false } else { true }
-
-			for ('Else' in temp.child || next_is_end) {
-				mut if_else := IfElse{}
-
-				// `if z := 0; z < 10` syntax
-				var := v.get_var(temp.child['Init'].tree, true, false)
-				if var.names.len > 0 {
-					if_else.body << var
-					// TODO: support https://go.dev/tour/flowcontrol/7
-					v.add_to_scope_limit++
-				}
-
-				// condition
-				if_else.condition = v.get_operation(temp.child['Cond'].tree)
-				if var.names.len != 0 {
-					if var.values[0] is BasicValueStmt {
-						if_else.condition = if_else.condition.replace(var.names[0], (var.values[0] as BasicValueStmt).value)
-					}
-					// TODO: create a system to support other types of statement
-				}
-
-				// body
-				if_else.body << if 'Body' in temp.child {
-					// `if` or `else if` branchs
-					v.get_body(temp.child['Body'].tree)
-				} else {
-					// `else` branchs
-					v.get_body(temp)
-				}
-
-				if_stmt.branchs << if_else
-
-				if next_is_end {
-					break
-				}
-				if 'Else' !in temp.child['Else'].tree.child {
-					next_is_end = true
-				}
-				temp = temp.child['Else'].tree
-			}
-
-			ret = if_stmt
-		}
-		// condition for/bare for/C-style for
-		'*ast.ForStmt' {
-			mut for_stmt := ForStmt{}
-
-			// init
-			for_stmt.init = v.get_var(tree.child['Init'].tree, true, false)
-			for_stmt.init.mutable = false
-			if for_stmt.init.names.len > 0 {
-				v.add_to_scope_limit++
-			}
-
-			// condition
-			for_stmt.condition = v.get_operation(tree.child['Cond'].tree)
-
-			// post
-			post_base := tree.child['Post'].tree
-			if post_base.child.len > 0 {
-				for_stmt.post = v.get_stmt(post_base)
-			}
-
-			// body
-			for_stmt.body = v.get_body(tree.child['Body'].tree)
-
-			ret = for_stmt
-		}
-		// break/continue
-		'*ast.BranchStmt' {
-			ret = BranchStmt{tree.child['Tok'].val}
-		}
-		// for in
-		'*ast.RangeStmt' {
-			mut forin_stmt := ForInStmt{}
-
-			// classic syntax
-			if tree.child['Tok'].val != 'ILLEGAL' {
-				// idx
-				forin_stmt.idx = tree.child['Key'].tree.child['Name'].val#[1..-1]
-
-				// element & variable
-				temp_var := v.get_var(tree.child['Key'].tree.child['Obj'].tree.child['Decl'].tree,
-					true, true)
-				forin_stmt.element = temp_var.names[1] or { '_' }
-				forin_stmt.variable = temp_var.values[0] or { BasicValueStmt{'_'} }
-			} else {
-				// `for range variable {` syntax
-				forin_stmt.variable = BasicValueStmt{v.get_name(tree, .snake_case, .other)}
-			}
-
-			// body
-			forin_stmt.body = v.get_body(tree.child['Body'].tree)
-
-			ret = forin_stmt
-		}
-		'*ast.ReturnStmt' {
-			mut return_stmt := ReturnStmt{}
-
-			for _, el in tree.child['Results'].tree.child {
-				return_stmt.values << v.get_stmt(el.tree)
-			}
-
-			ret = return_stmt
-		}
-		'*ast.DeferStmt' {
-			ret = DeferStmt{v.get_stmt(tree.child['Call'].tree)}
-		}
-		'*ast.SwitchStmt' {
-			mut match_stmt := MatchStmt{
-				value: v.get_stmt(tree.child['Tag'].tree)
-			}
-
-			// `switch z := 0; z < 10` syntax
-			var := v.get_var(tree.child['Init'].tree, true, false)
-			if var.names.len > 0 {
-				match_stmt.init = var
-				v.add_to_scope_limit++
-			}
-
-			// cases
-			for _, case in tree.child['Body'].tree.child['List'].tree.child {
-				mut match_case := MatchCase{
-					values: v.get_body(case.tree)
-				}
-
-				for _, case_stmt in case.tree.child['Body'].tree.child {
-					match_case.body << v.get_stmt(case_stmt.tree)
-				}
-
-				match_stmt.cases << match_case
-			}
-
-			// add an else statement if not already present
-			if match_stmt.cases.last().values.len != 0 {
-				match_stmt.cases << MatchCase{}
-			}
-
-			ret = match_stmt
-		}
-		'*ast.BinaryExpr' {
-			ret = BasicValueStmt{v.get_operation(tree)}
-		}
-		'*ast.FuncLit' {
-			ret = v.get_function(tree)
-		}
-		else {
-			ret = not_implemented(tree)
-		}
-	}
-
-	return v.style_stmt(ret)
-}
-
+// aims at facilitating reporting errors by printing infos to the user
+// thus, it isn't used by the transpiler
 fn not_implemented(tree Tree) NotYetImplStmt {
 	mut hint := ''
 

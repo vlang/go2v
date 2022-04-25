@@ -8,7 +8,7 @@ import v.pref
 import v.parser
 import v.util
 
-struct InOut {
+struct InOutPaths {
 	input_path  string
 	output_path string
 }
@@ -58,11 +58,11 @@ pub fn go_to_v(input_path string, output_path string) ? {
 		return error('"$input_path" is a directory, but "$output_path" is a file')
 	}
 
-	mut outputs := []InOut{}
+	mut outputs := []InOutPaths{}
 
 	if input_is_file {
 		if input_path.ends_with('.go') {
-			outputs << InOut{
+			outputs << InOutPaths{
 				input_path: input_path
 				output_path: out_path
 			}
@@ -74,7 +74,7 @@ pub fn go_to_v(input_path string, output_path string) ? {
 		go_files.sort()
 
 		for input in go_files {
-			outputs << InOut{
+			outputs << InOutPaths{
 				input_path: input
 				output_path: '$out_path/${input.all_after(input_path + os.path_separator).all_before('.go')}.v'
 			}
@@ -85,15 +85,15 @@ pub fn go_to_v(input_path string, output_path string) ? {
 		}
 	}
 
-	for inout in outputs {
-		convert_and_write(inout.input_path, inout.output_path) ?
+	for in_out in outputs {
+		convert_and_write(in_out.input_path, in_out.output_path) ?
 	}
 }
 
 pub fn convert_and_write(input_path string, output_path string) ? {
 	println('converting "$input_path" -> "$output_path"')
 
-	conversion := os.execute('go run "${os.resource_abs_path('transpiler')}/get_ast.go" -- "$input_path"')
+	conversion := os.execute('go run "${os.resource_abs_path('transpiler')}/ast_getter.go" -- "$input_path"')
 	if conversion.exit_code != 0 {
 		return error(term.bright_red('"$input_path" is not a valid Go file') +
 			'\n==================\n$conversion.output\n==================')
@@ -103,8 +103,8 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 	runes_input := go_ast.runes()
 	tokens := tokenizer(runes_input)
 	tree := tree_constructor(tokens)
-	v_ast := ast_constructor(tree)
-	raw_v_file := v_file_constructor(v_ast)
+	v_ast := ast_extractor(tree)
+	raw_v_file := file_writer(v_ast)
 
 	// compile with -cg to enable this block
 	// only works properly if converting single file.
