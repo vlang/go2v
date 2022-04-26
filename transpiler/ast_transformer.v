@@ -168,7 +168,18 @@ fn (mut v VAST) transform_print(stmt CallStmt, right string) Statement {
 		if stmt.args.len > 1 {
 			mut out := "'"
 			for i, arg in stmt.args {
-				out += '\${${v.stmt_to_string(arg)}}'
+				str_stmt := v.stmt_to_string(arg)#[..-1]
+				// strings
+				if str_stmt[0] == `'` && str_stmt[str_stmt.len - 1] == `'` {
+					out += str_stmt#[1..-1]
+					// numbers & booleans
+				} else if (`0` <= str_stmt[0] && str_stmt[0] <= `9`)
+					|| str_stmt == 'true' || str_stmt == 'false' {
+					out += str_stmt
+					// anything else
+				} else {
+					out += '\${$str_stmt}'
+				}
 				out += if i != stmt.args.len - 1 { ' ' } else { "'" }
 			}
 			call_stmt.args = [BasicValueStmt{out}]

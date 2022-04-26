@@ -12,4 +12,7 @@ func main() {
 	}
 
 	fmt.Println(strings.Repeat("Hello\n", 10), 34, "hello")
+
+	i := 34
+	fmt.Println("Hi buddy", i, 234, false, true)
 }
