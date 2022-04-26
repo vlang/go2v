@@ -167,7 +167,8 @@ fn (mut v VAST) extract_function(tree Tree) FunctionStmt {
 	raw_fn_name := v.get_name(tree, .ignore, .fn_decl)
 	is_named := raw_fn_name.len > 0
 	fn_name := if is_named {
-		v.find_unused_name(set_naming_style(raw_fn_name, .snake_case), .all_vars_and_global)
+		v.find_unused_name(set_naming_style(raw_fn_name, .snake_case), .in_vars_history,
+			.in_global_scope)
 	} else {
 		''
 	}

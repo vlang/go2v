@@ -41,12 +41,12 @@ enum Origin {
 	other
 }
 
-// TODO: refactor using: `in_vars_in_scope`, `in_vars_history`, `in_global_scope`, `in_struct_fields`
+// used by `VAST.find_unused_name()`
 enum Domain {
-	var_and_global
-	all_vars_and_global
-	global
-	struct_field
+	in_vars_in_scope
+	in_vars_history
+	in_global_scope
+	in_struct_fields
 }
 
 // transform to snake_case, camelCase, or do nothing
@@ -135,35 +135,24 @@ fn (mut v VAST) stmt_to_string(stmt Statement) string {
 }
 
 // make sure the given name is unique in its given field/domain, if not, make it unique
-fn (v &VAST) find_unused_name(original_name string, domain Domain) string {
+fn (v &VAST) find_unused_name(original_name string, domains ...Domain) string {
 	// suffix the name with an int and increment it until it's unique
-	mut suffix := 1
+	mut suffix := 0
 	mut new_name := original_name
+	mut condition := true
 
-	match domain {
-		.var_and_global {
-			for v.declared_vars_new.contains(new_name) || v.declared_global_new.contains(new_name) {
-				new_name = '${original_name}_${int(suffix)}'
-				suffix++
+	for domain in domains {
+		for condition {
+			condition = match domain {
+				.in_vars_in_scope { new_name in v.declared_vars_new }
+				.in_vars_history { new_name in v.all_declared_vars }
+				.in_global_scope { new_name in v.declared_global_new }
+				.in_struct_fields { new_name in v.struct_fields_new }
 			}
-		}
-		.all_vars_and_global {
-			for v.all_declared_vars.contains(new_name) || v.declared_global_new.contains(new_name) {
-				new_name = '${original_name}_${int(suffix)}'
-				suffix++
+			if condition && suffix > 0 {
+				new_name = '${original_name}_$suffix'
 			}
-		}
-		.global {
-			for v.declared_global_new.contains(new_name) {
-				new_name = '${original_name}_${int(suffix)}'
-				suffix++
-			}
-		}
-		.struct_field {
-			for v.struct_fields_new.contains(new_name) {
-				new_name = '${original_name}_${int(suffix)}'
-				suffix++
-			}
+			suffix++
 		}
 	}
 
@@ -245,7 +234,7 @@ fn (mut v VAST) get_name(tree Tree, naming_style NamingStyle, origin Origin) str
 
 		match origin {
 			.var_decl {
-				new_name := v.find_unused_name(formatted_name[i], .var_and_global)
+				new_name := v.find_unused_name(formatted_name[i], .in_vars_in_scope, .in_global_scope)
 
 				v.declared_vars_old << raw_name[i]
 				v.declared_vars_new << new_name
@@ -260,12 +249,12 @@ fn (mut v VAST) get_name(tree Tree, naming_style NamingStyle, origin Origin) str
 				}
 			}
 			.fn_decl {
-				new_name := v.find_unused_name(formatted_name[i], .all_vars_and_global)
+				new_name := v.find_unused_name(formatted_name[i], .in_vars_history, .in_global_scope)
 
 				out += new_name
 			}
 			.global_decl {
-				mut new_name := v.find_unused_name(formatted_name[i], .global)
+				mut new_name := v.find_unused_name(formatted_name[i], .in_global_scope)
 				if new_name.len == 1 {
 					new_name = set_naming_style(new_name + new_name[0].ascii_str(), .camel_case)
 				}
@@ -275,7 +264,7 @@ fn (mut v VAST) get_name(tree Tree, naming_style NamingStyle, origin Origin) str
 				out += new_name
 			}
 			.field {
-				new_name := v.find_unused_name(formatted_name[i], .struct_field)
+				new_name := v.find_unused_name(formatted_name[i], .in_struct_fields)
 
 				v.struct_fields_old << raw_name[i]
 				v.struct_fields_new << new_name
