@@ -354,7 +354,7 @@ fn (mut v VAST) get_initial_name(tree Tree, naming_style NamingStyle) []string {
 			// excape reserved keywords
 			// reserved keywords are already formatted
 			// that's why checking if the unformatted value is the same as the formatted one is great test
-			if raw_value#[1..-1] != formatted_value && formatted_value in transpiler.keywords {
+			if formatted_value !in ['true', 'false'] && formatted_value in transpiler.keywords {
 				namespaces << '@$formatted_value'
 			} else {
 				namespaces << formatted_value
