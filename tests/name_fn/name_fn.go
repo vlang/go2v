@@ -5,3 +5,5 @@ func main() {
 }
 
 func A() {}
+
+func a() {}

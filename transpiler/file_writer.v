@@ -387,6 +387,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 	}
 
 	if is_value {
+		// TODO: this can probably be removed somehow
 		v.out.write_rune(` `)
 	} else {
 		v.out.write_rune(`\n`)

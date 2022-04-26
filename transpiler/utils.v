@@ -154,6 +154,7 @@ fn (v &VAST) find_unused_name(original_name string, domains ...Domain) string {
 			}
 			suffix++
 		}
+		condition = true
 	}
 
 	return new_name
@@ -238,8 +239,10 @@ fn (mut v VAST) get_name(tree Tree, naming_style NamingStyle, origin Origin) str
 
 				v.declared_vars_old << raw_name[i]
 				v.declared_vars_new << new_name
+
 				out += new_name
 
+				// TODO: check if that's necessary
 				// prevent `a.a` -> `a.a_1`
 				if pre_end && raw_name[i].runes().any([`[`, `]`, `(`, `)`].contains(it)) {
 					break
@@ -251,7 +254,12 @@ fn (mut v VAST) get_name(tree Tree, naming_style NamingStyle, origin Origin) str
 			.fn_decl {
 				new_name := v.find_unused_name(formatted_name[i], .in_vars_history, .in_global_scope)
 
-				out += new_name
+				v.declared_global_old << raw_name[i]
+				v.declared_global_new << new_name
+
+				// the first character is used to tell if the function is public or private
+				out += if `A` <= raw_name[i][0] && raw_name[i][0] <= `Z` { 'v' } else { 'x' } +
+					new_name
 			}
 			.global_decl {
 				mut new_name := v.find_unused_name(formatted_name[i], .in_global_scope)

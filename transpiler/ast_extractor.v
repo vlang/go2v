@@ -163,32 +163,20 @@ fn (mut v VAST) extract_struct(tree Tree) {
 
 // extract the function from a `Tree`
 fn (mut v VAST) extract_function(tree Tree) FunctionStmt {
-	// we don't directly format the function name because we need the raw function name first in order to detect if the function is public or not
-	raw_fn_name := v.get_name(tree, .ignore, .fn_decl)
-	is_named := raw_fn_name.len > 0
-	fn_name := if is_named {
-		v.find_unused_name(set_naming_style(raw_fn_name, .snake_case), .in_vars_history,
-			.in_global_scope)
-	} else {
-		''
-	}
-	v.declared_global_old << raw_fn_name
-	v.declared_global_new << fn_name
-
 	mut func := FunctionStmt{
-		name: fn_name
 		type_ctx: 'Names' in tree.child // detect function used as the type of a struct's field
+	}
+
+	raw_fn_name := v.get_name(tree, .snake_case, .fn_decl)
+	if raw_fn_name.len > 0 {
+		func.name = raw_fn_name[1..]
+		func.public = raw_fn_name[0] == `v`
 	}
 
 	// comments on top functions (docstrings)
 	if 'Doc' in tree.child {
 		func.comment = '//' +
 			tree.child['Doc'].tree.child['List'].tree.child['0'].tree.child['Text'].val#[3..-5].replace('\\n', '\n// ').replace('\\t', '\t')
-	}
-
-	// public/private
-	if is_named && `A` <= raw_fn_name[0] && raw_fn_name[0] <= `Z` {
-		func.public = true
 	}
 
 	// arguments
