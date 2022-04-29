@@ -18,9 +18,10 @@
 7. Transform the V AST struct into V Code
    - `transpiler/file_writer.v`
 
-## You can also get a great overview of the project
+## Various tips
 
-`v doc -all -comments transpiler/`
+- You can get a great overview of the project using `v doc -all -comments transpiler/`.
+- If you can't figure out what a piece of code means, remove it and run the test suite; you will be able to figure it out then.
 
 ## When adding support for new cases you must add corresponding test(s).
 
