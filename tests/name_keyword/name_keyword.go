@@ -15,4 +15,6 @@ type Foo struct {
 
 func main() {
 	fn()
+	match := Foo{}
+	match.match = true
 }

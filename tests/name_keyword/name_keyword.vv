@@ -15,4 +15,6 @@ fn @fn() {
 
 fn main() {
 	@fn()
+	mut @match_1 := Foo{}
+	@match_1.@match = true
 }

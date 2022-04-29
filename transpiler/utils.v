@@ -85,27 +85,35 @@ fn set_naming_style(str string, naming_style NamingStyle) string {
 
 // apply basic formatting plus a specific naming style
 fn format_and_set_naming_style(str string, naming_style NamingStyle) string {
-	not_empty := str.len > 0
+	mut out := str
 
-	if not_empty {
-		raw_str := match str[1] {
+	if str.len > 0 {
+		out = match str[1] {
+			// strings
 			`\\` {
-				"'" + str#[3..-3].replace('\\\\', '\\').replace("'", "\\'") + "'"
-			} // strings
+				"'" + str#[3..-3].replace("'", "\\'").replace('\\\\', '\\') + "'"
+			}
+			// runes
 			`'` {
 				'`${str#[2..-2].replace('\\\\', '\\')}`'
-			} // runes
+			}
+			// everything else
 			else {
 				str#[1..-1]
-			} // everything else
+			}
 		}
-		if !(raw_str[0] == `'` || raw_str[0] == `\``) {
-			return set_naming_style(raw_str, naming_style)
-		} else {
-			return raw_str
+
+		if !(out[0] == `'` || out[0] == `\``) {
+			out = set_naming_style(out, naming_style)
 		}
 	}
-	return str
+
+	// escape keywords
+	if out !in ['true', 'false'] && out in transpiler.keywords {
+		return '@$out'
+	}
+
+	return out
 }
 
 // get the zero value of a given type
@@ -310,7 +318,7 @@ fn (mut v VAST) get_name(tree Tree, naming_style NamingStyle, origin Origin) str
 						out += '.$name_new'
 						current_struct = v.struct_name_to_struct(name_new)
 					} else {
-						out += '.${set_naming_style(name_old, .snake_case)}'
+						out += formatted_name[i]
 					}
 				} else {
 					out += formatted_name[i]
@@ -332,16 +340,8 @@ fn (mut v VAST) get_initial_name(tree Tree, naming_style NamingStyle) []string {
 	for ('X' in temp.child) || next_is_end {
 		// `a.b.c` syntax
 		if 'Sel' in temp.child {
-			raw_value := temp.child['Sel'].tree.child['Name'].val
-			formatted_value := format_and_set_naming_style(raw_value, naming_style)
-			// excape reserved keywords
-			// reserved keywords are already formatted
-			// that's why checking if the unformatted value is the same as the formatted one is great test
-			if raw_value#[1..-1] != formatted_value && formatted_value in transpiler.keywords {
-				namespaces << '.@$formatted_value'
-			} else {
-				namespaces << '.$formatted_value'
-			}
+			namespaces << '.' +
+				format_and_set_naming_style(temp.child['Sel'].tree.child['Name'].val, naming_style)
 		}
 
 		// name
@@ -349,16 +349,8 @@ fn (mut v VAST) get_initial_name(tree Tree, naming_style NamingStyle) []string {
 			if 'Name' in temp.child['Name'].tree.child {
 				temp = temp.child['Name'].tree
 			}
-			raw_value := temp.child['Name'].val
-			formatted_value := format_and_set_naming_style(raw_value, naming_style)
-			// excape reserved keywords
-			// reserved keywords are already formatted
-			// that's why checking if the unformatted value is the same as the formatted one is great test
-			if formatted_value !in ['true', 'false'] && formatted_value in transpiler.keywords {
-				namespaces << '@$formatted_value'
-			} else {
-				namespaces << formatted_value
-			}
+
+			namespaces << format_and_set_naming_style(temp.child['Name'].val, naming_style)
 		}
 
 		// value
