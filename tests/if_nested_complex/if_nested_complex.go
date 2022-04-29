@@ -1,15 +1,15 @@
 package main
 
 func main() {
-	if z := 324; (3 <= z && true) || false {
+	if z := 123; (1000 <= z && true) || false {
 		ho := -1
 	} else if z := 324; z == 324 {
-		if true {
+		if false {
 			ok := 0
 		} else {
-			if false {
+			if true {
 				if true {
-
+					println(z)
 				}
 			}
 		}

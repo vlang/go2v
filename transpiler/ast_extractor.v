@@ -398,19 +398,12 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				// `if z := 0; z < 10` syntax
 				var := v.extract_variable(temp.child['Init'].tree, true, false)
 				if var.names.len > 0 {
-					if_else.body << var
-					// TODO: support https://go.dev/tour/flowcontrol/7
-					v.add_to_scope_limit++
+					if_stmt.init_vars << var
+					// v.add_to_scope_limit++
 				}
 
 				// condition
 				if_else.condition = v.get_condition(temp.child['Cond'].tree)
-				if var.names.len != 0 {
-					if var.values[0] is BasicValueStmt {
-						if_else.condition = if_else.condition.replace(var.names[0], (var.values[0] as BasicValueStmt).value)
-					}
-					// TODO: create a system to support other types of statement
-				}
 
 				// body
 				if_else.body << if 'Body' in temp.child {

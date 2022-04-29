@@ -1,16 +1,17 @@
 module main
 
 fn main() {
-	if (3 <= 324 && true) || false {
-		mut z := 324
+	mut z := 123
+	mut z_1 := 324
+	if (1000 <= z && true) || false {
 		mut ho := -1
-	} else if 324 == 324 {
-		mut z := 324
-		if true {
+	} else if z_1 == 324 {
+		if false {
 			mut ok := 0
 		} else {
-			if false {
+			if true {
 				if true {
+					println(z_1)
 				}
 			}
 		}

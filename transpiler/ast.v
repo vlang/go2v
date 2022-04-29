@@ -153,7 +153,8 @@ mut:
 
 struct IfStmt {
 mut:
-	branchs []IfElse
+	init_vars []VariableStmt
+	branchs   []IfElse
 }
 
 struct IfElse {

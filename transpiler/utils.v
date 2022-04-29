@@ -168,6 +168,16 @@ fn (v &VAST) find_unused_name(original_name string, domains ...Domain) string {
 	return new_name
 }
 
+fn last_index(arr []string, val string) int {
+	for i := arr.len - 1; i >= 0; i-- {
+		if arr[i] == val {
+			return i
+		}
+	}
+
+	return -1
+}
+
 // get the type of a struct field, a function argument... from a `Tree`
 fn (mut v VAST) get_type(tree Tree) string {
 	mut temp := tree.child['Type'].tree
@@ -289,7 +299,7 @@ fn (mut v VAST) get_name(tree Tree, naming_style NamingStyle, origin Origin) str
 			}
 			.other {
 				if raw_name[i] in v.declared_vars_old {
-					new_name := v.declared_vars_new[v.declared_vars_old.index(raw_name[i])]
+					new_name := v.declared_vars_new[last_index(v.declared_vars_old, raw_name[i])]
 					out += new_name
 
 					if raw_name[i] in v.vars_with_struct_value {

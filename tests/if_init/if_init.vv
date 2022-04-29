@@ -1,8 +1,9 @@
 module main
 
 fn main() {
-	if 43 > 42 {
-		mut x := 43
-		println(x)
+	mut abc := 123
+	mut a := 1
+	if abc != a {
+		println('abc')
 	}
 }

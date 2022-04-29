@@ -1,7 +1,8 @@
 package main
 
 func main() {
-	if x := 43; x > 42 {
-		println(x)
+	abc := 123
+	if a := 1; abc != a {
+		println("abc")
 	}
 }

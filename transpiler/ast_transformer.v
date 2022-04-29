@@ -103,7 +103,7 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 				values: stmt.cases[0].values
 			}
 
-			ret_stmt = IfStmt{[
+			ret_stmt = IfStmt{[], [
 				IfElse{
 					condition: '${v.stmt_to_string(array)}.includes(${v.stmt_to_string(stmt.value)})'
 					body: stmt.cases[0].body

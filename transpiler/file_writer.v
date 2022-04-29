@@ -205,6 +205,9 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			v.out.write_rune(`)`)
 		}
 		IfStmt {
+			for var_stmt in stmt.init_vars {
+				v.write_stmt(var_stmt, false)
+			}
 			for i, branch in stmt.branchs {
 				if i != 0 {
 					v.out.write_string('else ')
