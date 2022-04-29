@@ -190,7 +190,7 @@ fn (mut v VAST) get_type(tree Tree) string {
 		if temp.name == '*ast.StarExpr' {
 			type_prefix += '&'
 		}
-		// TODO: rework that
+
 		if 'X' in temp.child {
 			temp = temp.child['X'].tree
 		}
@@ -249,8 +249,6 @@ fn (mut v VAST) get_name(tree Tree, naming_style NamingStyle, origin Origin) str
 	mut current_struct := Struct{}
 
 	for i := raw_name.len - 1; i >= 0; i-- {
-		mut pre_end := false
-
 		match origin {
 			.var_decl {
 				new_name := v.find_unused_name(formatted_name[i], .in_vars_in_scope, .in_global_scope)
@@ -259,15 +257,6 @@ fn (mut v VAST) get_name(tree Tree, naming_style NamingStyle, origin Origin) str
 				v.declared_vars_new << new_name
 
 				out += new_name
-
-				// TODO: check if that's necessary
-				// prevent `a.a` -> `a.a_1`
-				if pre_end && raw_name[i].runes().any([`[`, `]`, `(`, `)`].contains(it)) {
-					break
-				}
-				if raw_name[i] != new_name {
-					pre_end = true
-				}
 			}
 			.fn_decl {
 				new_name := v.find_unused_name(formatted_name[i], .in_vars_history, .in_global_scope)
