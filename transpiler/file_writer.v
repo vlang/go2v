@@ -253,39 +253,75 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 		}
 		ArrayStmt {
 			is_empty := stmt.values.len < 1
-			is_fixed_size := stmt.len.len > 0
+			is_fixed_size := stmt.len.trim_space().len > 0
+			has_specific_idx_for_each_val := if !is_empty {
+				stmt.values[0] is KeyValStmt
+			} else {
+				false
+			}
 
 			v.out.write_rune(`[`)
 
 			if is_empty {
 				if is_fixed_size {
-					v.out.write_string(stmt.len)
+					v.out.write_string(stmt.len.str())
 				}
 				v.out.write_string(']${stmt.@type}{}')
-			} else {
+			} else if !is_fixed_size && !has_specific_idx_for_each_val {
 				for el in stmt.values {
 					v.write_stmt(el, true)
 					v.out.write_rune(`,`)
 				}
+				v.out.cut_last(1) // remove `,`
+				v.out.write_string(']')
+			} else {
+				default_value := type_to_default_value(stmt.@type)
 
-				mut i := stmt.values.len
-				if is_fixed_size && i < stmt.len.int() {
-					mut is_first := true
-					for i != stmt.len.int() {
-						if is_first {
-							is_first = false
-							v.out.write_string(type_to_default_value(stmt.@type))
-						} else {
-							v.out.write_string(', ${type_to_default_value(stmt.@type)}')
+				mut len := stmt.len
+				if !is_fixed_size && has_specific_idx_for_each_val {
+					// if the array hasn't a fixed size and has specific idx for each value we need to know the greater idx to initiate the array with the right size
+					mut temp_len := 0
+					for el in stmt.values {
+						key := (el as KeyValStmt).key.int()
+						if key > temp_len {
+							temp_len = key
 						}
-						i++
 					}
+					len = temp_len.str()
+					v.out.write_string(']${stmt.@type}{len: $len, init: ')
+				} else {
+					v.out.write_string('$len]${stmt.@type}{init: ')
 				}
 
-				v.out.write_rune(`]`)
-				if is_fixed_size {
-					v.out.write_rune(`!`)
+				if !has_specific_idx_for_each_val {
+					v.out.write_rune(`[`)
+					for el in stmt.values {
+						v.write_stmt(el, true)
+						v.out.write_rune(`,`)
+					}
+					v.out.cut_last(1) // remove `,`
+					v.out.write_string('][it] or { $default_value }')
+				} else {
+					mut match_stmt := MatchStmt{
+						value: BasicValueStmt{'it'}
+					}
+					for el in stmt.values {
+						val := el as KeyValStmt
+
+						match_stmt.cases << MatchCase{
+							values: [BasicValueStmt{val.key}]
+							body: [val.value]
+						}
+					}
+					match_stmt.cases << MatchCase{
+						values: [BasicValueStmt{'else'}]
+						body: [BasicValueStmt{default_value}]
+					}
+
+					v.write_stmt(match_stmt, true)
 				}
+
+				v.out.write_rune(`}`)
 			}
 		}
 		BasicValueStmt {

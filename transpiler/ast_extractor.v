@@ -46,7 +46,7 @@ fn (mut v VAST) extract_declaration(tree Tree, embedded bool) {
 			}
 			// TODO: support interfaces
 		}
-		'const' {
+		'const', 'var' {
 			v.extract_const_or_enum(base)
 		}
 		else {
@@ -278,7 +278,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				'*ast.ArrayType' {
 					mut array := ArrayStmt{
 						@type: v.get_type(tree)[2..] // remove `[]`
-						len: v.get_name(base.child['Len'].tree, .ignore, .other)
+						len: v.stmt_to_string(v.extract_stmt(base.child['Len'].tree))
 					}
 					for _, el in tree.child['Elts'].tree.child {
 						array.values << v.extract_stmt(el.tree)
@@ -529,6 +529,9 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 		}
 		'*ast.FuncLit' {
 			ret = v.extract_function(tree)
+		}
+		'' {
+			ret = BasicValueStmt{''}
 		}
 		else {
 			ret = not_implemented(tree)

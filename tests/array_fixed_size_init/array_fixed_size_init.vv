@@ -1,0 +1,19 @@
+module main
+
+fn main() {
+	mut arr1 := [1 << 9]int{init: match it {
+		0x1 {
+			0xe60a
+		}
+		0x2 {
+			0x2e404
+		}
+		0x4 {
+			0x2c09
+		}
+		else {
+			0
+		}
+	}}
+	mut arr2 := [3]int{init: [1, 2, 3][it] or { 0 }}
+}
