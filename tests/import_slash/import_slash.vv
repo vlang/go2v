@@ -1,6 +1,6 @@
 module main
 
 import crypto.aes
-import crypto.cipher
+import @go.ast
 
 fn main() {}

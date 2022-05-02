@@ -83,6 +83,15 @@ fn set_naming_style(str string, naming_style NamingStyle) string {
 	}
 }
 
+// escape keywords
+fn escape(str string) string {
+	if str !in ['true', 'false'] && str in transpiler.keywords {
+		return '@$str'
+	}
+
+	return str
+}
+
 // apply basic formatting plus a specific naming style
 fn format_and_set_naming_style(str string, naming_style NamingStyle) string {
 	mut out := str
@@ -108,12 +117,7 @@ fn format_and_set_naming_style(str string, naming_style NamingStyle) string {
 		}
 	}
 
-	// escape keywords
-	if out !in ['true', 'false'] && out in transpiler.keywords {
-		return '@$out'
-	}
-
-	return out
+	return escape(out)
 }
 
 // get the zero value of a given type

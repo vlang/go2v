@@ -69,14 +69,13 @@ fn (mut v VAST) extract_embedded_declaration(tree Tree) {
 
 // extract the module name from a `Tree`
 fn (mut v VAST) extract_module(tree Tree) {
-	v.@module = v.get_name(tree, .ignore, .other)
+	v.@module = v.get_name(tree, .snake_case, .other)
 }
 
 // extract the module imports from a `Tree`
 fn (mut v VAST) extract_imports(tree Tree) {
-	for _, imp in tree.child['Specs'].tree.child {
-		v.imports << imp.tree.child['Path'].tree.child['Value'].val#[3..-3].replace('/',
-			'.')
+	for _, @import in tree.child['Specs'].tree.child {
+		v.imports << v.get_name(@import.tree.child['Path'].tree, .snake_case, .other)#[1..-1].split('/').map(escape(it)).join('.')
 	}
 }
 

@@ -1,0 +1,9 @@
+module main
+
+import time
+
+fn main() {
+	exit(342)
+	println(time.ansic)
+	println('Hello, 世界')
+}

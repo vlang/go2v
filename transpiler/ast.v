@@ -17,13 +17,7 @@ mut:
 	// `file_writer.v`
 	out strings.Builder = strings.new_builder(400)
 	// module_name utils
-	// [initial_number_of_use, number_of_use_after_v_style]
-	unused_import map[string]bool = {
-		'fmt':     false
-		'strings': false
-		'bytes':   false
-		'strconv': false
-	}
+	used_imports map[string]bool = {}
 	// string builders utils
 	current_var_name    string
 	string_builder_vars []string
