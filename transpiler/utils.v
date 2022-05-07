@@ -188,48 +188,50 @@ fn last_index(arr []string, val string) int {
 // get the type of a struct field, a function argument... from a `Tree`
 fn (mut v VAST) get_type(tree Tree) string {
 	mut temp := tree.child['Type'].tree
-	mut type_prefix := ''
-	mut @type := ''
-	mut next_is_end := if 'X' in temp.child { false } else { true }
+	mut pre_type := ''
+	mut raw_type := []string{}
+	mut next_is_end := 'X' !in temp.child && 'Elt' !in temp.child
 
-	for ('X' in temp.child) || next_is_end {
-		// pointers
-		if temp.name == '*ast.StarExpr' {
-			type_prefix += '&'
-		}
-
-		if 'X' in temp.child {
-			temp = temp.child['X'].tree
-		}
-
+	for ('X' in temp.child || 'Elt' in temp.child || next_is_end) {
 		// arrays
 		if temp.name == '*ast.ArrayType' {
-			type_prefix += '[]'
+			pre_type += '[]'
 			temp = temp.child['Elt'].tree
 		}
 
 		// pointers
-		if temp.name == '*ast.StarExpr' {
-			type_prefix += '&'
+		// the second condition exists because you can't have a pointer to an array in V
+		if temp.name == '*ast.StarExpr' && 'X' in temp.child
+			&& temp.child['X'].tree.name != '*ast.ArrayType' {
+			pre_type += '&'
 		}
 
 		// maps
 		if temp.name == '*ast.MapType' {
-			@type += 'map[' + v.get_name(temp.child['Key'].tree, .ignore, .other) + ']' +
+			raw_type << 'map[' + v.get_name(temp.child['Key'].tree, .ignore, .other) + ']' +
 				v.get_name(temp.child['Value'].tree, .ignore, .other)
 		}
 
 		// functions
 		if temp.name == '*ast.FuncType' {
-			@type += v.stmt_to_string(v.extract_function(temp.parent))
+			raw_type << v.stmt_to_string(v.extract_function(temp.parent))
 		}
 
 		// inline structs
 		if temp.name == '*ast.StructType' {
-			@type += v.extract_struct(temp, true)
+			raw_type << v.extract_struct(temp, true)
 		}
 
-		@type += v.get_name(temp, .ignore, .other)
+		// name
+		if 'Name' in temp.child {
+			raw_type << format_and_set_naming_style(temp.child['Name'].val, .ignore)
+		}
+
+		// `a.Struct` syntax
+		if 'Sel' in temp.child {
+			raw_type << '.' +
+				format_and_set_naming_style(temp.child['Sel'].tree.child['Name'].val, .ignore)
+		}
 
 		v.extract_embedded_declaration(temp)
 
@@ -238,17 +240,24 @@ fn (mut v VAST) get_type(tree Tree) string {
 		if next_is_end {
 			break
 		}
-		if !('X' in temp.child['X'].tree.child || 'Sel' in temp.child) {
+		if 'X' !in temp.child && 'Elt' !in temp.child {
 			next_is_end = true
 		}
 	}
 
-	return type_prefix + if @type in transpiler.get_v_type {
-		// transform Go types into V ones
-		transpiler.get_v_type[@type]
-	} else {
-		@type
+	mut out := ''
+	for i := raw_type.len - 1; i >= 0; i-- {
+		out += if raw_type[i] in v.declared_global_old {
+			v.declared_global_new[v.declared_global_old.index(raw_type[i])]
+		} else if raw_type[i] in transpiler.get_v_type {
+			// transform Go types into V ones
+			transpiler.get_v_type[raw_type[i]]
+		} else {
+			raw_type[i]
+		}
 	}
+
+	return pre_type + out
 }
 
 // get the name of a variable, a function, a property... from a `Tree`
@@ -344,7 +353,7 @@ fn (mut v VAST) get_initial_name(tree Tree, naming_style NamingStyle) []string {
 	mut temp := tree
 	mut namespaces := []string{}
 	// All `next_is_end` related code is a trick to repeat one more time the loop
-	mut next_is_end := if 'X' in temp.child { false } else { true }
+	mut next_is_end := 'X' !in temp.child
 
 	for ('X' in temp.child) || next_is_end {
 		// `a.b.c` syntax

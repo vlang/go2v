@@ -1,0 +1,26 @@
+module main
+
+import crypto.aes
+import golang.org.x.text.encoding
+
+struct BinTree {
+mut:
+	sil []&BinTree
+}
+
+struct HtmlEncoding {
+	encoding.Encoding
+}
+
+struct BinTree_1 {
+mut:
+	exter []&aes.KeySizeError
+}
+
+fn bis() {
+	mut s := []string{}
+}
+
+fn main() {
+	mut a := &BinTree{}
+}
