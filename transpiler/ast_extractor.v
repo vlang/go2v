@@ -1,5 +1,13 @@
 module transpiler
 
+// `'abc'` will be interpreted as a `string` by default
+// `true` will be interpreted as a `bool` by default
+// `12` will not be interpreted as a `u32` by default
+// any other type than those ones may require casting
+const (
+	well_interpreted_types = ['bool', 'string', 'rune', 'int']
+)
+
 // entry point for the AST extraction phase
 fn ast_extractor(tree Tree) VAST {
 	mut v_ast := VAST{}
@@ -35,10 +43,10 @@ fn (mut v VAST) extract_declaration(tree Tree, embedded bool) {
 				// structs
 				if !embedded {
 					for _, decl in base.child {
-						v.extract_struct(decl.tree)
+						v.extract_struct(decl.tree, false)
 					}
 				} else {
-					v.extract_struct(simplified_base)
+					v.extract_struct(simplified_base, false)
 				}
 				// sumtypes
 			} else if simplified_base.name != '' {
@@ -69,14 +77,13 @@ fn (mut v VAST) extract_embedded_declaration(tree Tree) {
 
 // extract the module name from a `Tree`
 fn (mut v VAST) extract_module(tree Tree) {
-	v.@module = v.get_name(tree, .ignore, .other)
+	v.@module = v.get_name(tree, .snake_case, .other)
 }
 
 // extract the module imports from a `Tree`
 fn (mut v VAST) extract_imports(tree Tree) {
-	for _, imp in tree.child['Specs'].tree.child {
-		v.imports << imp.tree.child['Path'].tree.child['Value'].val#[3..-3].replace('/',
-			'.')
+	for _, @import in tree.child['Specs'].tree.child {
+		v.imports << v.get_name(@import.tree.child['Path'].tree, .snake_case, .other)#[1..-1].split('/').map(escape(it)).join('.')
 	}
 }
 
@@ -134,16 +141,21 @@ fn (mut v VAST) extract_sumtype(tree Tree) {
 }
 
 // extract the struct from a `Tree`
-fn (mut v VAST) extract_struct(tree Tree) {
-	name := v.get_name(tree, .camel_case, .global_decl)
+fn (mut v VAST) extract_struct(tree Tree, inline bool) string {
+	name := if !inline {
+		v.get_name(tree, .camel_case, .global_decl)
+	} else {
+		v.find_unused_name('Go2VInlineStruct', .in_global_scope, .in_vars_history)
+	}
 
 	// fix a bug with false/empty structs
 	if name.len > 0 {
 		mut @struct := Struct{
 			name: name
 		}
+		temp := if !inline { tree.child['Type'].tree } else { tree }
 
-		for _, field in tree.child['Type'].tree.child['Fields'].tree.child['List'].tree.child {
+		for _, field in temp.child['Fields'].tree.child['List'].tree.child {
 			// support `A, B int` syntax
 			if 'Names' in field.tree.child {
 				for _, field_name in field.tree.child['Names'].tree.child {
@@ -155,10 +167,14 @@ fn (mut v VAST) extract_struct(tree Tree) {
 			}
 		}
 
-		v.structs << @struct
-		v.struct_fields_old.clear()
-		v.struct_fields_new.clear()
+		// a hack to support inline structs
+		if @struct !in v.structs {
+			v.structs << @struct
+		}
+		v.struct_fields.clear()
 	}
+
+	return name
 }
 
 // extract the function from a `Tree`
@@ -281,8 +297,26 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 						len: v.stmt_to_string(v.extract_stmt(base.child['Len'].tree))
 					}
 					for _, el in tree.child['Elts'].tree.child {
-						array.values << v.extract_stmt(el.tree)
+						// inline structs
+						mut stmt := v.extract_stmt(el.tree)
+						if mut stmt is StructStmt {
+							if stmt.name.len == 0 {
+								stmt.name = array.@type
+							}
+						}
+
+						array.values << stmt
 					}
+
+					// []int{1, 2, 3} -> [1, 2, 3]
+					// []int32{1, 2, 3} -> [i32(1), 2, 3]
+					if array.@type !in transpiler.well_interpreted_types && array.@type in v_types {
+						array.values[0] = CallStmt{
+							namespaces: array.@type
+							args: [array.values[0]]
+						}
+					}
+
 					ret = array
 				}
 				// structs

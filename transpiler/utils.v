@@ -21,6 +21,7 @@ const (
 		'float32': 'f32'
 		'float64': 'f64'
 	}
+	v_types  = get_v_type.values()
 	// keywords to excape with `@`
 	keywords = token.keywords
 )
@@ -83,6 +84,15 @@ fn set_naming_style(str string, naming_style NamingStyle) string {
 	}
 }
 
+// escape keywords
+fn escape(str string) string {
+	if str !in ['true', 'false'] && str in transpiler.keywords {
+		return '@$str'
+	}
+
+	return str
+}
+
 // apply basic formatting plus a specific naming style
 fn format_and_set_naming_style(str string, naming_style NamingStyle) string {
 	mut out := str
@@ -108,12 +118,7 @@ fn format_and_set_naming_style(str string, naming_style NamingStyle) string {
 		}
 	}
 
-	// escape keywords
-	if out !in ['true', 'false'] && out in transpiler.keywords {
-		return '@$out'
-	}
-
-	return out
+	return escape(out)
 }
 
 // get the zero value of a given type
@@ -157,7 +162,7 @@ fn (v &VAST) find_unused_name(original_name string, domains ...Domain) string {
 				.in_vars_in_scope { new_name in v.declared_vars_new }
 				.in_vars_history { new_name in v.all_declared_vars }
 				.in_global_scope { new_name in v.declared_global_new }
-				.in_struct_fields { new_name in v.struct_fields_new }
+				.in_struct_fields { new_name in v.struct_fields }
 			}
 			if condition && suffix > 0 {
 				new_name = '${original_name}_$suffix'
@@ -217,6 +222,11 @@ fn (mut v VAST) get_type(tree Tree) string {
 		// functions
 		if temp.name == '*ast.FuncType' {
 			@type += v.stmt_to_string(v.extract_function(temp.parent))
+		}
+
+		// inline structs
+		if temp.name == '*ast.StructType' {
+			@type += v.extract_struct(temp, true)
 		}
 
 		@type += v.get_name(temp, .ignore, .other)
@@ -283,9 +293,7 @@ fn (mut v VAST) get_name(tree Tree, naming_style NamingStyle, origin Origin) str
 			.field {
 				new_name := v.find_unused_name(formatted_name[i], .in_struct_fields)
 
-				v.struct_fields_old << raw_name[i]
-				v.struct_fields_new << new_name
-
+				v.struct_fields << new_name
 				out += new_name
 			}
 			.other {

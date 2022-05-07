@@ -1,5 +1,7 @@
 module transpiler
 
+const supported_custom_imports = ['fmt', 'strings', 'bytes', 'strconv', 'os']
+
 // entry point for the file writing phase
 fn file_writer(v_ast VAST) string {
 	mut v := v_ast
@@ -26,7 +28,8 @@ fn (mut v VAST) write_module() {
 fn (mut v VAST) write_imports() {
 	for @import in v.imports {
 		// remove useless `fmt` import
-		if !(@import in v.unused_import && !v.unused_import[@import]) {
+		if (@import in v.used_imports && v.used_imports[@import])
+			|| @import !in transpiler.supported_custom_imports {
 			v.out.writeln('import ${@import}')
 		}
 	}

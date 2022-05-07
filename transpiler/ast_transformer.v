@@ -32,6 +32,7 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 			'delete' { v.transform_delete(stmt) }
 			'strings' { v.transform_strings_module(stmt, last_ns) }
 			'fmt' { v.transform_print(stmt, last_ns) }
+			'os' { v.transform_exit(stmt, last_ns) }
 			else { stmt }
 		}
 		// string builders
@@ -189,9 +190,22 @@ fn (mut v VAST) transform_print(stmt CallStmt, right string) Statement {
 
 		return call_stmt
 	} else {
-		v.unused_import['fmt'] = true
+		v.used_imports['fmt'] = true
+		return stmt
 	}
-	return stmt
+}
+
+// `os.exit(a)` -> `exit(a)`
+fn (mut v VAST) transform_exit(stmt CallStmt, right string) Statement {
+	if right == 'exit' {
+		return CallStmt{
+			namespaces: right
+			args: stmt.args
+		}
+	} else {
+		v.used_imports['os'] = true
+		return stmt
+	}
 }
 
 // see `tests/string_builder_bytes` & `tests/string_builder_strings`
@@ -241,7 +255,7 @@ fn (mut v VAST) transform_strings_module(stmt CallStmt, right string) Statement 
 	} else if right == 'new_builder' {
 		v.string_builder_vars << v.current_var_name
 	} else {
-		v.unused_import['strings'] = true
+		v.used_imports['strings'] = true
 	}
 	return stmt
 }

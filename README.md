@@ -1,6 +1,6 @@
 <div align="center">
   <h1>Go2V</h1>
-  <p><b>Go to V source code translator</b></p>
+  <b>Go to V source code translator</b>
 </div>
 
 ## Installation
@@ -12,10 +12,10 @@ v run .
 
 ## Usage
 
-Convert a file using `v run . file.go`
+Convert a file using `v run . file.go`.
 
-See `v run . help` for more information
+See `v run . help` for more information.
 
 ## Contributing
 
-Thanks a lot! See [CONTRIBUTING.md](/CONTRIBUTING.md)
+Thanks a lot! See [CONTRIBUTING.md](/CONTRIBUTING.md).

@@ -1,0 +1,11 @@
+module main
+
+struct Ok {}
+
+fn main() {
+	mut a := [u8(1), 2, 3]
+	mut b := [1, 2, 3]
+	mut c := ['a', 'b', 'c']
+	mut d := [Ok{}, Ok{}, Ok{}]
+	mut e := [i32(1), 2, 3]
+}
