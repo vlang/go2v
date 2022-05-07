@@ -120,8 +120,10 @@ fn format_and_set_naming_style(str string, naming_style NamingStyle) string {
 fn type_to_default_value(@type string) string {
 	return match @type {
 		'string' { "''" }
-		'int' { '0' }
 		'bool' { 'false' }
+		'rune' { '`\0`' }
+		'f32', 'f64' { '0.0' }
+		'int', 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64' { '0' }
 		else { '${@type}{}' }
 	}
 }
