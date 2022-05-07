@@ -12,5 +12,5 @@ z
 out
 
 #MacOS
-.DS_Store/
+.DS_Store
 *.dSYM/

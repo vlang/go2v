@@ -24,15 +24,16 @@ mut:
 	// maps utils
 	current_implicit_map_type string
 	// duplicate names utils
-	declared_vars_old   []string
-	declared_vars_new   []string
-	all_declared_vars   []string
-	struct_fields_old   []string
-	struct_fields_new   []string
+	declared_vars_old []string
+	declared_vars_new []string
+	all_declared_vars []string
+	// TODO: check that it really works
+	struct_fields       []string
 	declared_global_old []string
 	declared_global_new []string
 	// this suplementary limit is used to add a variable to an inner scope
 	// (useful for variable initialization in `for` or `if` stmts)
+	// TODO: remove this system in favor of the newer one used with `if` stmts
 	add_to_scope_limit int
 	// struct utils
 	vars_with_struct_value map[string]string
