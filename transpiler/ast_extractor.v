@@ -145,7 +145,7 @@ fn (mut v VAST) extract_struct(tree Tree, inline bool) string {
 	name := if !inline {
 		v.get_name(tree, .camel_case, .global_decl)
 	} else {
-		v.find_unused_name('Go2VInlineStruct', .in_global_scope, .in_vars_history)
+		v.find_unused_name('Go2VInlineStruct', .in_global_scope)
 	}
 
 	// fix a bug with false/empty structs
@@ -156,8 +156,8 @@ fn (mut v VAST) extract_struct(tree Tree, inline bool) string {
 		temp := if !inline { tree.child['Type'].tree } else { tree }
 
 		for _, field in temp.child['Fields'].tree.child['List'].tree.child {
-			// support `A, B int` syntax
 			if 'Names' in field.tree.child {
+				// support `A, B int` syntax
 				for _, field_name in field.tree.child['Names'].tree.child {
 					@struct.fields[v.get_name(field_name.tree, .snake_case, .field)] = BasicValueStmt{v.get_type(field.tree)}
 				}
@@ -167,11 +167,20 @@ fn (mut v VAST) extract_struct(tree Tree, inline bool) string {
 			}
 		}
 
-		// a hack to support inline structs
-		if @struct !in v.structs {
-			v.structs << @struct
-		}
 		v.struct_fields.clear()
+
+		// a hack to support inline structs, we check if the struct is already defined
+		for defined_struct in v.structs {
+			mut temp_struct := defined_struct
+			temp_struct.name = name
+			if temp_struct == @struct {
+				return name
+			}
+		}
+
+		v.declared_global_old << name
+		v.declared_global_new << name
+		v.structs << @struct
 	}
 
 	return name
@@ -292,8 +301,10 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			match base.name {
 				// arrays
 				'*ast.ArrayType' {
+					// TODO: remove this really weird hack
+					@type := v.get_type(tree)
 					mut array := ArrayStmt{
-						@type: v.get_type(tree)[2..] // remove `[]`
+						@type: @type[2..] // remove `[]`
 						len: v.stmt_to_string(v.extract_stmt(base.child['Len'].tree))
 					}
 					for _, el in tree.child['Elts'].tree.child {

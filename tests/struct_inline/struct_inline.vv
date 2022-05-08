@@ -8,3 +8,12 @@ mut:
 	bom []int
 	enc string
 }
+
+struct Go2VInlineStruct_1 {
+mut:
+	num int
+}
+
+fn main() {
+	mut a := [Go2VInlineStruct_1{0}]
+}

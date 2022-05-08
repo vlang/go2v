@@ -8,3 +8,11 @@ var boms = []struct {
 	{[]int{0xff, 0xfe}, "utf-16le"},
 	{[]int{0xef, 0xbb, 0xbf}, "utf-8"},
 }
+
+func main() {
+	a := []struct {
+		num int
+	}{
+		{0},
+	}
+}
