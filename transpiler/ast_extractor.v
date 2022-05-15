@@ -299,6 +299,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 						@type: @type[2..] // remove `[]`
 						len: v.stmt_to_string(v.extract_stmt(base.child['Len'].tree))
 					}
+
 					for _, el in tree.child['Elts'].tree.child {
 						// inline structs
 						mut stmt := v.extract_stmt(el.tree)
@@ -309,6 +310,11 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 						}
 
 						array.values << stmt
+					}
+
+					// an ellipsis (`...`) used as the fixed-size array length in Go means that the length of the array is the number of elements it has
+					if array.len == '... ' {
+						array.len = array.values.len.str()
 					}
 
 					// []int{1, 2, 3} -> [1, 2, 3]
@@ -413,6 +419,12 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			// function/method arguments
 			for _, arg in base.child['Args'].tree.child {
 				call_stmt.args << v.extract_stmt(arg.tree)
+			}
+
+			// ellipsis (`...a` syntax)
+			if base.child['Ellipsis'].val != '0' {
+				idx := call_stmt.args.len - 1
+				call_stmt.args[idx] = MultipleStmt{[BasicValueStmt{'...'}, call_stmt.args[idx]]}
 			}
 
 			v.extract_embedded_declaration(base.child['Fun'].tree)
@@ -566,6 +578,9 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 		}
 		'*ast.FuncLit' {
 			ret = v.extract_function(tree)
+		}
+		'*ast.Ellipsis' {
+			ret = BasicValueStmt{'...'}
 		}
 		'' {
 			ret = BasicValueStmt{''}

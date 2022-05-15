@@ -199,6 +199,12 @@ fn (mut v VAST) get_type(tree Tree) string {
 			temp = temp.child['Elt'].tree
 		}
 
+		// ellipsis (`...int`)
+		if temp.name == '*ast.Ellipsis' {
+			pre_type += '...'
+			temp = temp.child['Elt'].tree
+		}
+
 		// pointers
 		// the second condition exists because you can't have a pointer to an array in V
 		if temp.name == '*ast.StarExpr' && 'X' in temp.child

@@ -8,4 +8,5 @@ fn main() {
 	mut missing := [6]string{init: ['John', 'Paul', 'George', 'Ringo'][it] or { '' }}
 	mut missing_struct := [2]Ok{init: [Ok{}][it] or { Ok{} }}
 	mut missing_empty := [2]int{}
+	mut abc := [3]int{init: [1, 2, 3][it] or { 0 }}
 }
