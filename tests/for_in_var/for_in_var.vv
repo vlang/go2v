@@ -1,0 +1,7 @@
+module main
+
+fn foo() {
+	for i, c in '' {
+		mut c_1 := 2
+	}
+}
