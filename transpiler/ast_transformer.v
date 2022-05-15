@@ -54,9 +54,18 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 				if value.namespaces == 'append' {
 					// single
 					if value.args.len < 3 {
+						mut value_to_append := value.args[1]
+
+						// `append(array, sec_array...)` -> `array << sec_array`
+						if mut value_to_append is MultipleStmt {
+							if value_to_append.stmts[0] == Statement(BasicValueStmt{'...'}) {
+								value_to_append = value_to_append.stmts[1]
+							}
+						}
+
 						multiple_stmt.stmts << PushStmt{
 							stmt: BasicValueStmt{stmt.names[i]}
-							value: value.args[1]
+							value: value_to_append
 						}
 						// multiple
 					} else {
