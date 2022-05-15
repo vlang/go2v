@@ -2,7 +2,7 @@ module main
 
 struct Bcd {
 mut:
-	a int
+	b int
 }
 
 struct Abc {
@@ -12,7 +12,7 @@ mut:
 
 struct Efg {
 mut:
-	a int
+	e int
 }
 
 // func (t Test) Ouuu(abc string, ofk []int, c Test) (int, string) {

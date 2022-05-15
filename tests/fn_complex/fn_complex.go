@@ -12,9 +12,9 @@ type Abc struct {
 }
 
 type Bcd struct {
-	a int
+	b int
 }
 
 type Efg struct {
-	a int
+	e int
 }

@@ -86,7 +86,7 @@ pub fn go_to_v(input_path string, output_path string) ? {
 	}
 
 	for in_out in outputs {
-		convert_and_write(in_out.input_path, in_out.output_path) ?
+		convert_and_write(in_out.input_path, in_out.output_path) or { eprintln(err.msg()) }
 	}
 }
 
@@ -95,8 +95,11 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 
 	conversion := os.execute('go run "${os.resource_abs_path('transpiler')}/ast_getter.go" -- "$input_path"')
 	if conversion.exit_code != 0 {
-		return error(term.bright_red('"$input_path" is not a valid Go file') +
-			'\n==================\n$conversion.output\n==================')
+		return error(term.red('"$input_path" is not a valid Go file') +
+			'\n
+			==================\n
+			$conversion.output\n
+			==================')
 	}
 
 	go_ast := conversion.output
@@ -110,15 +113,15 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 	// only works properly if converting single file.
 	$if debug {
 		os.mkdir('temp') or {}
-		os.write_file('temp/go_ast', go_ast) ?
-		os.write_file('temp/tokens', tokens.str()) ?
-		os.write_file('temp/tree', tree.str()) ?
-		os.write_file('temp/v_ast', v_ast.str()) ?
-		os.write_file('temp/raw_file.v', raw_v_file) ?
+		os.write_file('temp/go_ast', go_ast)?
+		os.write_file('temp/tokens', tokens.str())?
+		os.write_file('temp/tree', tree.str())?
+		os.write_file('temp/v_ast', v_ast.str())?
+		os.write_file('temp/raw_file.v', raw_v_file)?
 	}
 
-	os.mkdir_all(os.dir(output_path)) ?
-	os.write_file(output_path, raw_v_file) ?
+	os.mkdir_all(os.dir(output_path))?
+	os.write_file(output_path, raw_v_file)?
 
 	mut prefs := &pref.Preferences{
 		output_mode: .silent
@@ -127,18 +130,19 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 	table := ast.new_table()
 	result := parser.parse_text(raw_v_file, output_path, table, .parse_comments, prefs)
 	if result.errors.len > 0 {
+		eprintln(term.red('Generated output could not be formatted') + '\n==================')
 		for e in result.errors {
 			eprintln(util.formatted_error('error:', e.message, output_path, e.pos))
 		}
-		return error('Generated output could not be formatted:')
+		return error('\n==================')
 	}
 	formatted_content := fmt.fmt(result, table, prefs, false)
 
 	// compile with -cg to enable this block
 	// only works properly if converting single file.
 	$if debug {
-		os.write_file('temp/formatted_file.v', formatted_content) ?
+		os.write_file('temp/formatted_file.v', formatted_content)?
 	}
 
-	os.write_file(output_path, formatted_content) ?
+	os.write_file(output_path, formatted_content)?
 }

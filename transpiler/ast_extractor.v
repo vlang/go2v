@@ -14,9 +14,10 @@ fn ast_extractor(tree Tree) VAST {
 
 	// TODO: handle comments
 	v_ast.extract_module(tree)
+
 	// go through each declaration node & extract the corresponding declaration
-	for _, el in tree.child['Decls'].tree.child {
-		v_ast.extract_declaration(el.tree, false)
+	for _, decl in tree.child['Decls'].tree.child {
+		v_ast.extract_declaration(decl.tree, false)
 	}
 
 	return v_ast
@@ -24,46 +25,49 @@ fn ast_extractor(tree Tree) VAST {
 
 // TODO: better system, this one is clumsy
 fn (mut v VAST) extract_declaration(tree Tree, embedded bool) {
-	base := tree.child['Specs'].tree
-	mut simplified_base := base.child['0'].tree
-	mut type_field_name := 'Tok'
-
-	// Go AST structure is different if the declarating is embedded
-	if embedded {
-		simplified_base = tree.child['Decl'].tree
-		type_field_name = 'Kind'
+	base, fn_base, type_of_gen_decl_field_name := if !embedded {
+		tree.child['Specs'].tree, tree, 'Tok'
+	} else {
+		tree, tree.child['Decl'].tree, 'Kind'
 	}
 
-	match tree.child[type_field_name].val {
-		'import' {
-			v.extract_imports(tree)
-		}
-		'type' {
-			if simplified_base.child['Type'].tree.name == '*ast.StructType' {
-				// structs
-				if !embedded {
-					for _, decl in base.child {
-						v.extract_struct(decl.tree, false)
-					}
-				} else {
-					v.extract_struct(simplified_base, false)
+	if fn_base.name == '*ast.FuncDecl' {
+		v.functions << v.extract_function(fn_base)
+	} else {
+		gen_decl_type := tree.child[type_of_gen_decl_field_name].val
+		// enums are a special case
+		mut enum_stmt := StructLike{}
+
+		for _, decl in base.child {
+			match gen_decl_type {
+				'import' {
+					v.extract_import(decl.tree)
 				}
-				// sumtypes
-			} else if simplified_base.name != '' {
-				v.extract_sumtype(simplified_base)
+				'type' {
+					ast_type := decl.tree.child['Type'].tree.name
+					match ast_type {
+						'*ast.StructType' {
+							v.extract_struct(decl.tree, false)
+						}
+						'*ast.InterfaceType' {
+							// TODO: support interfaces
+						}
+						else {
+							if ast_type.len > 0 {
+								v.extract_sumtype(decl.tree)
+							}
+						}
+					}
+				}
+				'const', 'var' {
+					enum_stmt = v.extract_const_or_enum(decl.tree, enum_stmt, enum_stmt.name.len > 0)
+				}
+				else {}
 			}
-			// TODO: support interfaces
 		}
-		'const', 'var' {
-			v.extract_const_or_enum(base)
-		}
-		else {
-			// functions
-			if tree.name == '*ast.FuncDecl' && !embedded {
-				v.functions << v.extract_function(tree)
-			} else if simplified_base.name == '*ast.FuncDecl' {
-				v.functions << v.extract_function(simplified_base)
-			}
+
+		if enum_stmt.name.len > 0 {
+			v.enums << enum_stmt
 		}
 	}
 }
@@ -81,58 +85,35 @@ fn (mut v VAST) extract_module(tree Tree) {
 }
 
 // extract the module imports from a `Tree`
-fn (mut v VAST) extract_imports(tree Tree) {
-	for _, @import in tree.child['Specs'].tree.child {
-		v.imports << v.get_name(@import.tree.child['Path'].tree, .snake_case, .other)#[1..-1].split('/').map(escape(it)).join('.')
-	}
+fn (mut v VAST) extract_import(tree Tree) {
+	v.imports << v.get_name(tree.child['Path'].tree, .snake_case, .other)#[1..-1].split('/').map(escape(it)).join('.')
 }
 
 // extract the constant or the enum from a `Tree`
 // as in Go enums are represented as constants, we use the same function for both
-fn (mut v VAST) extract_const_or_enum(tree Tree) {
-	mut enum_stmt := StructLike{}
-	mut is_enum := false
+fn (mut v VAST) extract_const_or_enum(tree Tree, raw_enum_stmt StructLike, is_enum bool) StructLike {
+	mut enum_stmt := raw_enum_stmt
+	mut var_stmt := v.extract_variable(tree, false, false)
+	var_stmt.middle = '='
 
-	for _, el in tree.child {
-		mut var_stmt := v.extract_variable(el.tree, false, false)
-		var_stmt.middle = '='
+	is_iota := var_stmt.values[0] or { Statement(BasicValueStmt{''}) } == Statement(BasicValueStmt{'iota'})
 
-		is_iota := if var_stmt.values.len > 0 && var_stmt.values[0] is BasicValueStmt {
-			(var_stmt.values[0] as BasicValueStmt).value == 'iota'
-		} else {
-			false
-		}
-
-		// first field of enum
-		if var_stmt.values.len > 0 && is_iota && !is_enum {
+	if is_iota {
+		// if it's the first field of the enum
+		if !is_enum {
 			enum_stmt.name = var_stmt.@type
-			is_enum = true
-
 			// delete type used as enum name (Go enums implentation is so weird)
 			v.types.delete(var_stmt.@type)
 		}
 
-		// enums
-		if is_enum {
-			value := if var_stmt.values.len > 0 {
-				(var_stmt.values[0] as BasicValueStmt).value
-			} else {
-				''
-			}
-			enum_stmt.fields[var_stmt.names[0]] = BasicValueStmt{if value != 'iota' {
-				value
-			} else {
-				''
-			}}
-		} else {
-			// consts
-			v.consts << var_stmt
-		}
+		enum_stmt.fields[var_stmt.names[0]] = BasicValueStmt{''}
+	} else if is_enum {
+		enum_stmt.fields[var_stmt.names[0]] = var_stmt.values[0] or { BasicValueStmt{''} }
+	} else {
+		v.consts << var_stmt
 	}
 
-	if is_enum {
-		v.enums << enum_stmt
-	}
+	return enum_stmt
 }
 
 // extract the sumtype from a `Tree`
@@ -169,18 +150,29 @@ fn (mut v VAST) extract_struct(tree Tree, inline bool) string {
 
 		v.struct_fields.clear()
 
-		// a hack to support inline structs, we check if the struct is already defined
+		mut already_defined := false
+		mut already_defined_struct_name := name
+
 		for defined_struct in v.structs {
+			// test if the struct is the same except for the name
 			mut temp_struct := defined_struct
 			temp_struct.name = name
+
 			if temp_struct == @struct {
-				return name
+				already_defined = true
+				already_defined_struct_name = defined_struct.name
+				break
 			}
 		}
 
-		v.declared_global_old << name
-		v.declared_global_new << name
-		v.structs << @struct
+		// if the struct is already defined we don't need to declare another exact same struct, we just need to point the name to the existing one
+		if !already_defined {
+			v.declared_global_old << name
+			v.declared_global_new << name
+			v.structs << @struct
+		} else {
+			v.declared_global_new[v.declared_global_new.index(name)] = already_defined_struct_name
+		}
 	}
 
 	return name

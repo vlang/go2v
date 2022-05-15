@@ -5,7 +5,7 @@ import v.util.diff
 const (
 	go2v_path = @VMODROOT
 	go2v_exe  = prepare_go2v_executable()
-	diffcmd   = diff.find_working_diff_command() ?
+	diffcmd   = diff.find_working_diff_command()?
 )
 
 fn prepare_go2v_executable() string {
@@ -53,7 +53,7 @@ fn test_all() ? {
 			continue
 		}
 		// Go2V generated wrong output
-		if os.read_file(produced_vv_source) ? != os.read_file(expected_vv_source) ? {
+		if os.read_file(produced_vv_source)? != os.read_file(expected_vv_source)? {
 			failures << relative_expected_vv_source
 			println('${term.bright_red('failed')} $start $relative_expected_vv_source')
 			println(diff.color_compare_files(diffcmd, expected_vv_source, produced_vv_source))
