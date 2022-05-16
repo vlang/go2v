@@ -123,7 +123,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			v.out.write_string('fn ')
 			// method
 			if stmt.method.len != 0 {
-				v.out.write_string('(${stmt.method[0]} ${stmt.method[1]}) ')
+				v.out.write_string('(mut ${stmt.method[0]} ${stmt.method[1]}) ')
 			}
 			// name
 			v.out.write_string('${stmt.name}(')
@@ -179,7 +179,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 
 				// value(s)
 				if stmt.values.len > 0 {
-					for i, value in stmt.values {
+					for value in stmt.values {
 						// explicit type
 						if has_explicit_type {
 							v.out.write_string('${stmt.@type}(')
@@ -188,10 +188,15 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 						if has_explicit_type {
 							v.out.write_rune(`)`)
 						}
-						v.out.write_string(if i != stmt.values.len - 1 { ',' } else { '' })
+						v.out.write_rune(`,`)
 					}
+					v.out.cut_last(1)
 				} else {
-					v.out.write_string(type_to_default_value(stmt.@type))
+					for _ in stmt.names {
+						v.out.write_string(type_to_default_value(stmt.@type))
+						v.out.write_rune(`,`)
+					}
+					v.out.cut_last(1)
 				}
 			}
 		}

@@ -37,6 +37,8 @@ mut:
 	add_to_scope_limit int
 	// struct utils
 	vars_with_struct_value map[string]string
+	// method utils
+	current_method_var_name string
 }
 
 struct Struct {

@@ -1,0 +1,7 @@
+module main
+
+fn abc(a int, b []string, c rune) (int, string, []int) {
+	mut ok := 0
+	mut err := ''
+	mut t := []int{}
+}

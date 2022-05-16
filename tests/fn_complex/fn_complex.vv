@@ -18,4 +18,8 @@ mut:
 // func (t Test) Ouuu(abc string, ofk []int, c Test) (int, string) {
 // 	fmt.Println(\"hey\")
 // }
-pub fn (a Abc) ok(d int, b []Bcd, c rune) (int, []Efg, rune) {}
+pub fn (mut a Abc) ok(d int, b []Bcd, c rune) (int, []Efg, rune) {
+	mut e := 0
+	mut f := []Efg{}
+	mut h := `\x00`
+}

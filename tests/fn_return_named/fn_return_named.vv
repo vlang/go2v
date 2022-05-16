@@ -1,0 +1,7 @@
+module main
+
+fn foo() int {
+	mut im := 0
+	im = 123
+	return im
+}

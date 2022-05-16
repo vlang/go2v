@@ -358,10 +358,16 @@ fn (mut v VAST) get_name(tree Tree, naming_style NamingStyle, origin Origin) str
 fn (mut v VAST) get_initial_name(tree Tree, naming_style NamingStyle) []string {
 	mut temp := tree
 	mut namespaces := []string{}
+	mut has_ptr_deref := false
 	// All `next_is_end` related code is a trick to repeat one more time the loop
 	mut next_is_end := 'X' !in temp.child
 
 	for ('X' in temp.child) || next_is_end {
+		// pointer dereferencing
+		if 'Star' in temp.child {
+			has_ptr_deref = true
+		}
+
 		// `a.b.c` syntax
 		if 'Sel' in temp.child {
 			namespaces << '.' +
@@ -401,6 +407,11 @@ fn (mut v VAST) get_initial_name(tree Tree, naming_style NamingStyle) []string {
 	// transform Go types into V ones for type casting
 	if namespaces.len == 1 && namespaces[0] in transpiler.get_v_type {
 		namespaces[0] = transpiler.get_v_type[namespaces[0]]
+	}
+
+	// special case for "method variable"
+	if has_ptr_deref && namespaces.last() != v.current_method_var_name {
+		namespaces << '*'
 	}
 
 	return namespaces

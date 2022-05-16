@@ -5,4 +5,4 @@ mut:
 	a int
 }
 
-fn (a Abc) ok(d int, b []string, c rune) string {}
+fn (mut a Abc) ok(d int, b []string, c rune) string {}

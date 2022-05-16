@@ -93,7 +93,7 @@ fn (mut v VAST) extract_import(tree Tree) {
 // as in Go enums are represented as constants, we use the same function for both
 fn (mut v VAST) extract_const_or_enum(tree Tree, raw_enum_stmt StructLike, is_enum bool) StructLike {
 	mut enum_stmt := raw_enum_stmt
-	mut var_stmt := v.extract_variable(tree, false)
+	mut var_stmt := v.extract_variable(tree, false, false)
 	var_stmt.middle = '='
 
 	is_iota := var_stmt.values[0] or { Statement(BasicValueStmt{''}) } == Statement(BasicValueStmt{'iota'})
@@ -118,7 +118,7 @@ fn (mut v VAST) extract_const_or_enum(tree Tree, raw_enum_stmt StructLike, is_en
 
 // extract the sumtype from a `Tree`
 fn (mut v VAST) extract_sumtype(tree Tree) {
-	v.types[v.get_name(tree, .ignore, .global_decl)] = v.get_type(tree)
+	v.types[v.get_name(tree, .camel_case, .global_decl)] = v.get_type(tree)
 }
 
 // extract the struct from a `Tree`
@@ -204,20 +204,33 @@ fn (mut v VAST) extract_function(tree Tree) FunctionStmt {
 	// method
 	if 'Recv' in tree.child {
 		base := tree.child['Recv'].tree.child['List'].tree.child['0'].tree
+		method_name := v.get_name(base.child['Names'].tree.child['0'].tree, .ignore, .other)
+		method_type := v.get_type(base)
+		v.current_method_var_name = method_name
+
 		func.method = [
-			v.get_name(base.child['Names'].tree.child['0'].tree, .ignore, .other),
-			v.get_type(base),
+			method_name,
+			if method_type[0] == `&` { method_type[1..] } else { method_type },
 		]
 	}
 
 	// return value(s)
+	mut named_returns := []Statement{}
+
 	for _, arg in tree.child['Type'].tree.child['Results'].tree.child['List'].tree.child {
 		func.ret_vals << v.get_type(arg.tree)
+
+		// handle named return values
+		if 'Names' in arg.tree.child {
+			named_returns << v.extract_variable(arg.tree, false, true)
+		}
 	}
 
 	// body
-	func.body = v.extract_body(tree.child['Body'].tree)
+	func.body = named_returns
+	func.body << v.extract_body(tree.child['Body'].tree)
 
+	v.current_method_var_name = ''
 	return func
 }
 
@@ -248,17 +261,16 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 		// `var` syntax
 		'*ast.DeclStmt' {
 			mut var_stmt := v.extract_variable(tree.child['Decl'].tree.child['Specs'].tree.child['0'].tree,
-				false)
-			var_stmt.middle = ':='
+				false, true)
 
 			ret = var_stmt
 		}
 		// `:=`, `+=` etc. syntax
 		'*ast.AssignStmt' {
-			ret = v.extract_variable(tree, true)
+			ret = v.extract_variable(tree, true, false)
 		}
 		// basic value
-		'*ast.BasicLit' {
+		'*ast.BasicLit', '*ast.StarExpr' {
 			ret = BasicValueStmt{v.get_name(tree, .ignore, .other)}
 		}
 		// variable, function call, etc.
@@ -445,10 +457,9 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				mut if_else := IfElse{}
 
 				// `if z := 0; z < 10` syntax
-				var := v.extract_variable(temp.child['Init'].tree, true)
+				var := v.extract_variable(temp.child['Init'].tree, true, false)
 				if var.names.len > 0 {
 					if_stmt.init_vars << var
-					// v.add_to_scope_limit++
 				}
 
 				// condition
@@ -481,7 +492,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			mut for_stmt := ForStmt{}
 
 			// init
-			for_stmt.init = v.extract_variable(tree.child['Init'].tree, true)
+			for_stmt.init = v.extract_variable(tree.child['Init'].tree, true, false)
 			for_stmt.init.mutable = false
 			if for_stmt.init.names.len > 0 {
 				v.add_to_scope_limit++
@@ -516,7 +527,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 
 				// element & variable
 				temp_var := v.extract_variable(tree.child['Key'].tree.child['Obj'].tree.child['Decl'].tree,
-					true)
+					true, false)
 				forin_stmt.element = temp_var.names[1] or { '_' }
 				forin_stmt.variable = temp_var.values[0] or { BasicValueStmt{'_'} }
 			} else {
@@ -547,7 +558,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			}
 
 			// `switch z := 0; z < 10` syntax
-			var := v.extract_variable(tree.child['Init'].tree, true)
+			var := v.extract_variable(tree.child['Init'].tree, true, false)
 			if var.names.len > 0 {
 				match_stmt.init = var
 				v.add_to_scope_limit++
@@ -594,12 +605,12 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 }
 
 // extract the variable from a `Tree`
-fn (mut v VAST) extract_variable(tree Tree, short bool) VariableStmt {
+fn (mut v VAST) extract_variable(tree Tree, short bool, force_decl bool) VariableStmt {
 	left_hand := if short { tree.child['Lhs'].tree.child } else { tree.child['Names'].tree.child }
 	right_hand := if short { tree.child['Rhs'].tree.child } else { tree.child['Values'].tree.child }
 
 	mut var_stmt := VariableStmt{
-		middle: tree.child['Tok'].val
+		middle: if !force_decl { tree.child['Tok'].val } else { ':=' }
 		@type: v.get_type(tree)
 	}
 
