@@ -422,63 +422,24 @@ fn (mut v VAST) get_initial_name(tree Tree, naming_style NamingStyle) []string {
 
 // get the condition/operation of an if, for, match... statement from a `Tree`
 fn (mut v VAST) get_condition(tree Tree) string {
-	mut cond := v.get_initial_condition(tree)
-
-	mut out := []rune{}
-	mut space_count := 0
-
-	for i, ch in cond {
-		space_count = if ch == ` ` { space_count + 1 } else { 0 }
-		// remove useless spaces and parentheses
-		if !(space_count > 1 || (i == 0 && ch == `(`) || (i == cond.len - 1 && ch == `)`)) {
-			out << ch
-		}
-	}
-
-	return out.string()
-}
-
-// util for `VAST.get_condition()`, it gets the original name without any formatting
-fn (mut v VAST) get_initial_condition(tree Tree) string {
-	// logic part
-	if 'Name' !in tree.child {
-		// left-hand
-		x := if tree.child['X'].tree.name == '*ast.ParenExpr'
-			|| tree.child['X'].tree.name == '*ast.BinaryExpr' {
-			v.get_initial_condition(tree.child['X'].tree)
-		} else if 'X' in tree.child {
-			v.stmt_to_string(v.extract_stmt(tree.child['X'].tree))
-		} else {
-			''
-		}
-
-		// operator
-		cond := tree.child['Op'].val
-
-		// right-hand
-		y := if tree.child['Y'].tree.name == '*ast.ParenExpr'
-			|| tree.child['Y'].tree.name == '*ast.BinaryExpr' {
-			v.get_initial_condition(tree.child['Y'].tree)
-		} else if 'Y' in tree.child {
-			v.stmt_to_string(v.extract_stmt(tree.child['Y'].tree))
-		} else {
-			''
-		}
-
-		// parentheses
-		if cond == '&&' || cond == '||' {
-			return '($x $cond $y)'
-		} else if cond.len + x.len + y.len == 0 {
-			stmt := v.extract_stmt(tree)
-			return if stmt is NotYetImplStmt { ' ' } else { v.stmt_to_string(stmt) }
-		} else if y.len == 0 {
-			return '$cond $x'
-		} else {
-			return '$x $cond $y'
-		}
+	return if 'X' !in tree.child {
+		v.stmt_to_string(v.extract_stmt(tree))
 	} else {
-		// value part
-		return v.get_name(tree, .ignore, .other)
+		match tree.name {
+			'*ast.ParenExpr' {
+				'(' + v.get_condition(tree.child['X'].tree) + ')'
+			}
+			'*ast.UnaryExpr' {
+				tree.child['Op'].val + v.get_condition(tree.child['X'].tree)
+			}
+			'*ast.BinaryExpr' {
+				v.get_condition(tree.child['X'].tree) + ' ' + tree.child['Op'].val + ' ' +
+					v.get_condition(tree.child['Y'].tree)
+			}
+			else {
+				''
+			}
+		}
 	}
 }
 
