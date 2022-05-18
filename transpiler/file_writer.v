@@ -257,7 +257,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			v.out.write_rune(`}`)
 		}
 		BranchStmt {
-			v.out.write_string(stmt.name)
+			v.out.write_string('$stmt.name $stmt.label')
 		}
 		ArrayStmt {
 			is_empty := stmt.values.len < 1
@@ -354,7 +354,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 		}
 		DeferStmt {
 			v.out.write_string('defer {')
-			v.write_stmt(stmt.stmt, true)
+			v.write_body(stmt.body)
 			v.out.write_rune(`}`)
 		}
 		UnsafeStmt {
@@ -427,6 +427,10 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			for el in stmt.stmts {
 				v.write_stmt(el, true)
 			}
+		}
+		LabelStmt {
+			v.out.write_string('$stmt.name: ')
+			v.write_stmt(stmt.stmt, true)
 		}
 		NotYetImplStmt {
 			v.out.write_string('NOT_YET_IMPLEMENTED')

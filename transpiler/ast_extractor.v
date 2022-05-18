@@ -32,7 +32,7 @@ fn (mut v VAST) extract_declaration(tree Tree, embedded bool) {
 	}
 
 	if fn_base.name == '*ast.FuncDecl' {
-		v.functions << v.extract_function(fn_base)
+		v.functions << v.extract_function(fn_base, true)
 	} else {
 		gen_decl_type := tree.child[type_of_gen_decl_field_name].val
 		// enums are a special case
@@ -179,12 +179,16 @@ fn (mut v VAST) extract_struct(tree Tree, inline bool) string {
 }
 
 // extract the function from a `Tree`
-fn (mut v VAST) extract_function(tree Tree) FunctionStmt {
+fn (mut v VAST) extract_function(tree Tree, is_decl bool) FunctionStmt {
 	mut func := FunctionStmt{
 		type_ctx: 'Names' in tree.child // detect function used as the type of a struct's field
 	}
 
-	raw_fn_name := v.get_name(tree, .snake_case, .fn_decl)
+	raw_fn_name := if is_decl {
+		v.get_name(tree, .snake_case, .fn_decl)
+	} else {
+		'x' + v.get_name(tree, .snake_case, .other)
+	}
 	if raw_fn_name.len > 0 {
 		func.name = raw_fn_name[1..]
 		func.public = raw_fn_name[0] == `v`
@@ -215,22 +219,22 @@ fn (mut v VAST) extract_function(tree Tree) FunctionStmt {
 	}
 
 	// return value(s)
-	mut named_returns := []Statement{}
-
 	for _, arg in tree.child['Type'].tree.child['Results'].tree.child['List'].tree.child {
 		func.ret_vals << v.get_type(arg.tree)
 
 		// handle named return values
 		if 'Names' in arg.tree.child {
-			named_returns << v.extract_variable(arg.tree, false, true)
+			func.body << v.extract_variable(arg.tree, false, true)
 		}
 	}
 
 	// body
-	func.body = named_returns
 	func.body << v.extract_body(tree.child['Body'].tree)
 
-	v.current_method_var_name = ''
+	if is_decl {
+		v.current_method_var_name = ''
+	}
+
 	return func
 }
 
@@ -425,23 +429,28 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 		'*ast.ExprStmt', '*ast.CallExpr' {
 			base := if tree.name == '*ast.ExprStmt' { tree.child['X'].tree } else { tree }
 
-			mut call_stmt := CallStmt{
-				namespaces: v.get_name(base.child['Fun'].tree, .snake_case, .other)
-			}
-			// function/method arguments
-			for _, arg in base.child['Args'].tree.child {
-				call_stmt.args << v.extract_stmt(arg.tree)
-			}
+			fn_stmt := v.extract_function(base.child['Fun'].tree, false)
+			if fn_stmt.body.len < 1 {
+				mut call_stmt := CallStmt{
+					namespaces: fn_stmt.name
+				}
+				// function/method arguments
+				for _, arg in base.child['Args'].tree.child {
+					call_stmt.args << v.extract_stmt(arg.tree)
+				}
 
-			// ellipsis (`...a` syntax)
-			if base.child['Ellipsis'].val != '0' {
-				idx := call_stmt.args.len - 1
-				call_stmt.args[idx] = MultipleStmt{[BasicValueStmt{'...'}, call_stmt.args[idx]]}
+				// ellipsis (`...a` syntax)
+				if base.child['Ellipsis'].val != '0' {
+					idx := call_stmt.args.len - 1
+					call_stmt.args[idx] = MultipleStmt{[BasicValueStmt{'...'}, call_stmt.args[idx]]}
+				}
+
+				v.extract_embedded_declaration(base.child['Fun'].tree)
+
+				ret = call_stmt
+			} else {
+				ret = fn_stmt
 			}
-
-			v.extract_embedded_declaration(base.child['Fun'].tree)
-
-			ret = call_stmt
 		}
 		// `i++` & `i--`
 		'*ast.IncDecStmt' {
@@ -514,7 +523,8 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 		}
 		// break/continue
 		'*ast.BranchStmt' {
-			ret = BranchStmt{tree.child['Tok'].val}
+			ret = BranchStmt{tree.child['Tok'].val, v.get_name(tree.child['Label'].tree,
+				.snake_case, .other)}
 		}
 		// for in
 		'*ast.RangeStmt' {
@@ -550,7 +560,14 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			ret = return_stmt
 		}
 		'*ast.DeferStmt' {
-			ret = DeferStmt{v.extract_stmt(tree.child['Call'].tree)}
+			mut defer_stmt := DeferStmt{[v.extract_stmt(tree.child['Call'].tree)]}
+
+			// as Go's defer stmt only support deferring one stmt, in Go if you want to defer multiple stmts you have to use an anonymous function, here we just extract the anonymous function's body
+			if defer_stmt.body.len == 1 && defer_stmt.body[0] is FunctionStmt {
+				defer_stmt.body = (defer_stmt.body[0] as FunctionStmt).body
+			}
+
+			ret = defer_stmt
 		}
 		'*ast.SwitchStmt' {
 			mut match_stmt := MatchStmt{
@@ -588,10 +605,14 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			ret = BasicValueStmt{v.get_condition(tree)}
 		}
 		'*ast.FuncLit' {
-			ret = v.extract_function(tree)
+			// TODO: ensure it's `true`
+			ret = v.extract_function(tree, false)
 		}
 		'*ast.Ellipsis' {
 			ret = BasicValueStmt{'...'}
+		}
+		'*ast.LabeledStmt' {
+			ret = LabelStmt{v.get_name(tree.child['Label'].tree, .snake_case, .other), v.extract_stmt(tree.child['Stmt'].tree)}
 		}
 		'' {
 			ret = BasicValueStmt{''}

@@ -67,6 +67,7 @@ type Statement = ArrayStmt
 	| IfStmt
 	| IncDecStmt
 	| KeyValStmt
+	| LabelStmt
 	| MapStmt
 	| MatchStmt
 	| MultipleStmt
@@ -177,7 +178,8 @@ mut:
 }
 
 struct BranchStmt {
-	name string
+	name  string
+	label string
 }
 
 struct ReturnStmt {
@@ -187,7 +189,7 @@ mut:
 
 struct DeferStmt {
 mut:
-	stmt Statement
+	body []Statement
 }
 
 struct UnsafeStmt {
@@ -231,4 +233,10 @@ struct PushStmt {
 mut:
 	stmt  Statement
 	value Statement
+}
+
+struct LabelStmt {
+mut:
+	name string
+	stmt Statement
 }

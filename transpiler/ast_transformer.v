@@ -96,9 +96,6 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 		}
 
 		ret_stmt = multiple_stmt
-	} else if stmt is DeferStmt {
-		// `defer func()` -> `defer { func() }`
-		ret_stmt = DeferStmt{v.stmt_transformer(stmt.stmt)}
 	} else if stmt is MatchStmt {
 		//	switch variable {
 		//	case "a", "b", "c", "d":
