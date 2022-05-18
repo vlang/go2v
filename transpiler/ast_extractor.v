@@ -170,8 +170,11 @@ fn (mut v VAST) extract_struct(tree Tree, inline bool) string {
 			v.declared_global_old << name
 			v.declared_global_new << name
 			v.structs << @struct
-		} else {
+		} else if !inline {
 			v.declared_global_new[v.declared_global_new.index(name)] = already_defined_struct_name
+		} else {
+			v.declared_global_old << name
+			v.declared_global_new << already_defined_struct_name
 		}
 	}
 
