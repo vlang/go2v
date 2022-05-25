@@ -159,7 +159,7 @@ fn tree_constructor(tokens []Token) Tree {
 				temp_child_key = ''
 			}
 			.tree_close {
-				if unsafe{current_tree.parent != 0} {
+				if unsafe { current_tree.parent != 0 } {
 					current_tree = current_tree.parent
 				}
 			}
