@@ -126,7 +126,12 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 				v.out.write_string('(mut ${stmt.method[0]} ${stmt.method[1]}) ')
 			}
 			// name
-			v.out.write_string('${stmt.name}(')
+			v.out.write_string('$stmt.name')
+			// generic
+			if stmt.generic {
+				v.out.write_string('<T>')
+			}
+			v.out.write_rune(`(`)
 			// arguments
 			// useless after https://github.com/vlang/v/issues/14551 gets fixed
 			mut i := 0

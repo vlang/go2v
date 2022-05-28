@@ -207,6 +207,11 @@ fn (mut v VAST) extract_function(tree Tree, is_decl bool) FunctionStmt {
 	for _, arg in tree.child['Type'].tree.child['Params'].tree.child['List'].tree.child {
 		func.args[v.get_name(arg.tree.child['Names'].tree.child['0'].tree, .ignore, .other)] = v.get_type(arg.tree)
 	}
+	for _, @type in func.args {
+		if @type == 'T' {
+			func.generic = true
+		}
+	}
 
 	// method
 	if 'Recv' in tree.child {
@@ -572,9 +577,17 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 
 			ret = defer_stmt
 		}
-		'*ast.SwitchStmt' {
-			mut match_stmt := MatchStmt{
-				value: v.extract_stmt(tree.child['Tag'].tree)
+		'*ast.SwitchStmt', '*ast.TypeSwitchStmt' {
+			is_type_switch := tree.name == '*ast.TypeSwitchStmt'
+			mut match_stmt := MatchStmt{}
+
+			if !is_type_switch {
+				match_stmt.value = v.extract_stmt(tree.child['Tag'].tree)
+			} else {
+				value := v.extract_stmt(tree.child['Assign'].tree.child['X'].tree.child['X'].tree)
+				match_stmt.value = Statement(CallStmt{
+					namespaces: '${v.stmt_to_string(value)}.type_name'
+				})
 			}
 
 			// `switch z := 0; z < 10` syntax
@@ -588,6 +601,14 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			for _, case in tree.child['Body'].tree.child['List'].tree.child {
 				mut match_case := MatchCase{
 					values: v.extract_body(case.tree)
+				}
+
+				if is_type_switch {
+					for mut value in match_case.values {
+						if mut value is BasicValueStmt {
+							value.value = "'$value.value'"
+						}
+					}
 				}
 
 				for _, case_stmt in case.tree.child['Body'].tree.child {

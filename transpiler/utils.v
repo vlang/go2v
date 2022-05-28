@@ -231,6 +231,11 @@ fn (mut v VAST) get_type(tree Tree) string {
 			raw_type << v.extract_struct(temp, true)
 		}
 
+		// generics
+		if temp.name == '*ast.InterfaceType' {
+			raw_type << 'T'
+		}
+
 		// name
 		if 'Name' in temp.child {
 			raw_type << format_and_set_naming_style(temp.child['Name'].val, .ignore)

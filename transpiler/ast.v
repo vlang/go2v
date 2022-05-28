@@ -91,6 +91,7 @@ struct FunctionStmt {
 mut:
 	comment  string
 	public   bool
+	generic  bool
 	method   []string
 	name     string
 	args     map[string]string
@@ -124,6 +125,7 @@ mut:
 }
 
 struct BasicValueStmt {
+mut:
 	value string
 }
 
