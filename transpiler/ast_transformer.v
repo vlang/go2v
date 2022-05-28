@@ -168,14 +168,25 @@ fn (mut v VAST) transform_delete(stmt CallStmt) Statement {
 // `fmt.println(a, b)` -> `println('$a $b')`
 fn (mut v VAST) transform_print(stmt CallStmt, right string) Statement {
 	if right == 'println' || right == 'print' {
-		mut call_stmt := CallStmt{
-			namespaces: right
+		mut call_stmt := stmt
+		call_stmt.namespaces = right
+
+		// `fmt.println("Hi " + name)` -> `println('Hi $name')`
+		mut is_plus_syntax := false
+		for arg in call_stmt.args {
+			if arg is MultipleStmt {
+				is_plus_syntax = true
+				call_stmt.args.pop()
+				call_stmt.args << arg.stmts[0]
+				call_stmt.args << arg.stmts[2]
+			}
 		}
 
-		if stmt.args.len > 1 {
+		if call_stmt.args.len > 1 {
 			mut out := "'"
-			for i, arg in stmt.args {
+			for i, arg in call_stmt.args {
 				str_stmt := v.stmt_to_string(arg)#[..-1]
+
 				// strings
 				if str_stmt[0] == `'` && str_stmt[str_stmt.len - 1] == `'` {
 					out += str_stmt#[1..-1]
@@ -187,11 +198,13 @@ fn (mut v VAST) transform_print(stmt CallStmt, right string) Statement {
 				} else {
 					out += '\${$str_stmt}'
 				}
-				out += if i != stmt.args.len - 1 { ' ' } else { "'" }
+
+				if !is_plus_syntax && i != call_stmt.args.len - 1 {
+					out += ' '
+				}
 			}
-			call_stmt.args = [BasicValueStmt{out}]
-		} else {
-			call_stmt.args = stmt.args
+
+			call_stmt.args = [BasicValueStmt{"$out'"}]
 		}
 
 		return call_stmt

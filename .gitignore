@@ -1,6 +1,7 @@
 #General
 go2v
 go2v.exe
+vls.log
 
 #Testing
 path_test_area/

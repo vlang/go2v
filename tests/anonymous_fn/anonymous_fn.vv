@@ -2,7 +2,7 @@ module main
 
 fn main() {
 	mut finish := fn (name string) {
-		println('My job here is done. Good bye ' + name)
+		println('My job here is done. Good bye $name')
 	}
 
 	finish('Go')

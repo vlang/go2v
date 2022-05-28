@@ -605,7 +605,11 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			ret = match_stmt
 		}
 		'*ast.BinaryExpr' {
-			ret = BasicValueStmt{v.get_condition(tree)}
+			ret = MultipleStmt{[
+				v.extract_stmt(tree.child['X'].tree),
+				BasicValueStmt{' ' + tree.child['Op'].val + ' '},
+				v.extract_stmt(tree.child['Y'].tree),
+			]}
 		}
 		'*ast.FuncLit' {
 			// TODO: ensure it's `true`
