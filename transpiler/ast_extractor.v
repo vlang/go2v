@@ -106,9 +106,9 @@ fn (mut v VAST) extract_const_or_enum(tree Tree, raw_enum_stmt StructLike, is_en
 			v.types.delete(var_stmt.@type)
 		}
 
-		enum_stmt.fields[var_stmt.names[0]] = BasicValueStmt{''}
+		enum_stmt.fields[var_stmt.names[0]] = bv_stmt('')
 	} else if is_enum {
-		enum_stmt.fields[var_stmt.names[0]] = var_stmt.values[0] or { BasicValueStmt{''} }
+		enum_stmt.fields[var_stmt.names[0]] = var_stmt.values[0] or { bv_stmt('') }
 	} else {
 		v.consts << var_stmt
 	}
@@ -450,7 +450,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				// ellipsis (`...a` syntax)
 				if base.child['Ellipsis'].val != '0' {
 					idx := call_stmt.args.len - 1
-					call_stmt.args[idx] = MultipleStmt{[BasicValueStmt{'...'}, call_stmt.args[idx]]}
+					call_stmt.args[idx] = MultipleStmt{[bv_stmt('...'), call_stmt.args[idx]]}
 				}
 
 				v.extract_embedded_declaration(base.child['Fun'].tree)
@@ -547,7 +547,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				temp_var := v.extract_variable(tree.child['Key'].tree.child['Obj'].tree.child['Decl'].tree,
 					true, false)
 				forin_stmt.element = temp_var.names[1] or { '_' }
-				forin_stmt.variable = temp_var.values[0] or { BasicValueStmt{'_'} }
+				forin_stmt.variable = temp_var.values[0] or { bv_stmt('_') }
 			} else {
 				// `for range variable {` syntax
 				forin_stmt.variable = BasicValueStmt{v.get_name(tree, .snake_case, .other)}
@@ -582,7 +582,12 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			mut match_stmt := MatchStmt{}
 
 			if !is_type_switch {
-				match_stmt.value = v.extract_stmt(tree.child['Tag'].tree)
+				value := v.extract_stmt(tree.child['Tag'].tree)
+				match_stmt.value = if value != bv_stmt('') {
+					v.extract_stmt(tree.child['Tag'].tree)
+				} else {
+					bv_stmt('true')
+				}
 			} else {
 				value := v.extract_stmt(tree.child['Assign'].tree.child['X'].tree.child['X'].tree)
 				match_stmt.value = Statement(CallStmt{
@@ -628,7 +633,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 		'*ast.BinaryExpr' {
 			ret = MultipleStmt{[
 				v.extract_stmt(tree.child['X'].tree),
-				BasicValueStmt{' ' + tree.child['Op'].val + ' '},
+				bv_stmt(' ' + tree.child['Op'].val + ' '),
 				v.extract_stmt(tree.child['Y'].tree),
 			]}
 		}
@@ -637,19 +642,19 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			ret = v.extract_function(tree, false)
 		}
 		'*ast.Ellipsis' {
-			ret = BasicValueStmt{'...'}
+			ret = bv_stmt('...')
 		}
 		'*ast.LabeledStmt' {
 			ret = LabelStmt{v.get_name(tree.child['Label'].tree, .snake_case, .other), v.extract_stmt(tree.child['Stmt'].tree)}
 		}
 		'*ast.ParenExpr' {
-			ret = BasicValueStmt{'(' + v.stmt_to_string(v.extract_stmt(tree.child['X'].tree)) + ')'}
+			ret = bv_stmt('(' + v.stmt_to_string(v.extract_stmt(tree.child['X'].tree)) + ')')
 		}
 		'*ast.GoStmt' {
 			ret = GoStmt{(v.extract_stmt(tree.child['Call'].tree) as FunctionStmt).body[0]}
 		}
 		'' {
-			ret = BasicValueStmt{''}
+			ret = bv_stmt('')
 		}
 		else {
 			ret = not_implemented(tree)

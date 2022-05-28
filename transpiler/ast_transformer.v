@@ -127,7 +127,7 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 			if stmt.value.name == 'bytes.Buffer' || stmt.value.name == 'strings.Builder' {
 				ret_stmt = CallStmt{
 					namespaces: 'strings.new_builder'
-					args: [BasicValueStmt{'0'}]
+					args: [bv_stmt('0')]
 				}
 			}
 		}
@@ -143,7 +143,7 @@ fn (mut v VAST) transform_fn_to_decl(stmt CallStmt, left string) Statement {
 	} else {
 		left
 	}
-	return BasicValueStmt{'${v.stmt_to_string(stmt.args[0])}.$right'}
+	return bv_stmt('${v.stmt_to_string(stmt.args[0])}.$right')
 }
 
 // `make(map[string]int)` -> `map[string]int{}`
@@ -250,7 +250,7 @@ fn (v VAST) transform_string_builder(stmt CallStmt, left string, right string) S
 				VariableStmt{
 					names: ['${left}.offset', '${left}.len']
 					middle: '='
-					values: [BasicValueStmt{'0'}, BasicValueStmt{'0'}]
+					values: [bv_stmt('0'), bv_stmt('0')]
 				},
 			]}
 		}

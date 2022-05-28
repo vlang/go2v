@@ -315,7 +315,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 					v.out.write_string('][it] or { $default_value }')
 				} else {
 					mut match_stmt := MatchStmt{
-						value: BasicValueStmt{'it'}
+						value: bv_stmt('it')
 					}
 					for el in stmt.values {
 						val := el as KeyValStmt
@@ -326,7 +326,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 						}
 					}
 					match_stmt.cases << MatchCase{
-						values: [BasicValueStmt{'else'}]
+						values: [bv_stmt('else')]
 						body: [BasicValueStmt{default_value}]
 					}
 
