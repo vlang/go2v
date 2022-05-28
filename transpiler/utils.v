@@ -420,27 +420,8 @@ fn (mut v VAST) get_initial_name(tree Tree, naming_style NamingStyle) []string {
 	return namespaces
 }
 
-// get the condition/operation of an if, for, match... statement from a `Tree`
-fn (mut v VAST) get_condition(tree Tree) string {
-	return if 'X' !in tree.child {
-		v.stmt_to_string(v.extract_stmt(tree))
-	} else {
-		match tree.name {
-			'*ast.ParenExpr' {
-				'(' + v.get_condition(tree.child['X'].tree) + ')'
-			}
-			'*ast.UnaryExpr' {
-				tree.child['Op'].val + v.get_condition(tree.child['X'].tree)
-			}
-			'*ast.BinaryExpr' {
-				v.get_condition(tree.child['X'].tree) + ' ' + tree.child['Op'].val + ' ' +
-					v.get_condition(tree.child['Y'].tree)
-			}
-			else {
-				''
-			}
-		}
-	}
+fn bv_stmt(str string) Statement {
+	return Statement(BasicValueStmt{str})
 }
 
 // aims at facilitating reporting errors by printing infos to the user

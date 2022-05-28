@@ -157,14 +157,14 @@ mut:
 
 struct IfElse {
 mut:
-	condition string
+	condition Statement
 	body      []Statement
 }
 
 struct ForStmt {
 mut:
 	init      VariableStmt
-	condition string
+	condition Statement
 	post      Statement
 	body      []Statement
 }

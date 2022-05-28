@@ -220,8 +220,10 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 				if i != 0 {
 					v.out.write_string('else ')
 				}
-				if branch.condition != ' ' {
-					v.out.write_string('if $branch.condition ')
+
+				if branch.condition != bv_stmt('') {
+					v.out.write_string('if ')
+					v.write_stmt(branch.condition, true)
 				}
 				v.out.write_string('{\n')
 				v.write_body(branch.body)
@@ -234,11 +236,13 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			if stmt.init.names.len > 0 || stmt.post.type_name() != 'unknown transpiler.Statement' {
 				// c-style for
 				v.write_stmt(stmt.init, true)
-				v.out.write_string(';$stmt.condition;')
+				v.out.write_rune(`;`)
+				v.write_stmt(stmt.condition, true)
+				v.out.write_rune(`;`)
 				v.write_stmt(stmt.post, true)
 			} else {
 				// while
-				v.out.write_string(stmt.condition)
+				v.write_stmt(stmt.condition, true)
 			}
 			// for bare loops no need to write anything
 			v.out.write_string('{\n')

@@ -58,7 +58,7 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 
 						// `append(array, sec_array...)` -> `array << sec_array`
 						if mut value_to_append is MultipleStmt {
-							if value_to_append.stmts[0] == Statement(BasicValueStmt{'...'}) {
+							if value_to_append.stmts[0] == bv_stmt('...') {
 								value_to_append = value_to_append.stmts[1]
 							}
 						}
@@ -112,7 +112,10 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 
 			ret_stmt = IfStmt{[], [
 				IfElse{
-					condition: '${v.stmt_to_string(array)}.includes(${v.stmt_to_string(stmt.value)})'
+					condition: CallStmt{
+						namespaces: '${v.stmt_to_string(array)}.includes'
+						args: [stmt.value]
+					}
 					body: stmt.cases[0].body
 				},
 			]}

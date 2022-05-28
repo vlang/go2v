@@ -96,7 +96,7 @@ fn (mut v VAST) extract_const_or_enum(tree Tree, raw_enum_stmt StructLike, is_en
 	mut var_stmt := v.extract_variable(tree, false, false)
 	var_stmt.middle = '='
 
-	is_iota := var_stmt.values[0] or { Statement(BasicValueStmt{''}) } == Statement(BasicValueStmt{'iota'})
+	is_iota := var_stmt.values[0] or { bv_stmt('') } == bv_stmt('iota')
 
 	if is_iota {
 		// if it's the first field of the enum
@@ -475,7 +475,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				}
 
 				// condition
-				if_else.condition = v.get_condition(temp.child['Cond'].tree)
+				if_else.condition = v.extract_stmt(temp.child['Cond'].tree)
 
 				// body
 				if_else.body << if 'Body' in temp.child {
@@ -511,7 +511,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			}
 
 			// condition
-			for_stmt.condition = v.get_condition(tree.child['Cond'].tree)
+			for_stmt.condition = v.extract_stmt(tree.child['Cond'].tree)
 
 			// post
 			post_base := tree.child['Post'].tree
@@ -620,6 +620,9 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 		}
 		'*ast.LabeledStmt' {
 			ret = LabelStmt{v.get_name(tree.child['Label'].tree, .snake_case, .other), v.extract_stmt(tree.child['Stmt'].tree)}
+		}
+		'*ast.ParenExpr' {
+			ret = BasicValueStmt{'(' + v.stmt_to_string(v.extract_stmt(tree.child['X'].tree)) + ')'}
 		}
 		'' {
 			ret = BasicValueStmt{''}
