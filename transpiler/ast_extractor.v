@@ -645,6 +645,9 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 		'*ast.ParenExpr' {
 			ret = BasicValueStmt{'(' + v.stmt_to_string(v.extract_stmt(tree.child['X'].tree)) + ')'}
 		}
+		'*ast.GoStmt' {
+			ret = GoStmt{(v.extract_stmt(tree.child['Call'].tree) as FunctionStmt).body[0]}
+		}
 		'' {
 			ret = BasicValueStmt{''}
 		}

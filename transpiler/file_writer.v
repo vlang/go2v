@@ -435,6 +435,10 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			v.out.write_string('$stmt.name: ')
 			v.write_stmt(stmt.stmt, true)
 		}
+		GoStmt {
+			v.out.write_string('go ')
+			v.write_stmt(stmt.stmt, true)
+		}
 		NotYetImplStmt {
 			v.out.write_string('NOT_YET_IMPLEMENTED')
 		}

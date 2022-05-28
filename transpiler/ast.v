@@ -64,6 +64,7 @@ type Statement = ArrayStmt
 	| ForInStmt
 	| ForStmt
 	| FunctionStmt
+	| GoStmt
 	| IfStmt
 	| IncDecStmt
 	| KeyValStmt
@@ -240,5 +241,10 @@ mut:
 struct LabelStmt {
 mut:
 	name string
+	stmt Statement
+}
+
+struct GoStmt {
+mut:
 	stmt Statement
 }
