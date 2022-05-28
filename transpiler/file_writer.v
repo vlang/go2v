@@ -128,7 +128,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			// name
 			v.out.write_string('${stmt.name}(')
 			// arguments
-			// useless after https://github.com/vlang/v/issues/13909 gets fixed
+			// useless after https://github.com/vlang/v/issues/14551 gets fixed
 			mut i := 0
 			for name, @type in stmt.args {
 				if i != stmt.args.len - 1 {
@@ -143,13 +143,8 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 
 			if stmt.ret_vals.len > 0 {
 				v.out.write_string(' (')
-				for j, val in stmt.ret_vals {
-					// TODO: useless after https://github.com/vlang/v/issues/13592 gets fixed
-					if j != stmt.ret_vals.len - 1 {
-						v.out.write_string('$val, ')
-					} else {
-						v.out.write_string('$val')
-					}
+				for val in stmt.ret_vals {
+					v.out.write_string('$val, ')
 				}
 				v.out.write_string(')')
 			}
@@ -207,7 +202,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			v.out.write_string('${stmt.namespaces}(')
 			for i, arg in stmt.args {
 				v.write_stmt(arg, true)
-				// TODO: useless after https://github.com/vlang/v/issues/13592 gets fixed
+				// TODO: useless after https://github.com/vlang/v/issues/14551 gets fixed
 				v.out.write_string(if i != stmt.args.len - 1 { ',' } else { '' })
 			}
 			v.out.write_rune(`)`)
@@ -350,7 +345,6 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			v.out.write_string('return ')
 			for i, el in stmt.values {
 				v.write_stmt(el, true)
-				// TODO: useless after https://github.com/vlang/v/issues/13592 gets fixed
 				if i != stmt.values.len - 1 {
 					v.out.write_rune(`,`)
 				}
