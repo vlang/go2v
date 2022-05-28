@@ -651,7 +651,16 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			ret = bv_stmt('(' + v.stmt_to_string(v.extract_stmt(tree.child['X'].tree)) + ')')
 		}
 		'*ast.GoStmt' {
-			ret = GoStmt{(v.extract_stmt(tree.child['Call'].tree) as FunctionStmt).body[0]}
+			to_call := v.extract_stmt(tree.child['Call'].tree)
+			if to_call is FunctionStmt {
+				mut multiple_stmts := MultipleStmt{}
+				for _, child_stmt in to_call.body {
+					multiple_stmts.stmts << GoStmt{child_stmt}
+				}
+				ret = multiple_stmts
+			} else {
+				ret = GoStmt{to_call}
+			}
 		}
 		'' {
 			ret = bv_stmt('')
