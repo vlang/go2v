@@ -198,7 +198,7 @@ mut:
 
 struct MatchStmt {
 mut:
-	init  Statement
+	init  VariableStmt
 	value Statement
 	cases []MatchCase
 }

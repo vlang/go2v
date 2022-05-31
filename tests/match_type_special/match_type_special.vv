@@ -1,0 +1,18 @@
+module main
+
+fn main() {
+	defer {
+		mut x := recover()
+		if x != nil {
+			mut e := x
+			match x.type_name() {
+				'error' {
+					println(e)
+				}
+				else {
+					println(e)
+				}
+			}
+		}
+	}
+}
