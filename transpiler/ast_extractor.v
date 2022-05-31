@@ -250,7 +250,7 @@ fn (mut v VAST) extract_function(tree Tree, is_decl bool) FunctionStmt {
 fn (mut v VAST) extract_body(tree Tree) []Statement {
 	mut body := []Statement{}
 	// all the variables declared after this limit will go out of scope at the end of the function
-	limit := v.declared_vars_old.len - v.add_to_scope_limit
+	limit := v.declared_vars_old.len
 
 	// go through every statement
 	for _, stmt in tree.child['List'].tree.child {
@@ -260,7 +260,6 @@ fn (mut v VAST) extract_body(tree Tree) []Statement {
 	v.all_declared_vars << v.declared_vars_new
 	v.declared_vars_old = v.declared_vars_old[..limit]
 	v.declared_vars_new = v.declared_vars_new[..limit]
-	v.add_to_scope_limit = 0
 
 	return body
 }
@@ -511,9 +510,6 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			// init
 			for_stmt.init = v.extract_variable(tree.child['Init'].tree, true, false)
 			for_stmt.init.mutable = false
-			if for_stmt.init.names.len > 0 {
-				v.add_to_scope_limit++
-			}
 
 			// condition
 			for_stmt.condition = v.extract_stmt(tree.child['Cond'].tree)
@@ -596,11 +592,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			}
 
 			// `switch z := 0; z < 10` syntax
-			var := v.extract_variable(tree.child['Init'].tree, true, false)
-			if var.names.len > 0 {
-				match_stmt.init = var
-				v.add_to_scope_limit++
-			}
+			match_stmt.init = v.extract_variable(tree.child['Init'].tree, true, false)
 
 			// cases
 			for _, case in tree.child['Body'].tree.child['List'].tree.child {
