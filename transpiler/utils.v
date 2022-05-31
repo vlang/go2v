@@ -370,7 +370,7 @@ fn (mut v VAST) get_initial_name(tree Tree, naming_style NamingStyle) []string {
 	// All `next_is_end` related code is a trick to repeat one more time the loop
 	mut next_is_end := 'X' !in temp.child
 
-	for ('X' in temp.child) || next_is_end {
+	for ('X' in temp.child || 'Fun' in temp.child) || next_is_end {
 		// pointer dereferencing
 		if 'Star' in temp.child {
 			has_ptr_deref = true
@@ -403,11 +403,12 @@ fn (mut v VAST) get_initial_name(tree Tree, naming_style NamingStyle) []string {
 			namespaces << '[' + v.stmt_to_string(v.extract_stmt(temp.child['Index'].tree)) + ']'
 		}
 
-		temp = temp.child['X'].tree
+		temp = temp.child[if 'X' in temp.child { 'X' } else { 'Fun' }].tree
+
 		if next_is_end {
 			break
 		}
-		if 'X' !in temp.child {
+		if 'X' !in temp.child && 'Fun' !in temp.child {
 			next_is_end = true
 		}
 	}
