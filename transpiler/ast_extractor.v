@@ -221,7 +221,7 @@ fn (mut v VAST) extract_function(tree Tree, is_decl bool) FunctionStmt {
 		v.current_method_var_name = method_name
 
 		func.method = [
-			method_name,
+			if method_name.len > 0 { method_name } else { '_' },
 			if method_type[0] == `&` { method_type[1..] } else { method_type },
 		]
 	}
@@ -537,7 +537,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			// classic syntax
 			if tree.child['Tok'].val != 'ILLEGAL' {
 				// idx
-				forin_stmt.idx = tree.child['Key'].tree.child['Name'].val#[1..-1]
+				forin_stmt.idx = v.get_name(tree.child['Key'].tree, .snake_case, .other)
 
 				// element & variable
 				temp_var := v.extract_variable(tree.child['Key'].tree.child['Obj'].tree.child['Decl'].tree,
