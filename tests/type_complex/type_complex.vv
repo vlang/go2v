@@ -17,6 +17,12 @@ mut:
 	exter []&aes.KeySizeError
 }
 
+struct Foo {
+mut:
+	abc [3]int
+	def [][2]string
+}
+
 fn bis() {
 	mut s := []string{}
 }

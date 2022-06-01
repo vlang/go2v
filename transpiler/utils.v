@@ -197,14 +197,12 @@ fn (mut v VAST) get_type(tree Tree) string {
 	for ('X' in temp.child || 'Elt' in temp.child || next_is_end) {
 		// arrays
 		if temp.name == '*ast.ArrayType' {
-			pre_type += '[]'
-			temp = temp.child['Elt'].tree
+			pre_type += '[' + v.get_name(temp.child['Len'].tree, .ignore, .other) + ']'
 		}
 
 		// ellipsis (`...int`)
 		if temp.name == '*ast.Ellipsis' {
 			pre_type += '...'
-			temp = temp.child['Elt'].tree
 		}
 
 		// pointers
@@ -251,7 +249,7 @@ fn (mut v VAST) get_type(tree Tree) string {
 
 		v.extract_embedded_declaration(temp)
 
-		temp = temp.child['X'].tree
+		temp = temp.child[if 'X' in temp.child { 'X' } else { 'Elt' }].tree
 
 		if next_is_end {
 			break

@@ -15,6 +15,11 @@ type BinTree struct {
 	Exter []*aes.KeySizeError
 }
 
+type Foo struct {
+	abc [3]int
+	def [][2]string
+}
+
 func bis() {
 	var s = []string{}
 }

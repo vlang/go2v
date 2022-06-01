@@ -316,10 +316,8 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			match base.name {
 				// arrays
 				'*ast.ArrayType' {
-					// TODO: remove this really weird hack
-					@type := v.get_type(tree)
 					mut array := ArrayStmt{
-						@type: @type[2..] // remove `[]`
+						@type: v.get_type(tree).split(']')[1] // remove `[..]`
 						len: v.stmt_to_string(v.extract_stmt(base.child['Len'].tree))
 					}
 
