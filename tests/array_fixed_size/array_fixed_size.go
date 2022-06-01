@@ -18,9 +18,9 @@ func main() {
 		"Ringo",
 	}
 
-	missing_struct := [2]Ok{
+	/* 	missing_struct := [2]Ok{
 		Ok{},
-	}
+	} */
 
 	missing_empty := [2]int{}
 
