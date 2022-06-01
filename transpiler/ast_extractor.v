@@ -465,7 +465,10 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 		}
 		// `i++` & `i--`
 		'*ast.IncDecStmt' {
-			ret = v.extract_increment_or_decrement(tree)
+			ret = IncDecStmt{
+				var: v.get_name(tree, .ignore, .other)
+				inc: tree.child['Tok'].val
+			}
 		}
 		// if/else
 		'*ast.IfStmt' {
@@ -541,7 +544,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			// classic syntax
 			if tree.child['Tok'].val != 'ILLEGAL' {
 				// idx
-				forin_stmt.idx = v.get_name(tree.child['Key'].tree, .snake_case, .other)
+				forin_stmt.idx = v.get_name(tree.child['Key'].tree, .snake_case, .var_decl)
 
 				// element & variable
 				temp_var := v.extract_variable(tree.child['Key'].tree.child['Obj'].tree.child['Decl'].tree,
@@ -664,6 +667,9 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				ret = GoStmt{to_call}
 			}
 		}
+		'*ast.BlockStmt' {
+			ret = BlockStmt{v.extract_body(tree)}
+		}
 		'' {
 			ret = bv_stmt('')
 		}
@@ -695,12 +701,4 @@ fn (mut v VAST) extract_variable(tree Tree, short bool, force_decl bool) Variabl
 	}
 
 	return var_stmt
-}
-
-// extract the increment/decrement statement from a `Tree`
-fn (mut v VAST) extract_increment_or_decrement(tree Tree) IncDecStmt {
-	return IncDecStmt{
-		var: v.get_name(tree, .ignore, .other)
-		inc: tree.child['Tok'].val
-	}
 }

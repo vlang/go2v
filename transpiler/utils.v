@@ -89,7 +89,6 @@ fn escape(str string) string {
 	if str !in ['true', 'false'] && str in transpiler.keywords {
 		return '@$str'
 	}
-
 	return str
 }
 
@@ -185,7 +184,6 @@ fn last_index(arr []string, val string) int {
 			return i
 		}
 	}
-
 	return -1
 }
 

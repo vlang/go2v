@@ -6,10 +6,15 @@ fn main() {
 		println('$idx $el')
 		println('$idx ${strings[idx]}')
 	}
-	for idx, _ in strings {
-		println(idx)
+	for idx_1, _ in strings {
+		println(idx_1)
 	}
 	for _ in strings {
 		println('hello')
+	}
+	for i, _ in [2]int{} {
+		for i_1, _ in [2]int{} {
+			println('hello')
+		}
 	}
 }

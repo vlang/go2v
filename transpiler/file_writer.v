@@ -439,6 +439,11 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			v.out.write_string('go ')
 			v.write_stmt(stmt.stmt, true)
 		}
+		BlockStmt {
+			v.out.write_rune(`{`)
+			v.write_body(stmt.body)
+			v.out.write_rune(`}`)
+		}
 		NotYetImplStmt {
 			v.out.write_string('NOT_YET_IMPLEMENTED')
 		}

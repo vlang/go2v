@@ -53,6 +53,7 @@ mut:
 
 type Statement = ArrayStmt
 	| BasicValueStmt
+	| BlockStmt
 	| BranchStmt
 	| CallStmt
 	| ComplexValueStmt
@@ -243,4 +244,9 @@ mut:
 struct GoStmt {
 mut:
 	stmt Statement
+}
+
+struct BlockStmt {
+mut:
+	body []Statement
 }

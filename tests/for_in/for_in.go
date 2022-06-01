@@ -14,4 +14,10 @@ func main() {
 	for range strings {
 		fmt.Println("hello")
 	}
+
+	for i := range [2]int{} {
+		for i := range [2]int{} {
+			fmt.Println("hello")
+		}
+	}
 }
