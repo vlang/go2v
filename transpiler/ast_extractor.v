@@ -324,12 +324,16 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 					}
 
 					for _, el in tree.child['Elts'].tree.child {
-						// inline structs
 						mut stmt := v.extract_stmt(el.tree)
-						if mut stmt is StructStmt {
-							if stmt.name.len == 0 {
-								stmt.name = array.@type
+
+						// inline structs with specific index
+						if mut stmt is KeyValStmt {
+							if mut stmt.value is StructStmt {
+								stmt.value.name = array.@type
 							}
+							// inline structs
+						} else if mut stmt is StructStmt {
+							stmt.name = array.@type
 						}
 
 						array.values << stmt

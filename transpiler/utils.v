@@ -151,6 +151,10 @@ fn (mut v VAST) stmt_to_string(stmt Statement) string {
 
 // make sure the given name is unique in its given field/domain, if not, make it unique
 fn (v &VAST) find_unused_name(original_name string, domains ...Domain) string {
+	if original_name == '_' {
+		return '_'
+	}
+
 	// suffix the name with an int and increment it until it's unique
 	mut suffix := 0
 	mut new_name := original_name
