@@ -373,13 +373,14 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				}
 				// maps
 				'*ast.MapType' {
+					split_map_type := v.get_type(tree).split(']')
+
 					// short `{"key": "value"}` syntax
-					v.current_implicit_map_type = v.get_name(base.child['Value'].tree,
-						.ignore, .other)
+					v.current_implicit_map_type = split_map_type[1]
 					no_type := v.current_implicit_map_type.len == 0
 
 					mut map_stmt := MapStmt{
-						key_type: v.get_name(base.child['Key'].tree, .ignore, .other)
+						key_type: split_map_type[0][4..]
 						value_type: v.current_implicit_map_type
 					}
 

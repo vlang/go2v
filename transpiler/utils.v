@@ -38,6 +38,7 @@ enum Origin {
 	var_decl
 	fn_decl
 	global_decl
+	type_decl
 	field
 	other
 }
@@ -197,7 +198,7 @@ fn (mut v VAST) get_type(tree Tree) string {
 	for ('X' in temp.child || 'Elt' in temp.child || next_is_end) {
 		// arrays
 		if temp.name == '*ast.ArrayType' {
-			pre_type += '[' + v.get_name(temp.child['Len'].tree, .ignore, .other) + ']'
+			pre_type += '[' + v.get_name(temp.child['Len'].tree, .ignore, .type_decl) + ']'
 		}
 
 		// ellipsis (`...int`)
@@ -214,8 +215,8 @@ fn (mut v VAST) get_type(tree Tree) string {
 
 		// maps
 		if temp.name == '*ast.MapType' {
-			raw_type << 'map[' + v.get_name(temp.child['Key'].tree, .ignore, .other) + ']' +
-				v.get_name(temp.child['Value'].tree, .ignore, .other)
+			raw_type << 'map[' + v.get_name(temp.child['Key'].tree, .ignore, .type_decl) + ']' +
+				v.get_name(temp.child['Value'].tree, .ignore, .type_decl)
 		}
 
 		// functions
@@ -318,6 +319,14 @@ fn (mut v VAST) get_name(tree Tree, naming_style NamingStyle, origin Origin) str
 
 				v.struct_fields << new_name
 				out += new_name
+			}
+			.type_decl {
+				// In Go `*` is used to declare a reference type and dereference a reference, but in V to declare a reference type you use `&`
+				if formatted_name[i][0] == `*` {
+					out += '&${formatted_name[i][1..]}'
+				} else {
+					out += formatted_name[i]
+				}
 			}
 			.other {
 				if raw_name[i] in v.declared_vars_old {

@@ -410,7 +410,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 				}
 				v.out.write_rune(`}`)
 			} else {
-				v.out.write_string('map[$stmt.key_type]$stmt.value_type')
+				v.out.write_string('map[$stmt.key_type]$stmt.value_type{}')
 			}
 		}
 		PushStmt {
