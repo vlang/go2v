@@ -86,7 +86,17 @@ fn (mut v VAST) extract_module(tree Tree) {
 
 // extract the module imports from a `Tree`
 fn (mut v VAST) extract_import(tree Tree) {
-	v.imports << v.get_name(tree.child['Path'].tree, .snake_case, .other)#[1..-1].split('/').map(escape(it)).join('.')
+	mut name := v.get_name(tree.child['Path'].tree, .snake_case, .other)#[1..-1].split('/').map(escape(it)).join('.')
+	// `golang.org/x/net/html/atom` -> `net.html.atom`
+	if name.starts_with('golang.org.x.') {
+		name = name[13..]
+	}
+	// `net.html.atom` -> `atom`
+	name = name.split('.${v.@module}.')[1] or { name }
+
+	alias := v.get_name(tree.child['Name'].tree, .snake_case, .other)
+
+	v.imports << Import{name, alias}
 }
 
 // extract the constant or the enum from a `Tree`

@@ -20,6 +20,8 @@ type Foo struct {
 	def [][2]string
 }
 
+type insertionMode func() bool
+
 func bis() {
 	var s = []string{}
 }

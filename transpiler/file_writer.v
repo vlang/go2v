@@ -26,11 +26,15 @@ fn (mut v VAST) write_module() {
 
 // write the module imports
 fn (mut v VAST) write_imports() {
-	for @import in v.imports {
+	for imp in v.imports {
 		// remove useless `fmt` import
-		if (@import in v.used_imports && v.used_imports[@import])
-			|| @import !in transpiler.supported_custom_imports {
-			v.out.writeln('import ${@import}')
+		if (imp.name in v.used_imports && v.used_imports[imp.name])
+			|| imp.name !in transpiler.supported_custom_imports {
+			if imp.alias.len < 1 {
+				v.out.writeln('import $imp.name')
+			} else {
+				v.out.writeln('import $imp.name as $imp.alias')
+			}
 		}
 	}
 }

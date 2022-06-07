@@ -6,7 +6,7 @@ struct VAST {
 mut:
 	// AST
 	@module    string
-	imports    []string
+	imports    []Import
 	consts     []VariableStmt
 	structs    []Struct
 	unions     []StructLike
@@ -35,6 +35,11 @@ mut:
 	vars_with_struct_value map[string]string
 	// method utils
 	current_method_var_name string
+}
+
+struct Import {
+	name  string
+	alias string
 }
 
 struct Struct {

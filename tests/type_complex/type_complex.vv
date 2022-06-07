@@ -3,6 +3,8 @@ module main
 import crypto.aes
 import golang.org.x.text.encoding
 
+type InsertionMode = fn () bool
+
 struct BinTree {
 mut:
 	sil []&BinTree
