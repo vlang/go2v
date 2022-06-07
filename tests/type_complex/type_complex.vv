@@ -1,7 +1,7 @@
 module main
 
 import crypto.aes
-import golang.org.x.text.encoding
+import text.encoding
 
 type InsertionMode = fn () bool
 

@@ -224,7 +224,7 @@ fn (mut v VAST) get_type(tree Tree) string {
 			mut fn_stmt := v.extract_function(temp.parent, false)
 			fn_stmt.name = ''
 			fn_stmt.public = false
-			raw_type << v.stmt_to_string(fn_stmt)#[..-4]
+			raw_type << v.stmt_to_string(fn_stmt)
 		}
 
 		// inline structs

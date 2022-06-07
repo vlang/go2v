@@ -194,7 +194,7 @@ fn (mut v VAST) extract_struct(tree Tree, inline bool) string {
 // extract the function from a `Tree`
 fn (mut v VAST) extract_function(tree Tree, is_decl bool) FunctionStmt {
 	mut func := FunctionStmt{
-		type_ctx: 'Names' in tree.child // detect function used as the type of a struct's field
+		type_ctx: !is_decl
 	}
 
 	raw_fn_name := if is_decl {
@@ -652,8 +652,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			]}
 		}
 		'*ast.FuncLit' {
-			// TODO: ensure it's `true`
-			ret = v.extract_function(tree, false)
+			ret = v.extract_function(tree, true)
 		}
 		'*ast.Ellipsis' {
 			ret = bv_stmt('...')
