@@ -27,7 +27,7 @@ fn test_all() ? {
 	mut failures := []string{}
 
 	for tidx, dir in all_tests {
-		start := '${tidx + 1:2}/${all_tests.len:-2}'
+		start := '${tidx + 1:3}/${all_tests.len:-2}'
 		go_source := os.quoted_path('$go2v_path/tests/$dir/${dir}.go') // `path/to/test_name.go`
 		produced_vv_source := '$go2v_path/tests/$dir/out.vv' // `path/to/out.vv`
 		expected_vv_source := '$go2v_path/tests/$dir/${dir}.vv' // `path/to/test_name.vv`
