@@ -91,6 +91,10 @@ fn (mut v VAST) extract_import(tree Tree) {
 	if name.starts_with('golang.org.x.') {
 		name = name[13..]
 	}
+	// `unicode/utf8` -> `encoding.utf8`
+	if name.starts_with('unicode.') {
+		name = 'encoding.${name[8..]}'
+	}
 	// `net.html.atom` -> `atom`
 	name = name.split('.${v.@module}.')[1] or { name }
 
@@ -354,7 +358,8 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 
 					// []int{1, 2, 3} -> [1, 2, 3]
 					// []int32{1, 2, 3} -> [i32(1), 2, 3]
-					if array.@type !in transpiler.well_interpreted_types && array.@type in v_types {
+					if array.values.len > 0 && array.@type !in transpiler.well_interpreted_types
+						&& array.@type in v_types {
 						array.values[0] = CallStmt{
 							namespaces: array.@type
 							args: [array.values[0]]
@@ -383,11 +388,13 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				}
 				// maps
 				'*ast.MapType' {
-					split_map_type := v.get_type(tree).split(']')
+					map_type := v.get_type(tree)
+					split_map_type := map_type.split(']')
 
 					// short `{"key": "value"}` syntax
-					v.current_implicit_map_type = split_map_type[1]
-					no_type := v.current_implicit_map_type.len == 0
+					v.current_implicit_map_type = map_type#[split_map_type[0].len + 1..]
+					not_a_struct := v.current_implicit_map_type.len == 0
+						|| v.current_implicit_map_type[0] == `[`
 
 					mut map_stmt := MapStmt{
 						key_type: split_map_type[0][4..]
@@ -397,7 +404,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 					for _, el in tree.child['Elts'].tree.child {
 						raw := v.extract_stmt(el.tree)
 
-						if no_type {
+						if not_a_struct {
 							// direct values
 							mut key_val_stmt := raw as KeyValStmt
 							mut array := ArrayStmt{}
@@ -463,6 +470,13 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				if base.child['Ellipsis'].val != '0' {
 					idx := call_stmt.args.len - 1
 					call_stmt.args[idx] = MultipleStmt{[bv_stmt('...'), call_stmt.args[idx]]}
+				}
+
+				// `[]byte("Hello, 世界")` -> `"Hello, 世界".bytes()`
+				if fn_stmt.name[0] == `[` {
+					call_stmt = CallStmt{
+						namespaces: '${v.stmt_to_string(call_stmt.args[0])}.bytes'
+					}
 				}
 
 				v.extract_embedded_declaration(base.child['Fun'].tree)

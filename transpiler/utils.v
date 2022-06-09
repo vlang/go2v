@@ -103,6 +103,9 @@ fn format_and_set_naming_style(str string, naming_style NamingStyle) string {
 			`\\` {
 				"'" + str#[3..-3].replace("'", "\\'").replace('\\\\', '\\') + "'"
 			}
+			`\`` {
+				"'" + str#[2..-2].replace("'", "\\'").replace('\\\\', '\\') + "'"
+			}
 			// runes
 			`'` {
 				'`${str#[2..-2].replace('\\\\', '\\')}`'
@@ -410,6 +413,11 @@ fn (mut v VAST) get_initial_name(tree Tree, naming_style NamingStyle) []string {
 		// `a[idx]` syntax
 		if 'Index' in temp.child {
 			namespaces << '[' + v.stmt_to_string(v.extract_stmt(temp.child['Index'].tree)) + ']'
+		}
+
+		// `[]type` syntax
+		if 'Elt' in temp.child {
+			namespaces << '[]' + v.stmt_to_string(v.extract_stmt(temp.child['Elt'].tree))
 		}
 
 		temp = temp.child[if 'X' in temp.child { 'X' } else { 'Fun' }].tree

@@ -8,9 +8,6 @@ path_test_area/
 temp/
 tests/**/out.vv
 test.go
-test.v
-z
-out
 
 #MacOS
 .DS_Store

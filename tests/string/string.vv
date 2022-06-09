@@ -1,0 +1,10 @@
+module main
+
+fn main() {
+	mut a := '="'
+	mut b := '='
+	mut c := '\n\\'
+	mut d := '\n\\'
+	mut e := "''"
+	mut f := "''"
+}

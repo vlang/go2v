@@ -12,7 +12,34 @@ const (
 		'rune':   'runes'
 	}
 	// methods of the string builder that require a special treatment
-	string_builder_diffs = ['cap', 'grow', 'len', 'reset', 'string', 'write']
+	string_builder_diffs  = ['cap', 'grow', 'len', 'reset', 'string', 'write']
+	// equivalent of Go's `unicode.utf8.EncodeRune()`
+	// fn go2v_utf8_encode_rune(mut p []u8, r rune) int {
+	// 	mut bytes := r.bytes()
+	// 	p << bytes
+	// 	return bytes.len
+	// }
+	go2v_utf8_encode_rune = FunctionStmt{
+		name: 'go2v_utf8_encode_rune'
+		args: {
+			'p': 'mut []u8'
+			'r': 'rune'
+		}
+		ret_vals: ['int']
+		body: [
+			VariableStmt{
+				names: ['bytes']
+				middle: ':='
+				values: [CallStmt{
+					namespaces: 'r.bytes'
+				}]
+			},
+			PushStmt{BasicValueStmt{'p'}, BasicValueStmt{'bytes'}},
+			ReturnStmt{
+				values: [BasicValueStmt{'bytes.len'}]
+			},
+		]
+	}
 )
 
 // transform a statement valid in Go into a valid one in V
@@ -33,6 +60,7 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 			'strings' { v.transform_strings_module(stmt, last_ns) }
 			'fmt' { v.transform_print(stmt, last_ns) }
 			'os' { v.transform_exit(stmt, last_ns) }
+			'utf8' { v.transform_utf8(stmt, last_ns) }
 			else { stmt }
 		}
 		// string builders
@@ -280,4 +308,42 @@ fn (mut v VAST) transform_strings_module(stmt CallStmt, right string) Statement 
 		v.used_imports['strings'] = true
 	}
 	return stmt
+}
+
+fn (mut v VAST) transform_utf8(stmt CallStmt, right string) Statement {
+	match right {
+		'rune_len' {
+			return CallStmt{
+				namespaces: '${v.stmt_to_string(stmt.args[0])}.length_in_bytes'
+			}
+		}
+		'encode_rune' {
+			if transpiler.go2v_utf8_encode_rune !in v.functions {
+				v.functions << transpiler.go2v_utf8_encode_rune
+			}
+			return CallStmt{
+				namespaces: 'go2v_utf8_encode_rune'
+				args: [BasicValueStmt{'mut ${v.stmt_to_string(stmt.args[0])}'}, stmt.args[1]]
+			}
+		}
+		'rune_start' {
+			return CallStmt{
+				namespaces: 'utf8.is_letter'
+				args: stmt.args
+			}
+		}
+		'valid' {
+			return CallStmt{
+				namespaces: 'utf8.validate_str'
+				args: [
+					CallStmt{
+						namespaces: '${v.stmt_to_string(stmt.args[0])}.bytestr'
+					},
+				]
+			}
+		}
+		else {
+			return stmt
+		}
+	}
 }
