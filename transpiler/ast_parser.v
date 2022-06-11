@@ -17,8 +17,8 @@ enum TokenType {
 
 struct Token {
 mut:
-	@type TokenType
-	data  string
+	typ  TokenType
+	data string
 }
 
 // it's best to use a struct instead of a sumtype because for the ast construction stage it make the code extremly complex to write and read
@@ -39,7 +39,9 @@ mut:
 fn tokenizer(input []rune) []Token {
 	mut state := TokenizerState.tree_name
 	mut tokens := []Token{}
-	mut temp_token := Token{.tree_name, ''}
+	mut temp_token := Token{
+		typ: .tree_name
+	}
 	mut next_ch := `a`
 	mut next_next_ch := `a`
 	mut first_iter := true
@@ -53,7 +55,7 @@ fn tokenizer(input []rune) []Token {
 				match next_ch {
 					`.` {}
 					` ` {
-						// counting spaces is a hack to know if we've passed the line count present at each line
+						// counting spaces is a way to know if we've passed the line count present at the beginning of each line
 						space_count++
 					}
 					else {
@@ -70,7 +72,9 @@ fn tokenizer(input []rune) []Token {
 					`{` {
 						state = .body_name
 						tokens << temp_token
-						temp_token = Token{.body_name, ''}
+						temp_token = Token{
+							typ: .body_name
+						}
 					}
 					else {
 						if first_iter {
@@ -90,10 +94,14 @@ fn tokenizer(input []rune) []Token {
 					`:` {
 						state = .body_value
 						tokens << temp_token
-						temp_token = Token{.body_value, ''}
+						temp_token = Token{
+							typ: .body_value
+						}
 					}
 					`}` {
-						tokens << Token{.tree_close, ''}
+						tokens << Token{
+							typ: .tree_close
+						}
 					}
 					else {
 						temp_token.data += ch.str()
@@ -101,10 +109,12 @@ fn tokenizer(input []rune) []Token {
 				}
 			}
 			.body_value {
-				temp_next := [next_ch, next_next_ch]
-				if [[`*`, `a`], [`[`, `]`], [`m`, `a`]].contains(temp_next) {
+				if [next_ch, next_next_ch] in [[`*`, `a`], [`[`, `]`],
+					[`m`, `a`]] {
 					state = .tree_name
-					temp_token = Token{.tree_name, ''}
+					temp_token = Token{
+						typ: .tree_name
+					}
 				} else {
 					state = .string
 				}
@@ -114,7 +124,9 @@ fn tokenizer(input []rune) []Token {
 					`\n` {
 						state = .ignore
 						tokens << temp_token
-						temp_token = Token{.body_name, ''}
+						temp_token = Token{
+							typ: .body_name
+						}
 					}
 					else {
 						temp_token.data += ch.str()
@@ -123,7 +135,9 @@ fn tokenizer(input []rune) []Token {
 			}
 		}
 	}
-	tokens << Token{.tree_close, ''}
+	tokens << Token{
+		typ: .tree_close
+	}
 
 	return tokens
 }
@@ -135,7 +149,7 @@ fn tree_constructor(tokens []Token) Tree {
 	mut last_was_body_name := false
 
 	for token in tokens {
-		match token.@type {
+		match token.typ {
 			.tree_name {
 				if !last_was_body_name {
 					current_tree.name = token.data
@@ -145,7 +159,7 @@ fn tree_constructor(tokens []Token) Tree {
 						name: token.data
 						parent: current_tree
 					}
-					current_tree = &current_tree.child[temp_child_key].tree // `or { tree }` here is just a trick to make the compiler happy, it will never be executed
+					current_tree = &current_tree.child[temp_child_key].tree
 					temp_child_key = ''
 				}
 			}

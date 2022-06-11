@@ -219,7 +219,7 @@ fn (mut v VAST) transform_print(stmt CallStmt, right string) Statement {
 				str_stmt := v.stmt_to_string(arg)#[..-1]
 
 				// strings
-				if str_stmt[0] == `'` && str_stmt[str_stmt.len - 1] == `'` {
+				if str_stmt[0] in [`'`, `"`] && str_stmt[str_stmt.len - 1] in [`'`, `"`] {
 					out += str_stmt#[1..-1]
 					// numbers & booleans
 				} else if (`0` <= str_stmt[0] && str_stmt[0] <= `9`)

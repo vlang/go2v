@@ -1,6 +1,7 @@
 module transpiler
 
 import v.token
+import strings
 
 const (
 	// types equivalence (left Go & right V)
@@ -95,33 +96,63 @@ fn escape(str string) string {
 
 // apply basic formatting plus a specific naming style
 fn format_and_set_naming_style(str string, naming_style NamingStyle) string {
-	mut out := str
-
 	if str.len > 0 {
-		out = match str[1] {
-			// strings
-			`\\` {
-				"'" + str#[3..-3].replace("'", "\\'").replace('\\\\', '\\') + "'"
-			}
-			`\`` {
-				"'" + str#[2..-2].replace("'", "\\'").replace('\\\\', '\\') + "'"
-			}
-			// runes
-			`'` {
-				'`${str#[2..-2].replace('\\\\', '\\')}`'
-			}
-			// everything else
-			else {
-				str#[1..-1]
+		surround_ch, value_only := match str[1] {
+			`\\` { `"`, str#[3..-3] }
+			`\`` { `'`, str#[2..-2] }
+			`'` { `\``, str#[2..-2] }
+			else { ` `, str#[1..-1] }
+		}
+		mut out := strings.new_builder(10)
+		mut prev_prev_was_backslash := false
+		mut prev_was_backslash := false
+
+		for ch in value_only.runes() {
+			if prev_prev_was_backslash {
+				prev_prev_was_backslash, prev_was_backslash = false, false
+				out.write_rune(`\\`)
+				out.write_rune(ch)
+			} else if ch == `\\` && prev_was_backslash {
+				prev_prev_was_backslash = true
+			} else if ch == `\\` {
+				prev_was_backslash = true
+			} else {
+				prev_prev_was_backslash, prev_was_backslash = false, false
+				out.write_rune(ch)
 			}
 		}
 
-		if !(out[0] == `'` || out[0] == `\``) {
-			out = set_naming_style(out, naming_style)
+		if prev_prev_was_backslash {
+			out.write_string('\\\\')
+		} else if prev_was_backslash && surround_ch == `'` {
+			out.write_rune(`\\`)
 		}
+
+		out_str := match surround_ch {
+			// string
+			`"` {
+				out.str().replace('\\"', '"')
+			}
+			`'` {
+				out.str().replace('\\\\', '\\').replace('\\', '\\\\').replace("'", "\\'")
+			}
+			// rune
+			`\`` {
+				out.str().replace('`', '\\`')
+			}
+			// other
+			else {
+				escape(set_naming_style(out.str(), naming_style))
+			}
+		}
+
+		if surround_ch != ` ` {
+			return '$surround_ch$out_str$surround_ch'
+		}
+		return out_str
 	}
 
-	return escape(out)
+	return str
 }
 
 // get the zero value of a given type

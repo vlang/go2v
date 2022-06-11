@@ -4,7 +4,33 @@ fn main() {
 	mut a := '="'
 	mut b := '='
 	mut c := '\n\\'
-	mut d := '\n\\'
+	mut d := '\\n\\\\'
 	mut e := "''"
 	mut f := "''"
+	mut g := '\\'
+	mut h := 'a"\\">'
+	mut i := `a`
+	mut j := `\\`
+	mut k := `'`
+	mut l := `\``
+	mut m := l
+	mut n := '"'
+	mut o := '\\"'
+	mut p := 'Hello, 世界'
+	println('a $a')
+	println('b $b')
+	println('c $c')
+	println('d $d')
+	println('e $e')
+	println('f $f')
+	println('g $g')
+	println('h $h')
+	println('i $i')
+	println('j $j')
+	println('k $k')
+	println('l $l')
+	println('m $m')
+	println('n $n')
+	println('o $o')
+	println('p $p')
 }
