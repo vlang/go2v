@@ -346,9 +346,8 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 		// (almost) basic variable value
 		// eg: -1
 		'*ast.UnaryExpr' {
-			op := if tree.child['Op'].val != 'range' { tree.child['Op'].val } else { '' }
 			ret = ComplexValueStmt{
-				op: op
+				op: if tree.child['Op'].val != 'range' { tree.child['Op'].val } else { '' }
 				value: v.extract_stmt(tree.child['X'].tree)
 			}
 		}
@@ -690,7 +689,8 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 		'*ast.BinaryExpr' {
 			ret = MultipleStmt{[
 				v.extract_stmt(tree.child['X'].tree),
-				bv_stmt(' ' + tree.child['Op'].val + ' '),
+				bv_stmt(' ' +
+					if tree.child['Op'].val != '&^' { tree.child['Op'].val } else { '&~' } + ' '),
 				v.extract_stmt(tree.child['Y'].tree),
 			]}
 		}
