@@ -23,7 +23,7 @@ fn ast_extractor(tree Tree) VAST {
 	return v_ast
 }
 
-// TODO: better system, this one is clumsy
+// extract a declaration from a `Tree`
 fn (mut v VAST) extract_declaration(tree Tree, embedded bool) {
 	base, fn_base, type_of_gen_decl_field_name := if !embedded {
 		tree.child['Specs'].tree, tree, 'Tok'

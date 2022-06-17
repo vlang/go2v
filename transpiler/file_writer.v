@@ -205,8 +205,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			v.out.write_string('${stmt.namespaces}(')
 			for i, arg in stmt.args {
 				v.write_stmt(arg, true)
-				// TODO: useless after https://github.com/vlang/v/issues/14551 gets fixed
-				v.out.write_string(if i != stmt.args.len - 1 { ',' } else { '' })
+				v.out.write_rune(`,`)
 			}
 			v.out.write_rune(`)`)
 		}
