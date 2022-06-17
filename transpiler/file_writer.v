@@ -203,7 +203,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 		}
 		CallStmt {
 			v.out.write_string('${stmt.namespaces}(')
-			for i, arg in stmt.args {
+			for arg in stmt.args {
 				v.write_stmt(arg, true)
 				v.out.write_rune(`,`)
 			}
