@@ -1,6 +1,63 @@
 module transpiler
 
 const (
+	// `name` as a key includes `name`
+	// `name.` as a key includes `name`, `name.foo`, `name.foo.bar`...
+	// `name` as a value transforms to `name`
+	// `name.` as a key transforms to `name`, `name.foo`, `name.foo.bar`...
+	// `` as a key removes the import
+	// `nameInGo`: `nameInV`
+	module_equivalence = {
+		'archive.':           'compress.'
+		'bufio':              'io'
+		'bytes':              ''
+		'compress.flate':     'compress.deflate'
+		'container.':         'datatypes'
+		'database.':          ''
+		'debug.':             ''
+		'embed':              ''
+		'encoding.json':      'json'
+		'errors':             ''
+		'expvar':             ''
+		'fmt':                ''
+		'@go.':               'v.'
+		'html.':              ''
+		'image.':             'gg'
+		'index.':             ''
+		'io.fs':              'os'
+		'io.ioutil':          'io.util'
+		'log.syslog':         ''
+		'math.cmplx':         'math.complex'
+		'math.rand':          'rand'
+		'mime.':              'net.http.mime'
+		'net.http.cgi':       'net.http'
+		'net.http.cookiejar': 'net.http'
+		'net.http.fcgi':      'net.http'
+		'net.http.httptest':  ''
+		'net.http.httptrace': ''
+		'net.http.httputil':  'net.http'
+		'net.http.pprof':     ''
+		'net.mail':           'net.smtp'
+		'net.netip':          ''
+		'net.rpc.':           ''
+		'net.textproto':      ''
+		'net.url':            'net.urllib'
+		'os.':                'os'
+		'path.':              'os'
+		'plugin':             ''
+		'reflect':            ''
+		'regexp.':            'regex'
+		'runtime.':           ''
+		'sort':               ''
+		'sync.atomic':        'sync.stdatomic'
+		'syscall.':           ''
+		'testing.':           ''
+		'text.':              'strings'
+		'time.tzdata':        'time'
+		'unicode.':           'encoding.'
+		'unsafe':             ''
+		'internal.':          ''
+	}
 	// functions that are in the `strings` module in Go and in the `builtin` module in V
 	strings_to_builtin = ['compare', 'contains', 'contains_any', 'count', 'fields', 'index',
 		'index_any', 'index_byte', 'last_index', 'last_index_byte', 'repeat', 'split', 'title',
@@ -14,6 +71,7 @@ const (
 	// methods of the string builder that require a special treatment
 	string_builder_diffs  = ['cap', 'grow', 'len', 'reset', 'string', 'write']
 	// equivalent of Go's `unicode.utf8.EncodeRune()`
+	//
 	// fn go2v_utf8_encode_rune(mut p []u8, r rune) int {
 	// 	mut bytes := r.bytes()
 	// 	p << bytes
@@ -58,7 +116,7 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 			'make' { v.transform_make(stmt) }
 			'delete' { v.transform_delete(stmt) }
 			'strings' { v.transform_strings_module(stmt, last_ns) }
-			'fmt' { v.transform_print(stmt, last_ns) }
+			'fmt' { v.transform_fmt(stmt, last_ns) }
 			'os' { v.transform_exit(stmt, last_ns) }
 			'utf8' { v.transform_utf8(stmt, last_ns) }
 			else { stmt }
@@ -196,52 +254,99 @@ fn (mut v VAST) transform_delete(stmt CallStmt) Statement {
 	}
 }
 
-// `fmt.println(a, b)` -> `println('$a $b')`
-fn (mut v VAST) transform_print(stmt CallStmt, right string) Statement {
-	if right == 'println' || right == 'print' {
-		mut call_stmt := stmt
-		call_stmt.namespaces = right
+// handle *most of* the Go fmt module
+fn (mut v VAST) transform_fmt(stmt CallStmt, right string) Statement {
+	match right {
+		// fmt.Errorf(fmt, a) err -> error(strconv.v_sprintf(fmt, a)) err
+		'errorf' {
+			v.imports['strconv'] = ''
 
-		// `fmt.println("Hi " + name)` -> `println('Hi $name')`
-		mut is_plus_syntax := false
-		for arg in call_stmt.args {
-			if arg is MultipleStmt {
-				is_plus_syntax = true
-				call_stmt.args.pop()
-				call_stmt.args << arg.stmts[0]
-				call_stmt.args << arg.stmts[2]
+			return CallStmt{
+				namespaces: 'error'
+				args: [
+					CallStmt{
+						namespaces: 'strconv.v_sprintf'
+						args: stmt.args
+					},
+				]
 			}
 		}
+		// fmt.Fprint(os.Stdout, a) int, err -> print(a)
+		// fmt.Fprint(os.Stderr, a) int, err -> eprint(a)
+		'fprint' {
+			fn_name := if stmt.args[0] == bv_stmt('os.Stderr') { 'eprint' } else { 'print' }
 
-		if call_stmt.args.len > 1 {
-			mut out := "'"
-			for i, arg in call_stmt.args {
-				str_stmt := v.stmt_to_string(arg)#[..-1]
-
-				// strings
-				if str_stmt[0] in [`'`, `"`] && str_stmt[str_stmt.len - 1] in [`'`, `"`] {
-					out += str_stmt#[1..-1]
-					// numbers & booleans
-				} else if (`0` <= str_stmt[0] && str_stmt[0] <= `9`)
-					|| str_stmt == 'true' || str_stmt == 'false' {
-					out += str_stmt
-					// anything else
-				} else {
-					out += '\${$str_stmt}'
-				}
-
-				if !is_plus_syntax && i != call_stmt.args.len - 1 {
-					out += ' '
-				}
+			return CallStmt{
+				namespaces: fn_name
+				args: v.print_args_to_single(stmt.args[1..])
 			}
-
-			call_stmt.args = [BasicValueStmt{"$out'"}]
 		}
+		// fmt.Fprintf(os.Stdout, fmt, a) int, err -> print(strconv.v_sprintf(fmt, a))
+		// fmt.Fprintf(os.Stderr, fmt, a) int, err -> eprint(strconv.v_sprintf(fmt, a))
+		'fprintf' {
+			v.imports['strconv'] = ''
+			fn_name := if stmt.args[0] == bv_stmt('os.Stderr') { 'eprint' } else { 'print' }
 
-		return call_stmt
-	} else {
-		v.used_imports['fmt'] = true
-		return stmt
+			return CallStmt{
+				namespaces: fn_name
+				args: [
+					CallStmt{
+						namespaces: 'strconv.v_sprintf'
+						args: stmt.args
+					},
+				]
+			}
+		}
+		// fmt.Fprintln(os.Stdout, a) int, err -> println(a)
+		// fmt.Fprintln(os.Stderr, a) int, err -> eprintln(a)
+		'fprintln' {
+			fn_name := if stmt.args[0] == bv_stmt('os.Stderr') { 'eprintln' } else { 'println' }
+
+			return CallStmt{
+				namespaces: fn_name
+				args: v.print_args_to_single(stmt.args[1..])
+			}
+		}
+		// fmt.Print(a) int, err -> print(a)
+		'print' {
+			return CallStmt{
+				namespaces: 'print'
+				args: v.print_args_to_single(stmt.args)
+			}
+		}
+		// fmt.Printf(fmt, a) int, err -> strconv.v_printf(fmt, a)
+		'printf' {
+			return CallStmt{
+				namespaces: 'strconv.v_printf'
+				args: stmt.args
+			}
+		}
+		// fmt.Println(a) int, err -> println(a)
+		'println' {
+			return CallStmt{
+				namespaces: 'println'
+				args: v.print_args_to_single(stmt.args)
+			}
+		}
+		// fmt.Sprint(a) string -> go2v_fmt_a(a) string
+		'sprint' {
+			return NotYetImplStmt{}
+		}
+		// fmt.Sprintf(fmt, a) string -> strconv.v_sprintf(fmt, a) string
+		'sprintf' {
+			return CallStmt{
+				namespaces: 'strconv.v_sprintf'
+				args: stmt.args
+			}
+		}
+		// fmt.Sprintln(a) string -> go2v_fmt_a(a) + '\n' string
+		'sprintln' {
+			// TODO
+			return NotYetImplStmt{}
+		}
+		else {
+			return NotYetImplStmt{}
+		}
 	}
 }
 
@@ -253,7 +358,7 @@ fn (mut v VAST) transform_exit(stmt CallStmt, right string) Statement {
 			args: stmt.args
 		}
 	} else {
-		v.used_imports['os'] = true
+		v.imports['os'] = ''
 		return stmt
 	}
 }
@@ -305,7 +410,7 @@ fn (mut v VAST) transform_strings_module(stmt CallStmt, right string) Statement 
 	} else if right == 'new_builder' {
 		v.string_builder_vars << v.current_var_name
 	} else {
-		v.used_imports['strings'] = true
+		v.imports['strings'] = ''
 	}
 	return stmt
 }

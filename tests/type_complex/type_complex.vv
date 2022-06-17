@@ -1,7 +1,7 @@
 module main
 
 import crypto.aes
-import text.encoding
+import strings
 
 type InsertionMode = fn () bool
 

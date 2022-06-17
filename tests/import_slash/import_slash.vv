@@ -1,6 +1,0 @@
-module main
-
-import crypto.aes
-import @go.ast
-
-fn main() {}

@@ -1,8 +1,21 @@
 package main
 
 import (
-	"aes"
+	// test the import equivalence map
+	"archive/zip"
+	"bufio"
+	"bytes"
+	"compress/flate"
+	"compress/zlib"
+	"container/list"
+	"database/sql"
+	"go/ast"
 	"io"
+	"io.ioutil"
+	"mime"
+	"mime/multipart"
+	"net/http/cookiejar"
+	"os"
+	"os/user"
+	"unicode/utf8"
 )
-
-func main() {} //TODO: remove after https://github.com/vlang/v/issues/14267 is fixed

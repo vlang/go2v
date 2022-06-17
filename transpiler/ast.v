@@ -6,18 +6,16 @@ struct VAST {
 mut:
 	// AST
 	@module    string
-	imports    []Import
+	imports    map[string]string // map[name]alias
 	consts     []VariableStmt
 	structs    []Struct
-	unions     []StructLike
-	interfaces []StructLike
-	enums      []StructLike
+	unions     []NameFields
+	interfaces []NameFields
+	enums      []NameFields
 	types      map[string]string
 	functions  []FunctionStmt
 	// `file_writer.v`
 	out strings.Builder = strings.new_builder(400)
-	// module_name utils
-	used_imports map[string]bool = {}
 	// string builders utils
 	current_var_name    string
 	string_builder_vars []string
@@ -37,18 +35,13 @@ mut:
 	current_method_var_name string
 }
 
-struct Import {
-	name  string
-	alias string
-}
-
 struct Struct {
-	StructLike
+	NameFields
 mut:
 	embedded_structs []string
 }
 
-struct StructLike {
+struct NameFields {
 mut:
 	name   string
 	fields map[string]Statement

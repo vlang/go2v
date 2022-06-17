@@ -94,7 +94,8 @@ fn escape(str string) string {
 	return str
 }
 
-// apply basic formatting plus a specific naming style
+// format the input string
+// eg: "\"\\n\\\\\"" -> '\n\\'
 fn format_and_set_naming_style(str string, naming_style NamingStyle) string {
 	if str.len > 0 {
 		surround_ch, value_only := match str[1] {
@@ -306,6 +307,11 @@ fn (mut v VAST) get_type(tree Tree) string {
 		}
 	}
 
+	if pre_type + out == '&bytes.Buffer' {
+		v.imports['strings'] = ''
+		return 'strings.Builder'
+	}
+
 	return pre_type + out
 }
 
@@ -504,4 +510,69 @@ fn not_implemented(tree Tree) NotYetImplStmt {
 	}
 
 	return NotYetImplStmt{}
+}
+
+// `var + "string " + 42 + true` -> `'${var}string 42true'`
+fn (mut v VAST) multiple_stmt_to_string(stmt MultipleStmt) []Statement {
+	mut out := []Statement{}
+
+	if stmt.stmts[0] is MultipleStmt {
+		// TODO: remove explicit cast once https://github.com/vlang/v/issues/14766 is fixed
+		out << v.multiple_stmt_to_string(stmt.stmts[0] as MultipleStmt)
+	} else {
+		out << stmt.stmts[0]
+	}
+	if stmt.stmts[2] is MultipleStmt {
+		// TODO: remove explicit cast once https://github.com/vlang/v/issues/14766 is fixed
+		out << v.multiple_stmt_to_string(stmt.stmts[2] as MultipleStmt)
+	} else {
+		out << stmt.stmts[2]
+	}
+
+	return out
+}
+
+// `a, b` -> `'$a $b'`
+fn (mut v VAST) print_args_to_single(args []Statement) []Statement {
+	mut args_ := []Statement{}
+
+	for arg in args {
+		if arg is MultipleStmt {
+			args_ << v.multiple_stmt_to_string(arg)
+		} else {
+			args_ << arg
+		}
+	}
+
+	if args_.len == 1 {
+		return [args_[0]]
+	}
+
+	mut out := "'"
+	for i, arg in args_ {
+		if arg is BasicValueStmt {
+			arg_val := arg.value
+
+			if (`0` <= arg_val[0] && arg_val[0] <= `9`) || arg_val in ['true', 'false'] {
+				// number/boolean
+				out += arg_val
+			} else if [arg_val[0], arg_val[arg_val.len - 1]].all(it in [`"`, `'`, `\``]) {
+				// string/rune
+				out += arg_val#[1..-1]
+			} else {
+				// anything else
+				out += '\${$arg_val}'
+			}
+		} else {
+			// anything else
+			out += '\${${v.stmt_to_string(arg)}}'
+		}
+
+		if arg in args && i != args.len - 1 {
+			out += ' '
+		}
+	}
+	out += "'"
+
+	return [bv_stmt(out)]
 }

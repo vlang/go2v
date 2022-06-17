@@ -36,7 +36,7 @@ fn (mut v VAST) extract_declaration(tree Tree, embedded bool) {
 	} else {
 		gen_decl_type := tree.child[type_of_gen_decl_field_name].val
 		// enums are a special case
-		mut enum_stmt := StructLike{}
+		mut enum_stmt := NameFields{}
 
 		for _, decl in base.child {
 			match gen_decl_type {
@@ -84,28 +84,57 @@ fn (mut v VAST) extract_module(tree Tree) {
 	v.@module = v.get_name(tree, .snake_case, .other)
 }
 
-// extract the module imports from a `Tree`
+// extract the imports from a `Tree`
 fn (mut v VAST) extract_import(tree Tree) {
-	mut name := v.get_name(tree.child['Path'].tree, .snake_case, .other)#[1..-1].split('/').map(escape(it)).join('.')
-	// `golang.org/x/net/html/atom` -> `net.html.atom`
-	if name.starts_with('golang.org.x.') {
-		name = name[13..]
-	}
-	// `unicode/utf8` -> `encoding.utf8`
-	if name.starts_with('unicode.') {
-		name = 'encoding.${name[8..]}'
-	}
-	// `net.html.atom` -> `atom`
-	name = name.split('.${v.@module}.')[1] or { name }
-
+	mut imp_name := v.get_name(tree.child['Path'].tree, .snake_case, .other)#[1..-1].split('/').map(escape(it)).join('.')
 	alias := v.get_name(tree.child['Name'].tree, .snake_case, .other)
 
-	v.imports << Import{name, alias}
+	// `golang.org/x/net/html/atom` -> `net.html.atom`
+	if imp_name.starts_with('golang.org.x.') {
+		imp_name = imp_name[13..]
+	}
+
+	// get the `matched_val` value corresponding to the `imp_name`
+	mut imp_name_parts := imp_name.split('.')
+	mut matched_val := 'already correct import'
+	parent: for key, val in module_equivalence {
+		key_parts := key.split('.')
+		for i, _ in key_parts {
+			if key_parts[i].len > 1 && key_parts[i] != imp_name_parts[i] or { '' } {
+				continue parent
+			}
+		}
+		matched_val = val
+		break
+	}
+
+	// use `matched_val`
+	if matched_val.len > 1 {
+		if matched_val != 'already correct import' {
+			// import direct change
+			if matched_val[matched_val.len - 1] != `.` {
+				imp_name = matched_val
+				// `new_import.` syntax
+			} else {
+				imp_name_parts[0] = matched_val#[..-1]
+				imp_name = imp_name_parts.join('.')
+			}
+		}
+
+		//	module html
+		//	import net.html.atom
+		// ->
+		//	module html
+		//	import atom
+		imp_name = imp_name.split('${v.@module}.')[1] or { imp_name }
+
+		v.imports[imp_name] = alias
+	}
 }
 
 // extract the constant or the enum from a `Tree`
 // as in Go enums are represented as constants, we use the same function for both
-fn (mut v VAST) extract_const_or_enum(tree Tree, raw_enum_stmt StructLike, is_enum bool) StructLike {
+fn (mut v VAST) extract_const_or_enum(tree Tree, raw_enum_stmt NameFields, is_enum bool) NameFields {
 	mut enum_stmt := raw_enum_stmt
 	mut var_stmt := v.extract_variable(tree, false, false)
 	var_stmt.middle = '='
