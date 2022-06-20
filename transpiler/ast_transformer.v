@@ -126,6 +126,10 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 			&& transpiler.string_builder_diffs.contains(last_ns) {
 			ret_stmt = v.transform_string_builder(stmt, all_but_last_ns, last_ns)
 		}
+		// `err.Error()` -> `err`
+		if first_ns in v.vars_with_error_value {
+			ret_stmt = BasicValueStmt{first_ns}
+		}
 	} else if stmt is VariableStmt {
 		mut temp_stmt := stmt
 		mut multiple_stmt := MultipleStmt{}
@@ -170,6 +174,8 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 
 					temp_stmt.names.delete(i)
 					temp_stmt.values.delete(i)
+				} else if value.namespaces == 'error' {
+					v.vars_with_error_value << stmt.names[i]
 				}
 			} else if mut value is StructStmt {
 				v.vars_with_struct_value[v.current_var_name] = value.name
@@ -292,7 +298,7 @@ fn (mut v VAST) transform_fmt(stmt CallStmt, right string) Statement {
 				args: [
 					CallStmt{
 						namespaces: 'strconv.v_sprintf'
-						args: stmt.args
+						args: stmt.args[1..]
 					},
 				]
 			}

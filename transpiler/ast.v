@@ -31,6 +31,8 @@ mut:
 	declared_global_new []string
 	// struct utils
 	vars_with_struct_value map[string]string
+	// error utils
+	vars_with_error_value []string
 	// method utils
 	current_method_var_name string
 }

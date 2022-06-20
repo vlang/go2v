@@ -1,0 +1,20 @@
+module main
+
+import os
+import strconv
+
+fn main() {
+	mut name, id := 'bueller', 17
+	mut err := error(strconv.v_sprintf('user %q (id %d) not found', name, id))
+	println(err)
+	print('hey')
+	print('hey')
+	print(strconv.v_sprintf('%s', 'hey'))
+	print(strconv.v_sprintf('%s', 'hey'))
+	println('hey')
+	println('hey')
+	print('hey')
+	strconv.v_printf('%s', 'hey')
+	println('hey')
+	println(strconv.v_sprintf('%s', 'hey'))
+}
