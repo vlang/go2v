@@ -56,7 +56,6 @@ type Statement = ArrayStmt
 	| BlockStmt
 	| BranchStmt
 	| CallStmt
-	| ComplexValueStmt
 	| DeferStmt
 	| ForInStmt
 	| ForStmt
@@ -125,11 +124,6 @@ mut:
 struct BasicValueStmt {
 mut:
 	value string
-}
-
-struct ComplexValueStmt {
-	op    string
-	value Statement
 }
 
 struct OptionalStmt {

@@ -33,7 +33,7 @@ struct Tree {
 mut:
 	name   string
 	child  map[string]Child
-	parent &Tree = 0
+	parent &Tree = unsafe { 0 }
 }
 
 fn tokenizer(input []rune) []Token {

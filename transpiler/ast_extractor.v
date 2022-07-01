@@ -343,13 +343,22 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				@type: v.get_name(tree.child['Elt'].tree, .ignore, .other)
 			}
 		}
-		// (almost) basic variable value
-		// eg: -1
 		'*ast.UnaryExpr' {
-			ret = ComplexValueStmt{
-				op: if tree.child['Op'].val != 'range' { tree.child['Op'].val } else { '' }
-				value: v.extract_stmt(tree.child['X'].tree)
-			}
+			op := if tree.child['Op'].val !in ['range', '+'] { tree.child['Op'].val } else { '' }
+
+			ret = MultipleStmt{[
+				bv_stmt('$op'),
+				v.extract_stmt(tree.child['X'].tree),
+			]}
+		}
+		'*ast.BinaryExpr' {
+			op := if tree.child['Op'].val != '&^' { tree.child['Op'].val } else { '&~' }
+
+			ret = MultipleStmt{[
+				v.extract_stmt(tree.child['X'].tree),
+				bv_stmt(' $op '),
+				v.extract_stmt(tree.child['Y'].tree),
+			]}
 		}
 		// arrays & `Struct{}` syntaxt
 		'*ast.CompositeLit' {
@@ -685,14 +694,6 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			}
 
 			ret = match_stmt
-		}
-		'*ast.BinaryExpr' {
-			ret = MultipleStmt{[
-				v.extract_stmt(tree.child['X'].tree),
-				bv_stmt(' ' +
-					if tree.child['Op'].val != '&^' { tree.child['Op'].val } else { '&~' } + ' '),
-				v.extract_stmt(tree.child['Y'].tree),
-			]}
 		}
 		'*ast.FuncLit' {
 			ret = v.extract_function(tree, true)

@@ -212,14 +212,19 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 				},
 			]}
 		}
-	} else if stmt is ComplexValueStmt {
+	} else if stmt is MultipleStmt {
 		// `bytes.Buffer{}` -> `strings.new_builder()`
 		// `strings.Buffer{}` -> `strings.new_builder()`
-		if stmt.value is StructStmt {
-			if stmt.value.name == 'bytes.Buffer' || stmt.value.name == 'strings.Builder' {
-				ret_stmt = CallStmt{
-					namespaces: 'strings.new_builder'
-					args: [bv_stmt('0')]
+
+		if stmt.stmts.len > 1 {
+			// TODO: remove once https://github.com/vlang/v/issues/14766 gets fixed
+			old_stmt := stmt.stmts[1]
+			if old_stmt is StructStmt {
+				if old_stmt.name == 'bytes.Buffer' || old_stmt.name == 'strings.Builder' {
+					ret_stmt = CallStmt{
+						namespaces: 'strings.new_builder'
+						args: [bv_stmt('0')]
+					}
 				}
 			}
 		}

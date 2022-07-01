@@ -415,10 +415,6 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			v.out.write_string('<<')
 			v.write_stmt(stmt.value, true)
 		}
-		ComplexValueStmt {
-			v.out.write_string(stmt.op)
-			v.write_stmt(stmt.value, true)
-		}
 		OptionalStmt {
 			v.write_stmt(stmt.stmt, true)
 			v.out.write_rune(`?`)
