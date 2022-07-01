@@ -61,7 +61,7 @@ fn (mut v VAST) write_enums() {
 	for enm in v.enums {
 		v.out.writeln('enum $enm.name {')
 		for name, val in enm.fields {
-			if val is BasicValueStmt && (val as BasicValueStmt).value.len == 0 {
+			if val is ValStmt && (val as ValStmt).value.len == 0 {
 				v.out.writeln(name)
 			} else {
 				v.out.writeln('$name = ')
@@ -93,6 +93,9 @@ fn (mut v VAST) write_structs() {
 
 // write the functions
 fn (mut v VAST) write_functions() {
+	for go2v_fn, _ in v.enabled_go2v_fns {
+		v.write_stmt(go2v_fns[go2v_fn], false)
+	}
 	for func in v.functions {
 		v.write_stmt(func, false)
 	}
@@ -218,9 +221,11 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 					v.out.write_string('else ')
 				}
 
-				if branch.condition != bv_stmt('') {
-					v.out.write_string('if ')
-					v.write_stmt(branch.condition, true)
+				if branch.condition is ValStmt {
+					if branch.condition.value.len > 0 {
+						v.out.write_string('if ')
+						v.write_stmt(branch.condition, true)
+					}
 				}
 				v.out.write_string('{\n')
 				v.write_body(branch.body)
@@ -318,13 +323,13 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 						val := el as KeyValStmt
 
 						match_stmt.cases << MatchCase{
-							values: [BasicValueStmt{val.key}]
+							values: [ValStmt{val.key}]
 							body: [val.value]
 						}
 					}
 					match_stmt.cases << MatchCase{
 						values: [bv_stmt('else')]
-						body: [BasicValueStmt{default_value}]
+						body: [ValStmt{default_value}]
 					}
 
 					v.write_stmt(match_stmt, true)
@@ -333,7 +338,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 				v.out.write_rune(`}`)
 			}
 		}
-		BasicValueStmt {
+		ValStmt {
 			v.out.write_string(stmt.value)
 		}
 		SliceStmt {

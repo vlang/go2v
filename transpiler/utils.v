@@ -385,7 +385,7 @@ fn (mut v VAST) get_name(tree Tree, naming_style NamingStyle, origin Origin) str
 
 					// add `field_name StructName` to embedded_structs
 					for _, val in current_struct.fields {
-						if val is BasicValueStmt {
+						if val is ValStmt {
 							if `A` <= val.value[0] && val.value[0] <= `Z` {
 								current_struct.embedded_structs << val.value
 							}
@@ -481,7 +481,7 @@ fn (mut v VAST) get_initial_name(tree Tree, naming_style NamingStyle) []string {
 }
 
 fn bv_stmt(str string) Statement {
-	return Statement(BasicValueStmt{str})
+	return Statement(ValStmt{str})
 }
 
 // aims at facilitating reporting errors by printing infos to the user
@@ -550,23 +550,7 @@ fn (mut v VAST) print_args_to_single(args []Statement) []Statement {
 
 	mut out := "'"
 	for i, arg in args_ {
-		if arg is BasicValueStmt {
-			arg_val := arg.value
-
-			if (`0` <= arg_val[0] && arg_val[0] <= `9`) || arg_val in ['true', 'false'] {
-				// number/boolean
-				out += arg_val
-			} else if [arg_val[0], arg_val[arg_val.len - 1]].all(it in [`"`, `'`, `\``]) {
-				// string/rune
-				out += arg_val#[1..-1]
-			} else {
-				// anything else
-				out += '\${$arg_val}'
-			}
-		} else {
-			// anything else
-			out += '\${${v.stmt_to_string(arg)}}'
-		}
+		out += v.stmt_to_string_interpolation(arg)
 
 		if arg in args && i != args.len - 1 {
 			out += ' '
@@ -575,4 +559,194 @@ fn (mut v VAST) print_args_to_single(args []Statement) []Statement {
 	out += "'"
 
 	return [bv_stmt(out)]
+}
+
+fn (mut v VAST) stmt_to_string_interpolation(stmt Statement) string {
+	if stmt is ValStmt {
+		if (`0` <= stmt.value[0] && stmt.value[0] <= `9`) || stmt.value in ['true', 'false'] {
+			// number/boolean
+			return stmt.value
+		} else if [stmt.value[0], stmt.value[stmt.value.len - 1]].all(it in [`"`, `'`, `\``]) {
+			// string/rune
+			return stmt.value#[1..-1]
+		} else {
+			// anything else
+			return '\${$stmt.value}'
+		}
+	} else {
+		// anything else
+		return '\${${v.stmt_to_string(stmt)}}'
+	}
+}
+
+// TODO: make it bool
+enum PrintfState {
+	text
+	fmt
+}
+
+const printf_parser_error = 'Go2V-error-please-report'
+
+fn (mut v VAST) printf_like_to_string_interpolation(fmt string, args []Statement) string {
+	mut state := PrintfState.text
+	mut out := strings.new_builder(fmt.len)
+	mut temp_pattern := ''
+	mut args_idx := 0
+	// from https://yourbasic.org/golang/fmt-printf-reference-cheat-sheet
+	// `$` isn't from Go, it's an indication from Go2V to check for any number
+	// TODO: make it const
+	easy_patterns := ['v', '#v', 'T', 'd', '+d', 'b', 'o', 'c', 'q', 'U', '#U', 't', 'p', 'e',
+		'f', 'g', 's', 'q', 'x', 'X', '#x', '#X', ' x', ' X', '# x', '# X']
+	cmplx_patterns := ['\$d', '-\$d', '0\$d', '.\$f', '\$.\$f', '\$s', '-\$s']
+
+	for ch in fmt {
+		match state {
+			.text {
+				match ch {
+					`%` {
+						state = .fmt
+					}
+					else {
+						out.write_byte(ch)
+					}
+				}
+			}
+			.fmt {
+				match ch {
+					`%` {
+						out.write_byte(ch)
+						state = .text
+					}
+					else {
+						temp_pattern += ch.ascii_str()
+						// TODO: comment the second condition
+						if temp_pattern in easy_patterns
+							|| temp_pattern[temp_pattern.len - 1] in [`d`, `f`, `s`] {
+							out.write_string(v.combine_pattern_and_value(temp_pattern,
+								args[args_idx]))
+							args_idx++
+							state = .text
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return out.str()
+}
+
+fn (mut v VAST) combine_pattern_and_value(pattern string, value Statement) string {
+	match pattern {
+		// default formats and type
+		'v', '#v' {
+			// TODO: ensure `#v` should always be the same as `v` (see https://yourbasic.org/golang/fmt-printf-reference-cheat-sheet)
+			return v.stmt_to_string(value)#[..-1]
+		}
+		'T' {
+			if value is ArrayStmt {
+				return '[]${value.@type}'
+			} else if value is FunctionStmt {
+				mut temp_fn := value
+				temp_fn.type_ctx = true
+				return v.stmt_to_string(temp_fn)
+			} else if value is ValStmt {
+				match value.value[0] {
+					`"`, `'` {
+						return 'string'
+					}
+					`\`` {
+						return 'rune'
+					}
+					`0`...`9` {
+						if value.value.contains('.') {
+							return 'float'
+						}
+						return 'int'
+					}
+					else {
+						return 'unknown'
+					}
+				}
+			} else {
+				return transpiler.printf_parser_error
+			}
+		}
+		// integer (indent, base, sign)
+		'd' {
+			if value is ValStmt {
+				first_ch := value.value[0]
+				if (`0` <= first_ch && first_ch <= `9`) || first_ch == `-` {
+					return value.value
+				} else {
+					return '\$$value.value'
+				}
+			} else {
+				return '\$${v.stmt_to_string(value)}'
+			}
+		}
+		'+d' {
+			if value is ValStmt {
+				first_ch := value.value[0]
+				if `0` <= first_ch && first_ch <= `9` {
+					return '+$value.value'
+				} else if first_ch == `-` {
+					return '$value.value'
+				} else {
+					return '\$$value.value'
+				}
+			} else {
+				return '\$${v.stmt_to_string(value)}'
+			}
+		}
+		'\$d' {}
+		'-\$d' {}
+		'0\$d' {}
+		'b' {}
+		'o' {}
+		// character (quoted, Unicode)
+		'c' {}
+		'q' {
+			// TODO: support for char category too
+			return if value is ValStmt {
+				value.value.replace('"', '\\"')
+			} else {
+				transpiler.printf_parser_error
+			}
+		}
+		'U' {}
+		'#U' {}
+		// boolean (true/false)
+		't' {
+			if value is ValStmt {
+				return value.value
+			}
+		}
+		// pointer (hex)
+		'p' {}
+		// float (indent, precision, scientific notation)
+		'e' {}
+		'f' {}
+		'.\$f' {}
+		'\$.\$f' {}
+		'g' {}
+		// string or byte slice (quote, indent, hex)
+		's' {
+			return v.stmt_to_string_interpolation(value)
+		}
+		'\$s' {}
+		'-\$s' {}
+		else {}
+	}
+	if pattern[pattern.len - 1] in [`x`, `X`] {
+		if value is ValStmt {
+			v.enabled_go2v_fns['go2v_fmt_x'] = true
+			upper_case, space_separator, leading_zero := pattern.contains('X'), pattern.contains(' '), pattern.contains('#')
+			return '\${go2v_fmt_x($value.value, $upper_case, $space_separator, $leading_zero)}'
+		} else {
+			return transpiler.printf_parser_error
+		}
+	}
+
+	return transpiler.printf_parser_error
 }

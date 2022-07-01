@@ -16,6 +16,9 @@ mut:
 	functions  []FunctionStmt
 	// `file_writer.v`
 	out strings.Builder = strings.new_builder(400)
+	// `go2v_fns.v`
+	// here a map is used a Set (array without duplicates), the value is useless
+	enabled_go2v_fns map[string]bool
 	// string builders utils
 	current_var_name    string
 	string_builder_vars []string
@@ -52,7 +55,6 @@ mut:
 // statements
 
 type Statement = ArrayStmt
-	| BasicValueStmt
 	| BlockStmt
 	| BranchStmt
 	| CallStmt
@@ -75,6 +77,7 @@ type Statement = ArrayStmt
 	| SliceStmt
 	| StructStmt
 	| UnsafeStmt
+	| ValStmt
 	| VariableStmt
 
 struct NotYetImplStmt {}
@@ -121,7 +124,7 @@ mut:
 	high  Statement
 }
 
-struct BasicValueStmt {
+struct ValStmt {
 mut:
 	value string
 }

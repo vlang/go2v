@@ -183,7 +183,7 @@ fn (mut v VAST) extract_struct(tree Tree, inline bool) string {
 			if 'Names' in field.tree.child {
 				// support `A, B int` syntax
 				for _, field_name in field.tree.child['Names'].tree.child {
-					@struct.fields[v.get_name(field_name.tree, .snake_case, .field)] = BasicValueStmt{v.get_type(field.tree)}
+					@struct.fields[v.get_name(field_name.tree, .snake_case, .field)] = ValStmt{v.get_type(field.tree)}
 				}
 			} else {
 				// struct embedding
@@ -325,11 +325,11 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 		}
 		// basic value
 		'*ast.BasicLit', '*ast.StarExpr', '*ast.TypeAssertExpr' {
-			ret = BasicValueStmt{v.get_name(tree, .ignore, .other)}
+			ret = ValStmt{v.get_name(tree, .ignore, .other)}
 		}
 		// variable, function call, etc.
 		'*ast.Ident', '*ast.IndexExpr', '*ast.SelectorExpr' {
-			ret = BasicValueStmt{v.get_name(tree, .snake_case, .other)}
+			ret = ValStmt{v.get_name(tree, .snake_case, .other)}
 			v.extract_embedded_declaration(tree)
 		}
 		'*ast.MapType' {
@@ -478,8 +478,8 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 		'*ast.SliceExpr' {
 			mut slice_stmt := SliceStmt{
 				value: v.get_name(tree.child['X'].tree, .ignore, .other)
-				low: BasicValueStmt{}
-				high: BasicValueStmt{}
+				low: ValStmt{}
+				high: ValStmt{}
 			}
 			if 'Low' in tree.child {
 				slice_stmt.low = v.extract_stmt(tree.child['Low'].tree)
@@ -613,7 +613,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				forin_stmt.variable = temp_var.values[0] or { bv_stmt('_') }
 			} else {
 				// `for range variable {` syntax
-				forin_stmt.variable = BasicValueStmt{v.get_name(tree, .snake_case, .other)}
+				forin_stmt.variable = ValStmt{v.get_name(tree, .snake_case, .other)}
 			}
 
 			// body
@@ -675,7 +675,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 
 				if is_type_switch {
 					for mut value in match_case.values {
-						if mut value is BasicValueStmt {
+						if mut value is ValStmt {
 							value.value = "'$value.value'"
 						}
 					}
