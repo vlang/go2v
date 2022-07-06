@@ -61,11 +61,11 @@ fn (mut v VAST) write_enums() {
 	for enm in v.enums {
 		v.out.writeln('enum $enm.name {')
 		for name, val in enm.fields {
-			if val is BasicValueStmt && (val as BasicValueStmt).value.len == 0 {
+			if val == Stmt(ValStmt{}) {
 				v.out.writeln(name)
 			} else {
 				v.out.writeln('$name = ')
-				v.write_stmt(val, true)
+				v.write_stmt(val, false)
 			}
 		}
 		v.out.writeln('}')
@@ -93,20 +93,23 @@ fn (mut v VAST) write_structs() {
 
 // write the functions
 fn (mut v VAST) write_functions() {
+	for go2v_fn, _ in v.enabled_go2v_fns {
+		v.write_stmt(go2v_fns[go2v_fn], false)
+	}
 	for func in v.functions {
 		v.write_stmt(func, false)
 	}
 }
 
 // write the function, if, for... bodies
-fn (mut v VAST) write_body(body []Statement) {
+fn (mut v VAST) write_body(body []Stmt) {
 	for stmt in body {
 		v.write_stmt(stmt, false)
 	}
 }
 
 // write a statement
-fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
+fn (mut v VAST) write_stmt(stmt Stmt, is_value bool) {
 	match stmt {
 		FunctionStmt {
 			// comment
@@ -218,7 +221,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 					v.out.write_string('else ')
 				}
 
-				if branch.condition != bv_stmt('') {
+				if branch.condition != Stmt(ValStmt{}) {
 					v.out.write_string('if ')
 					v.write_stmt(branch.condition, true)
 				}
@@ -230,7 +233,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 		ForStmt {
 			v.out.write_string('for ')
 			// check if stmt.init or stmt.post aren't null
-			if stmt.init.names.len > 0 || stmt.post.type_name() != 'unknown transpiler.Statement' {
+			if stmt.init.names.len > 0 || stmt.post.type_name() != 'unknown transpiler.Stmt' {
 				// c-style for
 				v.write_stmt(stmt.init, true)
 				v.out.write_rune(`;`)
@@ -318,13 +321,13 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 						val := el as KeyValStmt
 
 						match_stmt.cases << MatchCase{
-							values: [BasicValueStmt{val.key}]
+							values: [ValStmt{val.key}]
 							body: [val.value]
 						}
 					}
 					match_stmt.cases << MatchCase{
 						values: [bv_stmt('else')]
-						body: [BasicValueStmt{default_value}]
+						body: [ValStmt{default_value}]
 					}
 
 					v.write_stmt(match_stmt, true)
@@ -333,7 +336,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 				v.out.write_rune(`}`)
 			}
 		}
-		BasicValueStmt {
+		ValStmt {
 			v.out.write_string(stmt.value)
 		}
 		SliceStmt {
@@ -363,7 +366,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			v.out.write_rune(`}`)
 		}
 		MatchStmt {
-			v.write_stmt(stmt.init, true)
+			v.write_stmt(stmt.init, false)
 
 			v.out.write_string('match ')
 			v.write_stmt(stmt.value, true)
@@ -442,10 +445,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 		}
 	}
 
-	if is_value {
-		// TODO: this can probably be removed somehow
-		v.out.write_rune(` `)
-	} else {
+	if !is_value {
 		v.out.write_rune(`\n`)
 	}
 }
