@@ -73,7 +73,7 @@ const (
 )
 
 // transform a statement valid in Go into a valid one in V
-fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
+fn (mut v VAST) stmt_transformer(stmt Stmt) Stmt {
 	mut ret_stmt := stmt
 
 	if stmt is CallStmt {
@@ -206,7 +206,7 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 }
 
 // `fn_name(arg)` -> `arg.fn_name`
-fn (mut v VAST) transform_fn_to_decl(stmt CallStmt, left string) Statement {
+fn (mut v VAST) transform_fn_to_decl(stmt CallStmt, left string) Stmt {
 	right := if left in transpiler.name_equivalence {
 		transpiler.name_equivalence[left]
 	} else {
@@ -216,21 +216,16 @@ fn (mut v VAST) transform_fn_to_decl(stmt CallStmt, left string) Statement {
 }
 
 // `make(map[string]int)` -> `map[string]int{}`
-fn (mut v VAST) transform_make(stmt CallStmt) Statement {
-	raw := v.stmt_to_string(stmt.args[0])
-	mut out := if raw[raw.len - 2] == `}` { raw#[..-3] } else { raw }
-
+fn (mut v VAST) transform_make(stmt CallStmt) Stmt {
+	out := v.stmt_to_string(stmt.args[0])
 	if stmt.args.len > 1 {
-		out += '{len: ${v.stmt_to_string(stmt.args[1])}}'
-	} else {
-		out += '{}'
+		return ValStmt{'${out#[..-2]}{len: ${v.stmt_to_string(stmt.args[1])}}'}
 	}
-
 	return ValStmt{out}
 }
 
 // `delete(map, key)` -> `map.delete(key)`
-fn (mut v VAST) transform_delete(stmt CallStmt) Statement {
+fn (mut v VAST) transform_delete(stmt CallStmt) Stmt {
 	return CallStmt{
 		namespaces: '${v.stmt_to_string(stmt.args[0])}.delete'
 		args: [stmt.args[1]]
@@ -238,7 +233,7 @@ fn (mut v VAST) transform_delete(stmt CallStmt) Statement {
 }
 
 // handle *most of* the Go fmt module
-fn (mut v VAST) transform_fmt(stmt CallStmt, right string) Statement {
+fn (mut v VAST) transform_fmt(stmt CallStmt, right string) Stmt {
 	match right {
 		// fmt.Errorf(fmt, a) err -> error(strconv.v_sprintf(fmt, a)) err
 		'errorf' {
@@ -337,7 +332,7 @@ fn (mut v VAST) transform_fmt(stmt CallStmt, right string) Statement {
 }
 
 // `os.exit(a)` -> `exit(a)`
-fn (mut v VAST) transform_exit(stmt CallStmt, right string) Statement {
+fn (mut v VAST) transform_exit(stmt CallStmt, right string) Stmt {
 	if right == 'exit' {
 		return CallStmt{
 			namespaces: right
@@ -350,7 +345,7 @@ fn (mut v VAST) transform_exit(stmt CallStmt, right string) Statement {
 }
 
 // see `tests/string_builder_bytes` & `tests/string_builder_strings`
-fn (v VAST) transform_string_builder(stmt CallStmt, left string, right string) Statement {
+fn (v VAST) transform_string_builder(stmt CallStmt, left string, right string) Stmt {
 	match right {
 		'grow' {
 			return CallStmt{
@@ -387,11 +382,11 @@ fn (v VAST) transform_string_builder(stmt CallStmt, left string, right string) S
 }
 
 // transform functions from the `strings` module
-fn (mut v VAST) transform_strings_module(stmt CallStmt, right string) Statement {
+fn (mut v VAST) transform_strings_module(stmt CallStmt, right string) Stmt {
 	if transpiler.strings_to_builtin.contains(right) {
 		return CallStmt{
 			namespaces: '${v.stmt_to_string(stmt.args[0])}.$right'
-			args: if stmt.args.len > 1 { [stmt.args[1]] } else { []Statement{} }
+			args: if stmt.args.len > 1 { [stmt.args[1]] } else { []Stmt{} }
 		}
 	} else if right == 'new_builder' {
 		v.string_builder_vars << v.current_var_name
@@ -401,7 +396,7 @@ fn (mut v VAST) transform_strings_module(stmt CallStmt, right string) Statement 
 	return stmt
 }
 
-fn (mut v VAST) transform_utf8(stmt CallStmt, right string) Statement {
+fn (mut v VAST) transform_utf8(stmt CallStmt, right string) Stmt {
 	match right {
 		'rune_len' {
 			return CallStmt{
@@ -409,7 +404,7 @@ fn (mut v VAST) transform_utf8(stmt CallStmt, right string) Statement {
 			}
 		}
 		'encode_rune' {
-			v.enabled_go2v_fns['utf8.encode_rune'] = true
+			v.enabled_go2v_fns['go2v_utf8_encode_rune'] = true
 			return CallStmt{
 				namespaces: 'go2v_utf8_encode_rune'
 				args: [ValStmt{'mut ${v.stmt_to_string(stmt.args[0])}'}, stmt.args[1]]

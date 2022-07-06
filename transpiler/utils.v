@@ -179,7 +179,7 @@ fn (v &VAST) struct_name_to_struct(struct_name string) Struct {
 }
 
 // get a statement as a string
-fn (mut v VAST) stmt_to_string(stmt Statement) string {
+fn (mut v VAST) stmt_to_string(stmt Stmt) string {
 	v.write_stmt(stmt, true)
 	return v.out.cut_last(v.out.len)
 }
@@ -480,8 +480,8 @@ fn (mut v VAST) get_initial_name(tree Tree, naming_style NamingStyle) []string {
 	return namespaces
 }
 
-fn bv_stmt(str string) Statement {
-	return Statement(ValStmt{str})
+fn bv_stmt(str string) Stmt {
+	return Stmt(ValStmt{str})
 }
 
 // aims at facilitating reporting errors by printing infos to the user
@@ -513,8 +513,8 @@ fn not_implemented(tree Tree) NotYetImplStmt {
 }
 
 // `var + "string " + 42 + true` -> `'${var}string 42true'`
-fn (mut v VAST) multiple_stmt_to_string(stmt MultipleStmt) []Statement {
-	mut out := []Statement{}
+fn (mut v VAST) multiple_stmt_to_string(stmt MultipleStmt) []Stmt {
+	mut out := []Stmt{}
 
 	if stmt.stmts[0] is MultipleStmt {
 		// TODO: remove explicit cast once https://github.com/vlang/v/issues/14766 is fixed
@@ -533,8 +533,8 @@ fn (mut v VAST) multiple_stmt_to_string(stmt MultipleStmt) []Statement {
 }
 
 // `a, b` -> `'$a $b'`
-fn (mut v VAST) print_args_to_single(args []Statement) []Statement {
-	mut args_ := []Statement{}
+fn (mut v VAST) print_args_to_single(args []Stmt) []Stmt {
+	mut args_ := []Stmt{}
 
 	for arg in args {
 		if arg is MultipleStmt {
@@ -561,7 +561,7 @@ fn (mut v VAST) print_args_to_single(args []Statement) []Statement {
 	return [bv_stmt(out)]
 }
 
-fn (mut v VAST) stmt_to_string_interpolation(stmt Statement) string {
+fn (mut v VAST) stmt_to_string_interpolation(stmt Stmt) string {
 	if stmt is ValStmt {
 		if (`0` <= stmt.value[0] && stmt.value[0] <= `9`) || stmt.value in ['true', 'false'] {
 			// number/boolean
@@ -587,7 +587,7 @@ enum PrintfState {
 
 const printf_parser_error = 'Go2V-error-please-report'
 
-fn (mut v VAST) printf_like_to_string_interpolation(fmt string, args []Statement) string {
+fn (mut v VAST) printf_like_to_string_interpolation(fmt string, args []Stmt) string {
 	mut state := PrintfState.text
 	mut out := strings.new_builder(fmt.len)
 	mut temp_pattern := ''
@@ -636,21 +636,53 @@ fn (mut v VAST) printf_like_to_string_interpolation(fmt string, args []Statement
 	return out.str()
 }
 
-fn (mut v VAST) combine_pattern_and_value(pattern string, value Statement) string {
+fn (mut v VAST) combine_pattern_and_value(pattern string, value_ Stmt) string {
+	mut value := value_
+	// [u8(`a`), `b`, `c`] -> 'abc'
+	mut temp_str := ''
+	mut transformed := false
+	if mut value is MultipleStmt {
+		if value.stmts[0] == Stmt(ValStmt{'&'}) {
+			transformed = true
+			temp_str += '&'
+			value = value.stmts[1]
+		}
+	}
+	if mut value is ArrayStmt {
+		if value.@type == 'u8' {
+			transformed = true
+			for i, el in value.values {
+				if i == 0 {
+					temp_str += v.stmt_to_string((el as CallStmt).args[0])#[1..-1]
+				} else {
+					temp_str += v.stmt_to_string(el)#[1..-1]
+				}
+			}
+		}
+	} else if mut value is CallStmt {
+		if value.namespaces.ends_with('.bytes') && value.args.len == 0 {
+			transformed = true
+			temp_str += value.namespaces#[1..-7]
+		}
+	}
+	if transformed {
+		value = ValStmt{'"$temp_str"'}
+	}
+	// dump(value)
+	// TODO: maybe remove this match for a if/else statements or a `match true` one
 	match pattern {
-		// default formats and type
 		'v', '#v' {
-			// TODO: ensure `#v` should always be the same as `v` (see https://yourbasic.org/golang/fmt-printf-reference-cheat-sheet)
+			// TODO: ensure `#v` should always be the same as `v` in V
 			return v.stmt_to_string(value)#[..-1]
 		}
 		'T' {
-			if value is ArrayStmt {
+			if mut value is ArrayStmt {
 				return '[]${value.@type}'
-			} else if value is FunctionStmt {
+			} else if mut value is FunctionStmt {
 				mut temp_fn := value
 				temp_fn.type_ctx = true
 				return v.stmt_to_string(temp_fn)
-			} else if value is ValStmt {
+			} else if mut value is ValStmt {
 				match value.value[0] {
 					`"`, `'` {
 						return 'string'
@@ -674,7 +706,7 @@ fn (mut v VAST) combine_pattern_and_value(pattern string, value Statement) strin
 		}
 		// integer (indent, base, sign)
 		'd' {
-			if value is ValStmt {
+			if mut value is ValStmt {
 				first_ch := value.value[0]
 				if (`0` <= first_ch && first_ch <= `9`) || first_ch == `-` {
 					return value.value
@@ -686,7 +718,7 @@ fn (mut v VAST) combine_pattern_and_value(pattern string, value Statement) strin
 			}
 		}
 		'+d' {
-			if value is ValStmt {
+			if mut value is ValStmt {
 				first_ch := value.value[0]
 				if `0` <= first_ch && first_ch <= `9` {
 					return '+$value.value'
@@ -706,19 +738,11 @@ fn (mut v VAST) combine_pattern_and_value(pattern string, value Statement) strin
 		'o' {}
 		// character (quoted, Unicode)
 		'c' {}
-		'q' {
-			// TODO: support for char category too
-			return if value is ValStmt {
-				value.value.replace('"', '\\"')
-			} else {
-				transpiler.printf_parser_error
-			}
-		}
 		'U' {}
 		'#U' {}
 		// boolean (true/false)
 		't' {
-			if value is ValStmt {
+			if mut value is ValStmt {
 				return value.value
 			}
 		}
@@ -739,12 +763,18 @@ fn (mut v VAST) combine_pattern_and_value(pattern string, value Statement) strin
 		else {}
 	}
 	if pattern[pattern.len - 1] in [`x`, `X`] {
-		if value is ValStmt {
+		if mut value is ValStmt {
 			v.enabled_go2v_fns['go2v_fmt_x'] = true
 			upper_case, space_separator, leading_zero := pattern.contains('X'), pattern.contains(' '), pattern.contains('#')
 			return '\${go2v_fmt_x($value.value, $upper_case, $space_separator, $leading_zero)}'
 		} else {
 			return transpiler.printf_parser_error
+		}
+	} else if pattern[pattern.len - 1] == `q` {
+		return if mut value is ValStmt {
+			value.value.replace('"', '\\"')
+		} else {
+			transpiler.printf_parser_error
 		}
 	}
 

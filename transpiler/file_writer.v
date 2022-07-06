@@ -61,11 +61,11 @@ fn (mut v VAST) write_enums() {
 	for enm in v.enums {
 		v.out.writeln('enum $enm.name {')
 		for name, val in enm.fields {
-			if val is ValStmt && (val as ValStmt).value.len == 0 {
+			if val == Stmt(ValStmt{}) {
 				v.out.writeln(name)
 			} else {
 				v.out.writeln('$name = ')
-				v.write_stmt(val, true)
+				v.write_stmt(val, false)
 			}
 		}
 		v.out.writeln('}')
@@ -102,14 +102,14 @@ fn (mut v VAST) write_functions() {
 }
 
 // write the function, if, for... bodies
-fn (mut v VAST) write_body(body []Statement) {
+fn (mut v VAST) write_body(body []Stmt) {
 	for stmt in body {
 		v.write_stmt(stmt, false)
 	}
 }
 
 // write a statement
-fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
+fn (mut v VAST) write_stmt(stmt Stmt, is_value bool) {
 	match stmt {
 		FunctionStmt {
 			// comment
@@ -221,11 +221,9 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 					v.out.write_string('else ')
 				}
 
-				if branch.condition is ValStmt {
-					if branch.condition.value.len > 0 {
-						v.out.write_string('if ')
-						v.write_stmt(branch.condition, true)
-					}
+				if branch.condition != Stmt(ValStmt{}) {
+					v.out.write_string('if ')
+					v.write_stmt(branch.condition, true)
 				}
 				v.out.write_string('{\n')
 				v.write_body(branch.body)
@@ -235,7 +233,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 		ForStmt {
 			v.out.write_string('for ')
 			// check if stmt.init or stmt.post aren't null
-			if stmt.init.names.len > 0 || stmt.post.type_name() != 'unknown transpiler.Statement' {
+			if stmt.init.names.len > 0 || stmt.post.type_name() != 'unknown transpiler.Stmt' {
 				// c-style for
 				v.write_stmt(stmt.init, true)
 				v.out.write_rune(`;`)
@@ -368,7 +366,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			v.out.write_rune(`}`)
 		}
 		MatchStmt {
-			v.write_stmt(stmt.init, true)
+			v.write_stmt(stmt.init, false)
 
 			v.out.write_string('match ')
 			v.write_stmt(stmt.value, true)
@@ -447,10 +445,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 		}
 	}
 
-	if is_value {
-		// TODO: this can probably be removed somehow
-		v.out.write_rune(` `)
-	} else {
+	if !is_value {
 		v.out.write_rune(`\n`)
 	}
 }

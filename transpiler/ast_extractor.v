@@ -134,8 +134,8 @@ fn (mut v VAST) extract_import(tree Tree) {
 
 // extract the constant or the enum from a `Tree`
 // as in Go enums are represented as constants, we use the same function for both
-fn (mut v VAST) extract_const_or_enum(tree Tree, raw_enum_stmt NameFields, is_enum bool) NameFields {
-	mut enum_stmt := raw_enum_stmt
+fn (mut v VAST) extract_const_or_enum(tree Tree, enum_stmt_ NameFields, is_enum bool) NameFields {
+	mut enum_stmt := enum_stmt_
 	mut var_stmt := v.extract_variable(tree, false, false)
 	var_stmt.middle = '='
 
@@ -290,8 +290,8 @@ fn (mut v VAST) extract_function(tree Tree, is_decl bool) FunctionStmt {
 }
 
 // extract the function, if, for... body from a `Tree`
-fn (mut v VAST) extract_body(tree Tree) []Statement {
-	mut body := []Statement{}
+fn (mut v VAST) extract_body(tree Tree) []Stmt {
+	mut body := []Stmt{}
 	// all the variables declared after this limit will go out of scope at the end of the function
 	limit := v.declared_vars_old.len
 
@@ -308,8 +308,8 @@ fn (mut v VAST) extract_body(tree Tree) []Statement {
 }
 
 // extract the statement from a `Tree`
-fn (mut v VAST) extract_stmt(tree Tree) Statement {
-	mut ret := Statement(NotYetImplStmt{})
+fn (mut v VAST) extract_stmt(tree Tree) Stmt {
+	mut ret := Stmt(NotYetImplStmt{})
 
 	match tree.name {
 		// `var` syntax
@@ -389,7 +389,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 					}
 
 					// an ellipsis (`...`) used as the fixed-size array length in Go means that the length of the array is the number of elements it has
-					if array.len == '... ' {
+					if array.len == '...' {
 						array.len = array.values.len.str()
 					}
 
@@ -662,7 +662,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				} else {
 					match_stmt.init.values[0]
 				}
-				match_stmt.value = Statement(CallStmt{
+				match_stmt.value = Stmt(CallStmt{
 					namespaces: '${v.stmt_to_string(value)}.type_name'
 				})
 			}

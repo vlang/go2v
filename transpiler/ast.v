@@ -49,12 +49,12 @@ mut:
 struct NameFields {
 mut:
 	name   string
-	fields map[string]Statement
+	fields map[string]Stmt
 }
 
 // statements
 
-type Statement = ArrayStmt
+type Stmt = ArrayStmt
 	| BlockStmt
 	| BranchStmt
 	| CallStmt
@@ -84,7 +84,7 @@ struct NotYetImplStmt {}
 
 struct MultipleStmt {
 mut:
-	stmts []Statement
+	stmts []Stmt
 }
 
 struct FunctionStmt {
@@ -97,7 +97,7 @@ mut:
 	args     map[string]string
 	ret_vals []string
 	type_ctx bool
-	body     []Statement
+	body     []Stmt
 }
 
 struct VariableStmt {
@@ -105,7 +105,7 @@ mut:
 	comment string
 	names   []string
 	middle  string
-	values  []Statement
+	values  []Stmt
 	mutable bool = true
 	@type   string
 }
@@ -113,15 +113,15 @@ mut:
 struct ArrayStmt {
 mut:
 	@type  string
-	values []Statement
+	values []Stmt
 	len    string
 }
 
 struct SliceStmt {
 mut:
 	value string
-	low   Statement
-	high  Statement
+	low   Stmt
+	high  Stmt
 }
 
 struct ValStmt {
@@ -130,7 +130,7 @@ mut:
 }
 
 struct OptionalStmt {
-	stmt Statement
+	stmt Stmt
 }
 
 struct IncDecStmt {
@@ -143,7 +143,7 @@ struct CallStmt {
 mut:
 	comment    string
 	namespaces string
-	args       []Statement
+	args       []Stmt
 }
 
 struct IfStmt {
@@ -154,24 +154,24 @@ mut:
 
 struct IfElse {
 mut:
-	condition Statement
-	body      []Statement
+	condition Stmt = ValStmt{}
+	body      []Stmt
 }
 
 struct ForStmt {
 mut:
 	init      VariableStmt
-	condition Statement
-	post      Statement
-	body      []Statement
+	condition Stmt
+	post      Stmt
+	body      []Stmt
 }
 
 struct ForInStmt {
 mut:
 	idx      string
 	element  string
-	variable Statement
-	body     []Statement
+	variable Stmt
+	body     []Stmt
 }
 
 struct BranchStmt {
@@ -181,69 +181,69 @@ struct BranchStmt {
 
 struct ReturnStmt {
 mut:
-	values []Statement
+	values []Stmt
 }
 
 struct DeferStmt {
 mut:
-	body []Statement
+	body []Stmt
 }
 
 struct UnsafeStmt {
 mut:
-	body []Statement
+	body []Stmt
 }
 
 struct MatchStmt {
 mut:
 	init  VariableStmt
-	value Statement
+	value Stmt
 	cases []MatchCase
 }
 
 struct MatchCase {
 mut:
-	values []Statement
-	body   []Statement
+	values []Stmt
+	body   []Stmt
 }
 
 struct StructStmt {
 mut:
 	name   string
-	fields []Statement
+	fields []Stmt
 }
 
 struct KeyValStmt {
 mut:
 	key   string
-	value Statement
+	value Stmt
 }
 
 struct MapStmt {
 mut:
 	key_type   string
 	value_type string
-	values     []Statement
+	values     []Stmt
 }
 
 struct PushStmt {
 mut:
-	stmt  Statement
-	value Statement
+	stmt  Stmt
+	value Stmt
 }
 
 struct LabelStmt {
 mut:
 	name string
-	stmt Statement
+	stmt Stmt
 }
 
 struct GoStmt {
 mut:
-	stmt Statement
+	stmt Stmt
 }
 
 struct BlockStmt {
 mut:
-	body []Statement
+	body []Stmt
 }
