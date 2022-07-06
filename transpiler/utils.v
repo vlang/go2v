@@ -88,7 +88,7 @@ fn set_naming_style(str string, naming_style NamingStyle) string {
 
 // escape keywords
 fn escape(str string) string {
-	if str !in ['true', 'false'] && str in transpiler.keywords {
+	if str !in ['true', 'false', 'nil'] && str in transpiler.keywords {
 		return '@$str'
 	}
 	return str
@@ -553,8 +553,8 @@ fn (mut v VAST) print_args_to_single(args []Statement) []Statement {
 		if arg is BasicValueStmt {
 			arg_val := arg.value
 
-			if (`0` <= arg_val[0] && arg_val[0] <= `9`) || arg_val in ['true', 'false'] {
-				// number/boolean
+			if (`0` <= arg_val[0] && arg_val[0] <= `9`) || arg_val in ['true', 'false', 'nil'] {
+				// number/boolean/nil
 				out += arg_val
 			} else if [arg_val[0], arg_val[arg_val.len - 1]].all(it in [`"`, `'`, `\``]) {
 				// string/rune
