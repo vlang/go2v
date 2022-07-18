@@ -374,14 +374,20 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 						if i > 0 {
 							v.out.write_rune(`,`)
 						}
-						v.write_stmt(value, true)
+						if v.stmt_to_string(value).runes().any(it in [`{`, `}`]) {
+							v.out.write_rune(`(`)
+							v.write_stmt(value, true)
+							v.out.write_rune(`)`)
+						} else {
+							v.write_stmt(value, true)
+						}
 					}
 				} else {
 					v.out.write_string('else')
 				}
 				v.out.write_string('{\n')
 				v.write_body(case.body)
-				v.out.write_rune(`}`)
+				v.out.write_string('}\n')
 			}
 			v.out.write_rune(`}`)
 		}

@@ -28,4 +28,10 @@ func main() {
 
 	fmt.Println(utf8.Valid(valid))
 	fmt.Println(utf8.Valid(invalid))
+
+	// constants
+	fmt.Println(utf8.RuneError)
+	fmt.Println(utf8.RuneSelf)
+	fmt.Println(utf8.MaxRune)
+	fmt.Println(utf8.UTFMax)
 }

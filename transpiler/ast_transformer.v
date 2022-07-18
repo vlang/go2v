@@ -112,7 +112,8 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 
 		// common changes
 		ret_stmt = match first_ns {
-			'len', 'cap', 'rune', 'string' { v.transform_fn_to_decl(stmt, first_ns) }
+			'len', 'cap', 'rune' { v.transform_fn_to_decl(stmt, first_ns) }
+			'string' { v.transform_string_casting(stmt) }
 			'make' { v.transform_make(stmt) }
 			'delete' { v.transform_delete(stmt) }
 			'strings' { v.transform_strings_module(stmt, last_ns) }
@@ -228,6 +229,27 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 				}
 			}
 		}
+	} else if stmt is BasicValueStmt {
+		ret_stmt = match stmt.value {
+			// utf8.RuneError -> `\uFFFD`
+			'utf8.rune_error' { BasicValueStmt{'`\uFFFD`'} }
+			// utf8.RuneSelf -> 0x80
+			'utf8.rune_self' { BasicValueStmt{'0x80'} }
+			// utf8.MaxRune -> `\U0010FFFF`
+			// TODO: improve this once https://github.com/vlang/v/issues/14993 gets fixed
+			'utf8.max_rune' { BasicValueStmt{"'\U0010FFFF'.runes()[0]"} }
+			// utf8.UTFMax -> 4
+			'utf8.utfmax' { BasicValueStmt{'4'} }
+			else { stmt }
+		}
+	} else if stmt is StructStmt {
+		// error{} -> error()
+		if stmt.name == 'error' {
+			ret_stmt = CallStmt{
+				namespaces: 'error'
+				args: [BasicValueStmt{"''"}]
+			}
+		}
 	}
 
 	return ret_stmt
@@ -241,6 +263,13 @@ fn (mut v VAST) transform_fn_to_decl(stmt CallStmt, left string) Statement {
 		left
 	}
 	return bv_stmt('${v.stmt_to_string(stmt.args[0])}.$right')
+}
+
+// `string(arg)` -> `arg.str()`
+fn (mut v VAST) transform_string_casting(stmt CallStmt) Statement {
+	return CallStmt{
+		namespaces: '${v.stmt_to_string(stmt.args[0])}.str'
+	}
 }
 
 // `make(map[string]int)` -> `map[string]int{}`

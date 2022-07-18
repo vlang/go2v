@@ -23,4 +23,8 @@ fn main() {
 	mut invalid := [u8(0xff), 0xfe, 0xfd]
 	println(utf8.validate_str(valid.bytestr()))
 	println(utf8.validate_str(invalid.bytestr()))
+	println(`�`)
+	println(0x80)
+	println('􏿿'.runes()[0])
+	println(4)
 }

@@ -4,4 +4,5 @@ fn main() {
 	mut i := 42
 	mut f := f64(i)
 	mut u := i16(f)
+	mut g := i.str()
 }

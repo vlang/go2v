@@ -88,7 +88,9 @@ fn set_naming_style(str string, naming_style NamingStyle) string {
 
 // escape keywords
 fn escape(str string) string {
-	if str !in ['true', 'false', 'nil'] && str in transpiler.keywords {
+	if str == 'nil' {
+		return 'unsafe { nil }'
+	} else if str !in ['true', 'false'] && str in transpiler.keywords {
 		return '@$str'
 	}
 	return str
@@ -180,8 +182,9 @@ fn (v &VAST) struct_name_to_struct(struct_name string) Struct {
 
 // get a statement as a string
 fn (mut v VAST) stmt_to_string(stmt Statement) string {
+	to_cut := v.out.len
 	v.write_stmt(stmt, true)
-	return v.out.cut_last(v.out.len)
+	return v.out.cut_last(v.out.len - to_cut)
 }
 
 // make sure the given name is unique in its given field/domain, if not, make it unique
@@ -274,7 +277,12 @@ fn (mut v VAST) get_type(tree Tree) string {
 
 		// name
 		if 'Name' in temp.child {
-			raw_type << format_and_set_naming_style(temp.child['Name'].val, .ignore)
+			temp_type := format_and_set_naming_style(temp.child['Name'].val, .ignore)
+			if temp_type != 'any' {
+				raw_type << temp_type
+			} else {
+				raw_type << 'T'
+			}
 		}
 
 		// `a.Struct` syntax
@@ -553,7 +561,8 @@ fn (mut v VAST) print_args_to_single(args []Statement) []Statement {
 		if arg is BasicValueStmt {
 			arg_val := arg.value
 
-			if (`0` <= arg_val[0] && arg_val[0] <= `9`) || arg_val in ['true', 'false', 'nil'] {
+			if (`0` <= arg_val[0] && arg_val[0] <= `9`)
+				|| arg_val in ['true', 'false', 'unsafe { nil }'] {
 				// number/boolean/nil
 				out += arg_val
 			} else if [arg_val[0], arg_val[arg_val.len - 1]].all(it in [`"`, `'`, `\``]) {
