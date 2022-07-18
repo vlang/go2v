@@ -25,6 +25,6 @@ fn main() {
 	println(utf8.validate_str(invalid.bytestr()))
 	println(`ï¿½`)
 	println(0x80)
-	println('ô¿¿'.runes()[0])
+	println('ÿ'.runes()[0])
 	println(4)
 }
