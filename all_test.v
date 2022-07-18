@@ -29,7 +29,7 @@ fn test_all() ? {
 	for tidx, dir in all_tests {
 		start := '${tidx + 1:3}/${all_tests.len:-2}'
 
-		produced_vv_source := os.join_path(os.temp_dir(), 'out.vv')
+		produced_vv_source := os.join_path(os.temp_dir(), '${dir}.vv') // `/tmp/module_unicode_utf8.go`
 
 		common_relative_path := 'tests/$dir/$dir'
 		relative_expected_vv_source := '${common_relative_path}.vv' // `relative/path/to/test_name.vv`
