@@ -236,8 +236,7 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 			// utf8.RuneSelf -> 0x80
 			'utf8.rune_self' { BasicValueStmt{'0x80'} }
 			// utf8.MaxRune -> `\U0010FFFF`
-			// TODO: improve this once https://github.com/vlang/v/issues/14993 gets fixed
-			'utf8.max_rune' { BasicValueStmt{"'\U0010FFFF'.runes()[0]"} }
+			'utf8.max_rune' { BasicValueStmt{'`􏿿`'} }
 			// utf8.UTFMax -> 4
 			'utf8.utfmax' { BasicValueStmt{'4'} }
 			else { stmt }

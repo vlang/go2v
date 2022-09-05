@@ -364,13 +364,14 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 		// arrays & `Struct{}` syntaxt
 		'*ast.CompositeLit' {
 			base := tree.child['Type'].tree
+			@type := v.get_type(tree)
 
 			match base.name {
 				// arrays
 				'*ast.ArrayType' {
 					mut array := ArrayStmt{
-						@type: v.get_type(tree).split(']')[1] // remove `[..]`
-						len: v.stmt_to_string(v.extract_stmt(base.child['Len'].tree))
+						@type: @type[@type.index(']') or { 0 } + 1..] // remove `[..]`
+						len: v.stmt_to_string(v.extract_stmt(base.child['Len'].tree)) // TODO: format it to snake_case
 					}
 
 					for _, el in tree.child['Elts'].tree.child {
@@ -381,12 +382,24 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 							if mut stmt.value is StructStmt {
 								stmt.value.name = array.@type
 							}
+							array.values << stmt
 							// inline structs
 						} else if mut stmt is StructStmt {
-							stmt.name = array.@type
+							if array.@type[0] == `[` {
+								mut out := ArrayStmt{
+									@type: array.@type[array.@type.index(']') or { 0 } + 1..]
+								}
+								for field in stmt.fields {
+									out.values << field
+								}
+								array.values << out
+							} else {
+								stmt.name = array.@type
+								array.values << stmt
+							}
+						} else {
+							array.values << stmt
 						}
-
-						array.values << stmt
 					}
 
 					// an ellipsis (`...`) used as the fixed-size array length in Go means that the length of the array is the number of elements it has
@@ -426,11 +439,10 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				}
 				// maps
 				'*ast.MapType' {
-					map_type := v.get_type(tree)
-					split_map_type := map_type.split(']')
+					split_map_type := @type.split(']')
 
 					// short `{"key": "value"}` syntax
-					v.current_implicit_map_type = map_type#[split_map_type[0].len + 1..]
+					v.current_implicit_map_type = @type#[split_map_type[0].len + 1..]
 					not_a_struct := v.current_implicit_map_type.len == 0
 						|| v.current_implicit_map_type[0] == `[`
 
