@@ -247,13 +247,7 @@ fn (mut v VAST) extract_function(tree Tree, is_decl bool) FunctionStmt {
 	}
 
 	// arguments
-	func.args = v.get_args(tree.child['Type'].tree)
-	for _, @type in func.args {
-		if @type in ['T', '...T'] {
-			func.generic = true
-			break
-		}
-	}
+	v.get_args(tree.child['Type'].tree, mut func)
 
 	// method
 	if 'Recv' in tree.child {
@@ -269,14 +263,7 @@ fn (mut v VAST) extract_function(tree Tree, is_decl bool) FunctionStmt {
 	}
 
 	// return value(s)
-	for _, arg in tree.child['Type'].tree.child['Results'].tree.child['List'].tree.child {
-		func.ret_vals << v.get_type(arg.tree)
-
-		// handle named return values
-		if 'Names' in arg.tree.child {
-			func.body << v.extract_variable(arg.tree, false, true)
-		}
-	}
+	v.get_ret_vals(tree.child['Type'].tree, mut func)
 
 	// body
 	func.body << v.extract_body(tree.child['Body'].tree)

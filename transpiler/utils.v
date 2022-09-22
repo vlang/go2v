@@ -260,8 +260,9 @@ fn (mut v VAST) get_type(tree Tree) string {
 		// functions
 		if temp.name == '*ast.FuncType' {
 			mut fn_stmt := FunctionStmt{}
-			fn_stmt.args = v.get_args(temp)
 			fn_stmt.type_ctx = true
+			v.get_args(temp, mut fn_stmt)
+			v.get_ret_vals(temp, mut fn_stmt)
 			raw_type << v.stmt_to_string(fn_stmt)
 		}
 
@@ -586,12 +587,31 @@ fn (mut v VAST) print_args_to_single(args []Statement) []Statement {
 	return [bv_stmt(out)]
 }
 
-fn (mut v VAST) get_args(tree Tree) map[string]string {
-	mut out := map[string]string{}
+fn (mut v VAST) get_args(tree Tree, mut func FunctionStmt) {
+	for i, arg in tree.child['Params'].tree.child['List'].tree.child {
+		name := v.get_name(arg.tree.child['Names'].tree.child['0'].tree, .ignore, .var_decl)
 
-	for _, arg in tree.child['Params'].tree.child['List'].tree.child {
-		out[v.get_name(arg.tree.child['Names'].tree.child['0'].tree, .ignore, .var_decl)] = v.get_type(arg.tree)
+		func.args[if name.len > 0 {
+			name
+		} else {
+			i.str()
+		}] = v.get_type(arg.tree)
 	}
+	for _, @type in func.args {
+		if @type in ['T', '...T'] {
+			func.generic = true
+			break
+		}
+	}
+}
 
-	return out
+fn (mut v VAST) get_ret_vals(tree Tree, mut func FunctionStmt) {
+	for _, arg in tree.child['Results'].tree.child['List'].tree.child {
+		func.ret_vals << v.get_type(arg.tree)
+
+		// handle named return values
+		if 'Names' in arg.tree.child {
+			func.body << v.extract_variable(arg.tree, false, true)
+		}
+	}
 }

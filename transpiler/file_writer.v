@@ -134,10 +134,11 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			// useless after https://github.com/vlang/v/issues/14551 gets fixed
 			mut i := 0
 			for name, @type in stmt.args {
+				name_ := if stmt.type_ctx { '' } else { name }
 				if i != stmt.args.len - 1 {
-					v.out.write_string('$name ${@type}, ')
+					v.out.write_string('$name_ ${@type}, ')
 				} else {
-					v.out.write_string('$name ${@type}')
+					v.out.write_string('$name_ ${@type}')
 				}
 				i++
 			}
