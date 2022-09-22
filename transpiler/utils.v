@@ -259,9 +259,9 @@ fn (mut v VAST) get_type(tree Tree) string {
 
 		// functions
 		if temp.name == '*ast.FuncType' {
-			mut fn_stmt := v.extract_function(temp.parent, false)
-			fn_stmt.name = ''
-			fn_stmt.public = false
+			mut fn_stmt := FunctionStmt{}
+			fn_stmt.args = v.get_args(temp)
+			fn_stmt.type_ctx = true
 			raw_type << v.stmt_to_string(fn_stmt)
 		}
 
@@ -584,4 +584,14 @@ fn (mut v VAST) print_args_to_single(args []Statement) []Statement {
 	out += "'"
 
 	return [bv_stmt(out)]
+}
+
+fn (mut v VAST) get_args(tree Tree) map[string]string {
+	mut out := map[string]string{}
+
+	for _, arg in tree.child['Params'].tree.child['List'].tree.child {
+		out[v.get_name(arg.tree.child['Names'].tree.child['0'].tree, .ignore, .var_decl)] = v.get_type(arg.tree)
+	}
+
+	return out
 }

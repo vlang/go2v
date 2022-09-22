@@ -31,9 +31,8 @@ mut:
 
 struct Tree {
 mut:
-	name   string
-	child  map[string]Child
-	parent &Tree = unsafe { 0 }
+	name  string
+	child map[string]Child
 }
 
 fn tokenizer(input []rune) []Token {
@@ -147,6 +146,7 @@ fn tree_constructor(tokens []Token) Tree {
 	mut current_tree := &tree
 	mut temp_child_key := ''
 	mut last_was_body_name := false
+	mut opened_trees := []&Tree{}
 
 	for token in tokens {
 		match token.typ {
@@ -155,10 +155,10 @@ fn tree_constructor(tokens []Token) Tree {
 					current_tree.name = token.data
 				} else {
 					last_was_body_name = false
-					current_tree.child[temp_child_key].tree = &Tree{
+					current_tree.child[temp_child_key].tree = Tree{
 						name: token.data
-						parent: current_tree
 					}
+					opened_trees << current_tree
 					current_tree = &current_tree.child[temp_child_key].tree
 					temp_child_key = ''
 				}
@@ -173,8 +173,8 @@ fn tree_constructor(tokens []Token) Tree {
 				temp_child_key = ''
 			}
 			.tree_close {
-				if unsafe { current_tree.parent != 0 } {
-					current_tree = current_tree.parent
+				if opened_trees.len > 0 {
+					current_tree = opened_trees.pop()
 				}
 			}
 		}

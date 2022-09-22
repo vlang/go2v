@@ -247,9 +247,7 @@ fn (mut v VAST) extract_function(tree Tree, is_decl bool) FunctionStmt {
 	}
 
 	// arguments
-	for _, arg in tree.child['Type'].tree.child['Params'].tree.child['List'].tree.child {
-		func.args[v.get_name(arg.tree.child['Names'].tree.child['0'].tree, .ignore, .var_decl)] = v.get_type(arg.tree)
-	}
+	func.args = v.get_args(tree.child['Type'].tree)
 	for _, @type in func.args {
 		if @type in ['T', '...T'] {
 			func.generic = true
