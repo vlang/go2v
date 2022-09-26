@@ -100,6 +100,15 @@ const (
 	}
 )
 
+// initialize struct field that are references to themself
+fn (mut v VAST) struct_transformer(mut s Struct) {
+	for name, typ in s.fields {
+		if typ == bv_stmt('&$s.name') {
+			s.default_vals[name] = bv_stmt('nil')
+		}
+	}
+}
+
 // transform a statement valid in Go into a valid one in V
 fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 	mut ret_stmt := stmt

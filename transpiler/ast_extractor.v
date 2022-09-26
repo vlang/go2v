@@ -212,6 +212,7 @@ fn (mut v VAST) extract_struct(tree Tree, inline bool) string {
 		if !already_defined {
 			v.declared_global_old << name
 			v.declared_global_new << name
+			v.struct_transformer(mut @struct)
 			v.structs << @struct
 		} else if !inline {
 			v.declared_global_new[v.declared_global_new.index(name)] = already_defined_struct_name

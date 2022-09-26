@@ -40,6 +40,7 @@ mut:
 struct Struct {
 	NameFields
 mut:
+	default_vals     map[string]Statement
 	embedded_structs []string
 }
 

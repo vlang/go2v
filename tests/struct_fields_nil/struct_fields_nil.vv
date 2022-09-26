@@ -1,0 +1,15 @@
+module main
+
+struct Node {
+mut:
+	parent       &Node = nil
+	first_child  &Node = nil
+	last_child   &Node = nil
+	prev_sibling &Node = nil
+	next_sibling &Node = nil
+	@type        string
+	data_atom    int
+	data         string
+	namespace    string
+	attr         []Node
+}

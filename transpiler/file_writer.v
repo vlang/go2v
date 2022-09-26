@@ -84,6 +84,10 @@ fn (mut v VAST) write_structs() {
 			for field, typ in strct.fields {
 				v.out.write_string('$field ')
 				v.write_stmt(typ, true)
+				if field in strct.default_vals {
+					v.out.write_string(' = ')
+					v.write_stmt(strct.default_vals[field] or { BasicValueStmt{} }, true)
+				}
 				v.out.write_rune(`\n`)
 			}
 		}
