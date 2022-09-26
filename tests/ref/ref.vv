@@ -5,8 +5,8 @@ import crypto.aes
 struct BinTree {
 mut:
 	value string
-	left  &BinTree
-	right &BinTree
+	left  &BinTree = nil
+	right &BinTree = nil
 	list  []&BinTree
 	exter []&aes.KeySizeError
 }
