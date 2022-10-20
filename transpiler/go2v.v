@@ -15,7 +15,7 @@ struct InOutPaths {
 
 // TODO: add a system with a watcher function to make the tree construction stage and possibly other stages concurrent
 
-pub fn go_to_v(input_path string, output_path string) ? {
+pub fn go_to_v(input_path string, output_path string) ! {
 	if !os.exists(input_path) {
 		return error('"$input_path" is not a valid file/directory.')
 	}
@@ -90,7 +90,7 @@ pub fn go_to_v(input_path string, output_path string) ? {
 	}
 }
 
-pub fn convert_and_write(input_path string, output_path string) ? {
+pub fn convert_and_write(input_path string, output_path string) ! {
 	println('converting "$input_path" -> "$output_path"')
 
 	conversion := os.execute('go run "${os.resource_abs_path('transpiler')}/ast_getter.go" -- "$input_path"')
@@ -113,15 +113,15 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 	// only works properly if converting single file.
 	$if debug {
 		os.mkdir('temp') or {}
-		os.write_file('temp/go_ast', go_ast)?
-		os.write_file('temp/tokens', tokens.str())?
-		os.write_file('temp/tree', tree.str())?
-		os.write_file('temp/v_ast', v_ast.str())?
-		os.write_file('temp/raw_file.v', raw_v_file)?
+		os.write_file('temp/go_ast', go_ast)!
+		os.write_file('temp/tokens', tokens.str())!
+		os.write_file('temp/tree', tree.str())!
+		os.write_file('temp/v_ast', v_ast.str())!
+		os.write_file('temp/raw_file.v', raw_v_file)!
 	}
 
-	os.mkdir_all(os.dir(output_path))?
-	os.write_file(output_path, raw_v_file)?
+	os.mkdir_all(os.dir(output_path))!
+	os.write_file(output_path, raw_v_file)!
 
 	mut prefs := &pref.Preferences{
 		output_mode: .silent
@@ -141,8 +141,8 @@ pub fn convert_and_write(input_path string, output_path string) ? {
 	// compile with -cg to enable this block
 	// only works properly if converting single file.
 	$if debug {
-		os.write_file('temp/formatted_file.v', formatted_content)?
+		os.write_file('temp/formatted_file.v', formatted_content)!
 	}
 
-	os.write_file(output_path, formatted_content)?
+	os.write_file(output_path, formatted_content)!
 }
