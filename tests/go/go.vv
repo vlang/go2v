@@ -3,6 +3,6 @@ module main
 fn func_a() {}
 
 fn main() {
-	go println('Hello World')
-	go func_a()
+	spawn println('Hello World')
+	spawn func_a()
 }
