@@ -3,8 +3,8 @@ module main
 fn main() {
 	mut strings := ['hello', 'world']
 	for idx, el in strings {
-		println('$idx $el')
-		println('$idx ${strings[idx]}')
+		println('${idx} ${el}')
+		println('${idx} ${strings[idx]}')
 	}
 	for idx_1, _ in strings {
 		println(idx_1)
