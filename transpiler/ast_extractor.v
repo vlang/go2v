@@ -334,7 +334,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 			op := if tree.child['Op'].val !in ['range', '+'] { tree.child['Op'].val } else { '' }
 
 			ret = MultipleStmt{[
-				bv_stmt('$op'),
+				bv_stmt('${op}'),
 				v.extract_stmt(tree.child['X'].tree),
 			]}
 		}
@@ -343,7 +343,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 
 			ret = MultipleStmt{[
 				v.extract_stmt(tree.child['X'].tree),
-				bv_stmt(' $op '),
+				bv_stmt(' ${op} '),
 				v.extract_stmt(tree.child['Y'].tree),
 			]}
 		}
@@ -675,7 +675,7 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				if is_type_switch {
 					for mut value in match_case.values {
 						if mut value is BasicValueStmt {
-							value.value = "'$value.value'"
+							value.value = "'${value.value}'"
 						}
 					}
 				}

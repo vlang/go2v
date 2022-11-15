@@ -26,9 +26,9 @@ fn (mut v VAST) write_module() {
 fn (mut v VAST) write_imports() {
 	for name, alias in v.imports {
 		if alias.len < 1 {
-			v.out.writeln('import $name')
+			v.out.writeln('import ${name}')
 		} else {
-			v.out.writeln('import $name as $alias')
+			v.out.writeln('import ${name} as ${alias}')
 		}
 	}
 }
@@ -52,19 +52,19 @@ fn (mut v VAST) write_consts() {
 // write the sumtypes
 fn (mut v VAST) write_sumtypes() {
 	for name, typ in v.types {
-		v.out.writeln('type $name = $typ')
+		v.out.writeln('type ${name} = ${typ}')
 	}
 }
 
 // write the enums
 fn (mut v VAST) write_enums() {
 	for enm in v.enums {
-		v.out.writeln('enum $enm.name {')
+		v.out.writeln('enum ${enm.name} {')
 		for name, val in enm.fields {
 			if val is BasicValueStmt && (val as BasicValueStmt).value.len == 0 {
 				v.out.writeln(name)
 			} else {
-				v.out.writeln('$name = ')
+				v.out.writeln('${name} = ')
 				v.write_stmt(val, true)
 			}
 		}
@@ -75,14 +75,14 @@ fn (mut v VAST) write_enums() {
 // write the structs
 fn (mut v VAST) write_structs() {
 	for strct in v.structs {
-		v.out.write_string('struct $strct.name {')
+		v.out.write_string('struct ${strct.name} {')
 		for embedded_struct in strct.embedded_structs {
 			v.out.writeln(embedded_struct)
 		}
 		if strct.fields.len > 0 {
 			v.out.write_string('\nmut:\n')
 			for field, typ in strct.fields {
-				v.out.write_string('$field ')
+				v.out.write_string('${field} ')
 				v.write_stmt(typ, true)
 				if field in strct.default_vals {
 					v.out.write_string(' = ')
@@ -128,7 +128,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 				v.out.write_string('(mut ${stmt.method[0]} ${stmt.method[1]}) ')
 			}
 			// name
-			v.out.write_string('$stmt.name')
+			v.out.write_string('${stmt.name}')
 			// generic
 			if stmt.generic {
 				v.out.write_string('<T>')
@@ -140,9 +140,9 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			for name, @type in stmt.args {
 				name_ := if stmt.type_ctx { '' } else { name }
 				if i != stmt.args.len - 1 {
-					v.out.write_string('$name_ ${@type}, ')
+					v.out.write_string('${name_} ${@type}, ')
 				} else {
-					v.out.write_string('$name_ ${@type}')
+					v.out.write_string('${name_} ${@type}')
 				}
 				i++
 			}
@@ -152,7 +152,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			if stmt.ret_vals.len > 0 {
 				v.out.write_string(' (')
 				for val in stmt.ret_vals {
-					v.out.write_string('$val, ')
+					v.out.write_string('${val}, ')
 				}
 				v.out.write_string(')')
 			}
@@ -204,7 +204,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			}
 		}
 		IncDecStmt {
-			v.out.write_string('$stmt.var$stmt.inc')
+			v.out.write_string('${stmt.var}${stmt.inc}')
 		}
 		CallStmt {
 			v.out.write_string('${stmt.namespaces}(')
@@ -253,7 +253,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 		}
 		ForInStmt {
 			if stmt.idx.len > 0 || stmt.element.len > 0 {
-				v.out.write_string('for $stmt.idx, $stmt.element in ')
+				v.out.write_string('for ${stmt.idx}, ${stmt.element} in ')
 			} else {
 				v.out.write_string('for _ in ')
 			}
@@ -263,7 +263,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			v.out.write_rune(`}`)
 		}
 		BranchStmt {
-			v.out.write_string('$stmt.name $stmt.label')
+			v.out.write_string('${stmt.name} ${stmt.label}')
 		}
 		ArrayStmt {
 			is_empty := stmt.values.len < 1
@@ -302,9 +302,9 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 						}
 					}
 					len = temp_len.str()
-					v.out.write_string(']${stmt.@type}{len: $len, init: ')
+					v.out.write_string(']${stmt.@type}{len: ${len}, init: ')
 				} else {
-					v.out.write_string('$len]${stmt.@type}{init: ')
+					v.out.write_string('${len}]${stmt.@type}{init: ')
 				}
 
 				if !has_specific_idx_for_each_val {
@@ -314,7 +314,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 						v.out.write_rune(`,`)
 					}
 					v.out.cut_last(1) // remove `,`
-					v.out.write_string('][it] or { $default_value }')
+					v.out.write_string('][it] or { ${default_value} }')
 				} else {
 					mut match_stmt := MatchStmt{
 						value: bv_stmt('it')
@@ -342,7 +342,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			v.out.write_string(stmt.value)
 		}
 		SliceStmt {
-			v.out.write_string('$stmt.value[')
+			v.out.write_string('${stmt.value}[')
 			v.write_stmt(stmt.low, true)
 			v.out.write_string('..')
 			v.write_stmt(stmt.high, true)
@@ -397,7 +397,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			v.out.write_rune(`}`)
 		}
 		StructStmt {
-			v.out.write_string('$stmt.name{')
+			v.out.write_string('${stmt.name}{')
 			for i, field in stmt.fields {
 				if i > 0 {
 					v.out.write_rune(`,`)
@@ -407,7 +407,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			v.out.write_rune(`}`)
 		}
 		KeyValStmt {
-			v.out.write_string('\n$stmt.key:')
+			v.out.write_string('\n${stmt.key}:')
 			v.write_stmt(stmt.value, true)
 		}
 		MapStmt {
@@ -418,7 +418,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 				}
 				v.out.write_rune(`}`)
 			} else {
-				v.out.write_string('map[$stmt.key_type]$stmt.value_type{}')
+				v.out.write_string('map[${stmt.key_type}]${stmt.value_type}{}')
 			}
 		}
 		PushStmt {
@@ -436,7 +436,7 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			}
 		}
 		LabelStmt {
-			v.out.write_string('$stmt.name: ')
+			v.out.write_string('${stmt.name}: ')
 			v.write_stmt(stmt.stmt, true)
 		}
 		GoStmt {

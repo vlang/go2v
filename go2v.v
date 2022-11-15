@@ -30,7 +30,7 @@ fn main() {
 				execute: fn (cmd cli.Command) ! {
 					help_topic := cmd.args[0] or { 'help' }
 					println(os.read_file(os.resource_abs_path('/help/${help_topic}.txt')) or {
-						'No help topic for $help_topic'
+						'No help topic for ${help_topic}'
 					})
 					return
 				}
@@ -65,19 +65,19 @@ fn main() {
 					}
 
 					if create != '' {
-						if os.exists('$go2v_path/tests/$create') {
-							println('$go2v_path/tests/$create already exists - remove it if you want to create a new test with the same name')
+						if os.exists('${go2v_path}/tests/${create}') {
+							println('${go2v_path}/tests/${create} already exists - remove it if you want to create a new test with the same name')
 							return
 						}
-						os.mkdir('$go2v_path/tests/$create')!
-						os.write_file('$go2v_path/tests/$create/${create}.go', 'package main\n\nfunc main() {\n\t\n}\n')!
-						println('$go2v_path/tests/$create/${create}.go created')
+						os.mkdir('${go2v_path}/tests/${create}')!
+						os.write_file('${go2v_path}/tests/${create}/${create}.go', 'package main\n\nfunc main() {\n\t\n}\n')!
+						println('${go2v_path}/tests/${create}/${create}.go created')
 					} else if out != '' {
-						if os.is_dir('$go2v_path/tests/$out/${out}.vv') {
-							println('$go2v_path/tests/$out/${out}.vv is a directory - remove it before trying to save output')
+						if os.is_dir('${go2v_path}/tests/${out}/${out}.vv') {
+							println('${go2v_path}/tests/${out}/${out}.vv is a directory - remove it before trying to save output')
 							return
 						}
-						transpiler.go_to_v('$go2v_path/tests/$out/${out}.go', '$go2v_path/tests/$out/${out}.vv')!
+						transpiler.go_to_v('${go2v_path}/tests/${out}/${out}.go', '${go2v_path}/tests/${out}/${out}.vv')!
 					} else if compact {
 						os.execvp('${@VEXE}', [
 							'test',

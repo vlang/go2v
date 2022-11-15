@@ -17,14 +17,14 @@ struct InOutPaths {
 
 pub fn go_to_v(input_path string, output_path string) ! {
 	if !os.exists(input_path) {
-		return error('"$input_path" is not a valid file/directory.')
+		return error('"${input_path}" is not a valid file/directory.')
 	}
 
 	input_is_dir := os.is_dir(input_path)
 	input_is_file := !input_is_dir
 
 	if input_is_file && !input_path.ends_with('.go') {
-		return error('"$input_path" is not a `.go` file')
+		return error('"${input_path}" is not a `.go` file')
 	}
 
 	mut out_path := output_path
@@ -41,7 +41,7 @@ pub fn go_to_v(input_path string, output_path string) ! {
 		out_path = os.dir(out_path)
 
 		if os.is_file(out_path) {
-			return error('"$out_path" is a file, not a directory')
+			return error('"${out_path}" is a file, not a directory')
 		}
 
 		if input_is_file {
@@ -50,12 +50,12 @@ pub fn go_to_v(input_path string, output_path string) ! {
 	}
 
 	if input_is_file && os.is_dir(out_path) {
-		return error('"$input_path" is a file, but "$output_path" is a directory\n' +
-			' - add trailing `$os.path_separator` to output if you wish the .v file to be generated in that directory')
+		return error('"${input_path}" is a file, but "${output_path}" is a directory\n' +
+			' - add trailing `${os.path_separator}` to output if you wish the .v file to be generated in that directory')
 	}
 
 	if input_is_dir && os.is_file(out_path) {
-		return error('"$input_path" is a directory, but "$output_path" is a file')
+		return error('"${input_path}" is a directory, but "${output_path}" is a file')
 	}
 
 	mut outputs := []InOutPaths{}
@@ -67,7 +67,7 @@ pub fn go_to_v(input_path string, output_path string) ! {
 				output_path: out_path
 			}
 		} else {
-			return error('"$input_path" is not a `.go` file')
+			return error('"${input_path}" is not a `.go` file')
 		}
 	} else {
 		mut go_files := os.walk_ext(input_path, '.go')
@@ -76,12 +76,12 @@ pub fn go_to_v(input_path string, output_path string) ! {
 		for input in go_files {
 			outputs << InOutPaths{
 				input_path: input
-				output_path: '$out_path/${input.all_after(input_path + os.path_separator).all_before('.go')}.v'
+				output_path: '${out_path}/${input.all_after(input_path + os.path_separator).all_before('.go')}.v'
 			}
 		}
 
 		if outputs.len == 0 {
-			return error('"$input_path" does not contain any `.go` file')
+			return error('"${input_path}" does not contain any `.go` file')
 		}
 	}
 
@@ -91,14 +91,14 @@ pub fn go_to_v(input_path string, output_path string) ! {
 }
 
 pub fn convert_and_write(input_path string, output_path string) ! {
-	println('converting "$input_path" -> "$output_path"')
+	println('converting "${input_path}" -> "${output_path}"')
 
-	conversion := os.execute('go run "${os.resource_abs_path('transpiler')}/ast_getter.go" -- "$input_path"')
+	conversion := os.execute('go run "${os.resource_abs_path('transpiler')}/ast_getter.go" -- "${input_path}"')
 	if conversion.exit_code != 0 {
-		return error(term.red('"$input_path" is not a valid Go file') +
+		return error(term.red('"${input_path}" is not a valid Go file') +
 			'\n
 			==================\n
-			$conversion.output\n
+			${conversion.output}\n
 			==================')
 	}
 

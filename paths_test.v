@@ -11,11 +11,11 @@ const (
 )
 
 fn prepare_go2v_executable() string {
-	go2v_source := '$go2v_path/go2v.v'
+	go2v_source := '${go2v_path}/go2v.v'
 	go2v_executable := if os.user_os() == 'windows' {
-		'$go2v_path/go2v.exe'
+		'${go2v_path}/go2v.exe'
 	} else {
-		'$go2v_path/go2v'
+		'${go2v_path}/go2v'
 	}
 	if !os.exists(go2v_executable) {
 		os.execute('${os.quoted_path(@VEXE)} -o ${os.quoted_path(go2v_executable)} ${os.quoted_path(go2v_source)}')
@@ -33,7 +33,7 @@ fn testsuite_end() {
 }
 
 fn test_file_in_with_no_out() {
-	res := os.execute('$go2v_exe $quoted_go_test_file')
+	res := os.execute('${go2v_exe} ${quoted_go_test_file}')
 	assert res.exit_code == 0
 	paths := os.ls(path_test_area)!
 	assert 'hello.v' in paths
@@ -41,7 +41,7 @@ fn test_file_in_with_no_out() {
 }
 
 fn test_file_in_with_file_out() {
-	res := os.execute('$go2v_exe $quoted_go_test_file -o ${os.quoted_path(os.join_path_single(path_test_area,
+	res := os.execute('${go2v_exe} ${quoted_go_test_file} -o ${os.quoted_path(os.join_path_single(path_test_area,
 		'foo'))}')
 	assert res.exit_code == 0
 	paths := os.ls(path_test_area)!
@@ -50,14 +50,14 @@ fn test_file_in_with_file_out() {
 }
 
 fn test_file_in_with_dir_out() {
-	res := os.execute('$go2v_exe $quoted_go_test_file -o $quoted_path_test_area')
+	res := os.execute('${go2v_exe} ${quoted_go_test_file} -o ${quoted_path_test_area}')
 	assert res.exit_code != 0
 	paths := os.ls(path_test_area)!
 	assert 'hello.v' !in paths
 }
 
 fn test_file_in_with_file_with_slash_out() {
-	res := os.execute('$go2v_exe $quoted_go_test_file -o ${os.quoted_path(go_test_file +
+	res := os.execute('${go2v_exe} ${quoted_go_test_file} -o ${os.quoted_path(go_test_file +
 		os.path_separator)}')
 	assert res.exit_code != 0
 	paths := os.ls(path_test_area)!
@@ -65,7 +65,7 @@ fn test_file_in_with_file_with_slash_out() {
 }
 
 fn test_file_in_with_dir_with_slash_out() {
-	res := os.execute('$go2v_exe $quoted_go_test_file -o ${os.quoted_path(path_test_area +
+	res := os.execute('${go2v_exe} ${quoted_go_test_file} -o ${os.quoted_path(path_test_area +
 		os.path_separator)}')
 	assert res.exit_code == 0
 	paths := os.ls(path_test_area)!
@@ -74,7 +74,7 @@ fn test_file_in_with_dir_with_slash_out() {
 }
 
 fn test_dir_in_with_no_out() {
-	res := os.execute('$go2v_exe $quoted_path_test_area')
+	res := os.execute('${go2v_exe} ${quoted_path_test_area}')
 	assert res.exit_code == 0
 	paths := os.ls(path_test_area)!
 	assert 'hello.v' in paths
@@ -82,14 +82,14 @@ fn test_dir_in_with_no_out() {
 }
 
 fn test_dir_in_with_file_out() {
-	res := os.execute('$go2v_exe $quoted_path_test_area -o $quoted_go_test_file')
+	res := os.execute('${go2v_exe} ${quoted_path_test_area} -o ${quoted_go_test_file}')
 	assert res.exit_code != 0
 	paths := os.ls(path_test_area)!
 	assert 'hello.v' !in paths
 }
 
 fn test_dir_in_with_dir_out() {
-	res := os.execute('$go2v_exe $quoted_path_test_area -o $quoted_path_test_area')
+	res := os.execute('${go2v_exe} ${quoted_path_test_area} -o ${quoted_path_test_area}')
 	assert res.exit_code == 0
 	paths := os.ls(path_test_area)!
 	assert 'hello.v' in paths

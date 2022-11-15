@@ -103,7 +103,7 @@ const (
 // initialize struct field that are references to themself
 fn (mut v VAST) struct_transformer(mut s Struct) {
 	for name, typ in s.fields {
-		if typ == bv_stmt('&$s.name') {
+		if typ == bv_stmt('&${s.name}') {
 			s.default_vals[name] = bv_stmt('nil')
 		}
 	}
@@ -270,7 +270,7 @@ fn (mut v VAST) transform_fn_to_decl(stmt CallStmt, left string) Statement {
 	} else {
 		left
 	}
-	return bv_stmt('${v.stmt_to_string(stmt.args[0])}.$right')
+	return bv_stmt('${v.stmt_to_string(stmt.args[0])}.${right}')
 }
 
 // `string(arg)` -> `arg.str()`
@@ -452,7 +452,7 @@ fn (v VAST) transform_string_builder(stmt CallStmt, left string, right string) S
 fn (mut v VAST) transform_strings_module(stmt CallStmt, right string) Statement {
 	if transpiler.strings_to_builtin.contains(right) {
 		return CallStmt{
-			namespaces: '${v.stmt_to_string(stmt.args[0])}.$right'
+			namespaces: '${v.stmt_to_string(stmt.args[0])}.${right}'
 			args: if stmt.args.len > 1 { [stmt.args[1]] } else { []Statement{} }
 		}
 	} else if right == 'new_builder' {

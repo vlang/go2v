@@ -91,7 +91,7 @@ fn escape(str string) string {
 	if str == 'nil' {
 		return 'unsafe { nil }'
 	} else if str !in ['true', 'false'] && str in transpiler.keywords {
-		return '@$str'
+		return '@${str}'
 	}
 	return str
 }
@@ -150,7 +150,7 @@ fn format_and_set_naming_style(str string, naming_style NamingStyle) string {
 		}
 
 		if surround_ch != ` ` {
-			return '$surround_ch$out_str$surround_ch'
+			return '${surround_ch}${out_str}${surround_ch}'
 		}
 		return out_str
 	}
@@ -207,7 +207,7 @@ fn (v &VAST) find_unused_name(original_name string, domains ...Domain) string {
 				.in_struct_fields { new_name in v.struct_fields }
 			}
 			if condition && suffix > 0 {
-				new_name = '${original_name}_$suffix'
+				new_name = '${original_name}_${suffix}'
 			}
 			suffix++
 		}
@@ -402,10 +402,10 @@ fn (mut v VAST) get_name(tree Tree, naming_style NamingStyle, origin Origin) str
 					}
 
 					if name_old in current_struct.embedded_structs {
-						out += '.$name_old'
+						out += '.${name_old}'
 						current_struct = v.struct_name_to_struct(name_old)
 					} else if name_new in current_struct.embedded_structs {
-						out += '.$name_new'
+						out += '.${name_new}'
 						current_struct = v.struct_name_to_struct(name_new)
 					} else {
 						out += formatted_name[i]
@@ -515,7 +515,7 @@ fn not_implemented(tree Tree) NotYetImplStmt {
 	if hint == 'at unknown character' && 'Tok' in tree.child {
 		return not_implemented(tree.child['X'].tree)
 	} else if tree.name.len > 0 {
-		eprintln('Go feature `$tree.name` $hint not currently implemented.\nPlease report the missing feature at https://github.com/vlang/go2v/issues/new')
+		eprintln('Go feature `${tree.name}` ${hint} not currently implemented.\nPlease report the missing feature at https://github.com/vlang/go2v/issues/new')
 	}
 
 	return NotYetImplStmt{}
@@ -571,11 +571,11 @@ fn (mut v VAST) print_args_to_single(args []Statement) []Statement {
 				out += arg_val#[1..-1]
 			} else {
 				// anything else
-				out += '\${$arg_val}'
+				out += '\${${arg_val}\}'
 			}
 		} else {
 			// anything else
-			out += '\${${v.stmt_to_string(arg)}}'
+			out += '\${${v.stmt_to_string(arg)}\}'
 		}
 
 		if arg in args && i != args.len - 1 {
@@ -583,7 +583,7 @@ fn (mut v VAST) print_args_to_single(args []Statement) []Statement {
 		}
 	}
 	out += "'"
-
+dump(out)
 	return [bv_stmt(out)]
 }
 
