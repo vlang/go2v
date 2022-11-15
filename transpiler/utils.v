@@ -583,7 +583,6 @@ fn (mut v VAST) print_args_to_single(args []Statement) []Statement {
 		}
 	}
 	out += "'"
-dump(out)
 	return [bv_stmt(out)]
 }
 
