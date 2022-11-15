@@ -5,7 +5,7 @@ import v.util.diff
 const (
 	go2v_path = @VMODROOT
 	go2v_exe  = prepare_go2v_executable()
-	diffcmd   = diff.find_working_diff_command()?
+	diffcmd   = diff.find_working_diff_command()!
 )
 
 fn prepare_go2v_executable() string {
