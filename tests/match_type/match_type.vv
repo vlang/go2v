@@ -1,6 +1,6 @@
 module main
 
-fn abc<T>(s T) {
+fn abc[T](s T) {
 	match s.type_name() {
 		'int' {
 			println('a')
