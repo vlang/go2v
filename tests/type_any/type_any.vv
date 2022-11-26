@@ -1,7 +1,7 @@
 module main
 
-fn write_rune<T>(a T) {}
+fn write_rune[T](a T) {}
 
-fn write_tune<T>(a_1 ...T) {}
+fn write_tune[T](a_1 ...T) {}
 
 fn write_fune(a_2 []T) {}
