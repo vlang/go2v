@@ -86,7 +86,7 @@ fn (mut v VAST) extract_module(tree Tree) {
 
 // extract the imports from a `Tree`
 fn (mut v VAST) extract_import(tree Tree) {
-	mut imp_name := v.get_name(tree.child['Path'].tree, .snake_case, .other)#[1..-1].split('/').map(escape(it)).join('.')
+	mut imp_name := v.get_name(tree.child['Path'].tree, .snake_case, .other)#[1..-1].replace('/', '.')
 	alias := v.get_name(tree.child['Name'].tree, .snake_case, .other)
 
 	// `golang.org/x/net/html/atom` -> `net.html.atom`

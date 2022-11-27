@@ -5,7 +5,6 @@ import io
 import compress.deflate
 import compress.zlib
 import datatypes
-import v.ast
 import io.util
 import net.http.mime
 import net.http
