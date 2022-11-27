@@ -128,6 +128,7 @@ mut:
 }
 
 struct OptionalStmt {
+mut:
 	stmt Statement
 }
 
@@ -173,6 +174,7 @@ mut:
 }
 
 struct BranchStmt {
+mut:
 	name  string
 	label string
 }

@@ -9,7 +9,6 @@ import (
 	"compress/zlib"
 	"container/list"
 	"database/sql"
-	"go/ast"
 	"io"
 	"io.ioutil"
 	"mime"

@@ -16,5 +16,5 @@ func main() {
 		panic(err)
 	}
 
-	ast.Fprint(os.Stdout, nil, file, ast.NotNilFilter)
+	_ = ast.Fprint(os.Stdout, nil, file, ast.NotNilFilter)
 }

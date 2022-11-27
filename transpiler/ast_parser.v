@@ -21,7 +21,7 @@ mut:
 	data string
 }
 
-// it's best to use a struct instead of a sumtype because for the ast construction stage it make the code extremly complex to write and read
+// it's best to use a struct instead of a sumtype because for the ast construction stage it makes the code extremely complex to write and read
 struct Child {
 mut:
 	// tree & val will never be both set
