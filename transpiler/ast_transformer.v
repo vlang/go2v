@@ -148,6 +148,11 @@ fn (mut v VAST) stmt_transformer(stmt Statement) Statement {
 			v.current_var_name = stmt.names[i]
 			value = v.stmt_transformer(value)
 
+			// because `mut _ := value` is not valid in V (the combination of `mut` and `_`)
+			if temp_stmt.names[i] == '_' {
+				temp_stmt.mutable = false
+			}
+
 			// `append(array, value)` -> `array << value`
 			// `append(array, value1, value2)` -> `array << [value1, value2]`
 			if mut value is CallStmt {
