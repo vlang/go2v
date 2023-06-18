@@ -7,3 +7,11 @@ const (
 	EnumFieldFive               = 5
 	EnumFieldSix                = iota
 )
+
+var DefaultMsgAcceptFunc = defaultMsgAcceptFunc
+
+const MsgAccept msgAcceptAction = iota
+
+func defaultMsgAcceptFunc() {
+	return MsgAccept
+}

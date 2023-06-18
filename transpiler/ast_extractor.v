@@ -152,7 +152,7 @@ fn (mut v VAST) extract_const_or_enum(tree Tree, raw_enum_stmt NameFields, is_en
 		}
 
 		enum_stmt.fields[var_stmt.names[0]] = bv_stmt('')
-	} else if is_enum {
+	} else if is_enum && var_stmt.names.len > 0 {
 		enum_stmt.fields[var_stmt.names[0]] = var_stmt.values[0] or { bv_stmt('') }
 	} else {
 		v.consts << var_stmt
