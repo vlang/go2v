@@ -4,9 +4,7 @@ import os
 import cli
 import transpiler
 
-const (
-	go2v_path = @VMODROOT
-)
+const go2v_path = @VMODROOT
 
 fn main() {
 	mut app := cli.Command{

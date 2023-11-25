@@ -1,14 +1,12 @@
 import os
 
-const (
-	hello_go              = 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("hello")\n}\n'
-	go2v_path             = @VMODROOT
-	go2v_exe              = prepare_go2v_executable()
-	path_test_area        = os.join_path_single(go2v_path, 'path_test_area')
-	go_test_file          = os.join_path_single(path_test_area, 'hello.go')
-	quoted_go_test_file   = os.quoted_path(go_test_file)
-	quoted_path_test_area = os.quoted_path(path_test_area)
-)
+const hello_go = 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("hello")\n}\n'
+const go2v_path = @VMODROOT
+const go2v_exe = prepare_go2v_executable()
+const path_test_area = os.join_path_single(go2v_path, 'path_test_area')
+const go_test_file = os.join_path_single(path_test_area, 'hello.go')
+const quoted_go_test_file = os.quoted_path(go_test_file)
+const quoted_path_test_area = os.quoted_path(path_test_area)
 
 fn prepare_go2v_executable() string {
 	go2v_source := '${go2v_path}/go2v.v'

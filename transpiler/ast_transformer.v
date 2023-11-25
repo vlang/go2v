@@ -1,104 +1,102 @@
 module transpiler
 
-const (
-	// `name` as a key includes `name`
-	// `name.` as a key includes `name`, `name.foo`, `name.foo.bar`...
-	// `name` as a value transforms to `name`
-	// `name.` as a key transforms to `name`, `name.foo`, `name.foo.bar`...
-	// `` as a key removes the import
-	// `nameInGo`: `nameInV`
-	module_equivalence = {
-		'archive.':           'compress.'
-		'bufio':              'io'
-		'bytes':              ''
-		'compress.flate':     'compress.deflate'
-		'container.':         'datatypes'
-		'database.':          ''
-		'debug.':             ''
-		'embed':              ''
-		'encoding.json':      'json'
-		'errors':             ''
-		'expvar':             ''
-		'fmt':                ''
-		'@go.':               'v.'
-		'html.':              ''
-		'image.':             'gg'
-		'index.':             ''
-		'io.fs':              'os'
-		'io.ioutil':          'io.util'
-		'log.syslog':         ''
-		'math.cmplx':         'math.complex'
-		'math.rand':          'rand'
-		'mime.':              'net.http.mime'
-		'net.http.cgi':       'net.http'
-		'net.http.cookiejar': 'net.http'
-		'net.http.fcgi':      'net.http'
-		'net.http.httptest':  ''
-		'net.http.httptrace': ''
-		'net.http.httputil':  'net.http'
-		'net.http.pprof':     ''
-		'net.mail':           'net.smtp'
-		'net.netip':          ''
-		'net.rpc.':           ''
-		'net.textproto':      ''
-		'net.url':            'net.urllib'
-		'os.':                'os'
-		'path.':              'os'
-		'plugin':             ''
-		'reflect':            ''
-		'regexp.':            'regex'
-		'runtime.':           ''
-		'sort':               ''
-		'sync.atomic':        'sync.stdatomic'
-		'syscall.':           ''
-		'testing.':           ''
-		'text.':              'strings'
-		'time.tzdata':        'time'
-		'unicode.':           'encoding.'
-		'unsafe':             ''
-		'internal.':          ''
+// `name` as a key includes `name`
+// `name.` as a key includes `name`, `name.foo`, `name.foo.bar`...
+// `name` as a value transforms to `name`
+// `name.` as a key transforms to `name`, `name.foo`, `name.foo.bar`...
+// `` as a key removes the import
+// `nameInGo`: `nameInV`
+const module_equivalence = {
+	'archive.':           'compress.'
+	'bufio':              'io'
+	'bytes':              ''
+	'compress.flate':     'compress.deflate'
+	'container.':         'datatypes'
+	'database.':          ''
+	'debug.':             ''
+	'embed':              ''
+	'encoding.json':      'json'
+	'errors':             ''
+	'expvar':             ''
+	'fmt':                ''
+	'@go.':               'v.'
+	'html.':              ''
+	'image.':             'gg'
+	'index.':             ''
+	'io.fs':              'os'
+	'io.ioutil':          'io.util'
+	'log.syslog':         ''
+	'math.cmplx':         'math.complex'
+	'math.rand':          'rand'
+	'mime.':              'net.http.mime'
+	'net.http.cgi':       'net.http'
+	'net.http.cookiejar': 'net.http'
+	'net.http.fcgi':      'net.http'
+	'net.http.httptest':  ''
+	'net.http.httptrace': ''
+	'net.http.httputil':  'net.http'
+	'net.http.pprof':     ''
+	'net.mail':           'net.smtp'
+	'net.netip':          ''
+	'net.rpc.':           ''
+	'net.textproto':      ''
+	'net.url':            'net.urllib'
+	'os.':                'os'
+	'path.':              'os'
+	'plugin':             ''
+	'reflect':            ''
+	'regexp.':            'regex'
+	'runtime.':           ''
+	'sort':               ''
+	'sync.atomic':        'sync.stdatomic'
+	'syscall.':           ''
+	'testing.':           ''
+	'text.':              'strings'
+	'time.tzdata':        'time'
+	'unicode.':           'encoding.'
+	'unsafe':             ''
+	'internal.':          ''
+}
+// functions that are in the `strings` module in Go and in the `builtin` module in V
+const strings_to_builtin = ['compare', 'contains', 'contains_any', 'count', 'fields', 'index',
+	'index_any', 'index_byte', 'last_index', 'last_index_byte', 'repeat', 'split', 'title',
+	'to_lower', 'to_upper', 'trim', 'trim_left', 'trim_prefix', 'trim_right', 'trim_space',
+	'trim_suffix']
+// function name equivalence (left Go & right V)
+const name_equivalence = {
+	'string': 'str'
+	'rune':   'runes'
+}
+// methods of the string builder that require a special treatment
+const string_builder_diffs = ['cap', 'grow', 'len', 'reset', 'string', 'write']
+// equivalent of Go's `unicode.utf8.EncodeRune()`
+//
+// fn go2v_utf8_encode_rune(mut p []u8, r rune) int {
+// 	mut bytes := r.bytes()
+// 	p << bytes
+// 	return bytes.len
+// }
+const go2v_utf8_encode_rune = FunctionStmt{
+	name: 'go2v_utf8_encode_rune'
+	args: {
+		'p': 'mut []u8'
+		'r': 'rune'
 	}
-	// functions that are in the `strings` module in Go and in the `builtin` module in V
-	strings_to_builtin = ['compare', 'contains', 'contains_any', 'count', 'fields', 'index',
-		'index_any', 'index_byte', 'last_index', 'last_index_byte', 'repeat', 'split', 'title',
-		'to_lower', 'to_upper', 'trim', 'trim_left', 'trim_prefix', 'trim_right', 'trim_space',
-		'trim_suffix']
-	// function name equivalence (left Go & right V)
-	name_equivalence   = {
-		'string': 'str'
-		'rune':   'runes'
-	}
-	// methods of the string builder that require a special treatment
-	string_builder_diffs  = ['cap', 'grow', 'len', 'reset', 'string', 'write']
-	// equivalent of Go's `unicode.utf8.EncodeRune()`
-	//
-	// fn go2v_utf8_encode_rune(mut p []u8, r rune) int {
-	// 	mut bytes := r.bytes()
-	// 	p << bytes
-	// 	return bytes.len
-	// }
-	go2v_utf8_encode_rune = FunctionStmt{
-		name: 'go2v_utf8_encode_rune'
-		args: {
-			'p': 'mut []u8'
-			'r': 'rune'
-		}
-		ret_vals: ['int']
-		body: [
-			VariableStmt{
-				names: ['bytes']
-				middle: ':='
-				values: [CallStmt{
-					namespaces: 'r.bytes'
-				}]
-			},
-			PushStmt{BasicValueStmt{'p'}, BasicValueStmt{'bytes'}},
-			ReturnStmt{
-				values: [BasicValueStmt{'bytes.len'}]
-			},
-		]
-	}
-)
+	ret_vals: ['int']
+	body: [
+		VariableStmt{
+			names: ['bytes']
+			middle: ':='
+			values: [CallStmt{
+				namespaces: 'r.bytes'
+			}]
+		},
+		PushStmt{BasicValueStmt{'p'}, BasicValueStmt{'bytes'}},
+		ReturnStmt{
+			values: [BasicValueStmt{'bytes.len'}]
+		},
+	]
+}
 
 // initialize struct field that are references to themself
 fn (mut v VAST) struct_transformer(mut s Struct) {

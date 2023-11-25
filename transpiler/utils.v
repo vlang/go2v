@@ -3,29 +3,27 @@ module transpiler
 import v.token
 import strings
 
-const (
-	// types equivalence (left Go & right V)
-	get_v_type = {
-		'bool':    'bool'
-		'string':  'string'
-		'byte':    'u8'
-		'rune':    'rune'
-		'int':     'int'
-		'int8':    'i8'
-		'int16':   'i16'
-		'int32':   'i32'
-		'int64':   'i64'
-		'uint8':   'u8'
-		'uint16':  'u16'
-		'uint32':  'u32'
-		'uint64':  'u64'
-		'float32': 'f32'
-		'float64': 'f64'
-	}
-	v_types  = get_v_type.values()
-	// keywords to excape with `@`
-	keywords = token.keywords
-)
+// types equivalence (left Go & right V)
+const get_v_type = {
+	'bool':    'bool'
+	'string':  'string'
+	'byte':    'u8'
+	'rune':    'rune'
+	'int':     'int'
+	'int8':    'i8'
+	'int16':   'i16'
+	'int32':   'i32'
+	'int64':   'i64'
+	'uint8':   'u8'
+	'uint16':  'u16'
+	'uint32':  'u32'
+	'uint64':  'u64'
+	'float32': 'f32'
+	'float64': 'f64'
+}
+const v_types = get_v_type.values()
+// keywords to excape with `@`
+const keywords = token.keywords
 
 // used by `set_naming_style()`
 enum NamingStyle {

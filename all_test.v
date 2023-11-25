@@ -2,11 +2,9 @@ import os
 import term
 import v.util.diff
 
-const (
-	go2v_path = @VMODROOT
-	go2v_exe  = prepare_go2v_executable()
-	diffcmd   = diff.find_working_diff_command()!
-)
+const go2v_path = @VMODROOT
+const go2v_exe = prepare_go2v_executable()
+const diffcmd = diff.find_working_diff_command()!
 
 fn prepare_go2v_executable() string {
 	go2v_source := '${go2v_path}/go2v.v'

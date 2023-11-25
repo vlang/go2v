@@ -4,9 +4,7 @@ module transpiler
 // `true` will be interpreted as a `bool` by default
 // `12` will not be interpreted as a `u32` by default
 // any other type than those ones may require casting
-const (
-	well_interpreted_types = ['bool', 'string', 'rune', 'int']
-)
+const well_interpreted_types = ['bool', 'string', 'rune', 'int']
 
 // entry point for the AST extraction phase
 fn ast_extractor(tree Tree) VAST {
