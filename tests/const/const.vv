@@ -1,10 +1,8 @@
 module main
 
-const (
-	struct_uppercase_to_handle = 123
-	struct1                    = 'dsfsdfs'
-	bbb                        = `b`
-	ccc                        = `c`
-	struct2                    = `a`
-	struct3                    = true
-)
+const struct_uppercase_to_handle = 123
+const struct1 = 'dsfsdfs'
+const bbb = `b`
+const ccc = `c`
+const struct2 = `a`
+const struct3 = true
