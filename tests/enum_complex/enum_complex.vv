@@ -1,7 +1,6 @@
 module main
 
 const default_msg_accept_func = default_msg_accept_func
-
 enum EnumFieldTest {
 	enum_fieid_zero
 	enum_field_five = 5

@@ -39,10 +39,12 @@ fn (mut v VAST) write_consts() {
 		if v.consts.len == 1 {
 			v.out.write_string('const ')
 			v.write_stmt(v.consts[0], false)
+			v.out.write_string('\n')
 		} else {
 			v.out.writeln('const (')
 			for @const in v.consts {
 				v.write_stmt(@const, false)
+				v.out.write_string('\n')
 			}
 			v.out.writeln(')')
 		}

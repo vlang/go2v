@@ -2,6 +2,7 @@ module main
 
 const boms = [Go2VInlineStruct{[0xfe, 0xff], 'utf-16be'},
 	Go2VInlineStruct{[0xff, 0xfe], 'utf-16le'}, Go2VInlineStruct{[0xef, 0xbb, 0xbf], 'utf-8'}]
+
 struct Go2VInlineStruct {
 mut:
 	bom []int
