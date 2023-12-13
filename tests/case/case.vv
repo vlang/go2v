@@ -11,6 +11,7 @@ const upper_camel_case = 0
 const uppercase = 0
 
 const lowercase = 0
+
 fn ok() {
 	mut erfd_fs324 := ['a', 'b', 'c', 'd']
 	mut id_weird := 0
