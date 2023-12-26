@@ -93,7 +93,8 @@ pub fn go_to_v(input_path string, output_path string) ! {
 pub fn convert_and_write(input_path string, output_path string) ! {
 	println('converting "${input_path}" -> "${output_path}"')
 
-	conversion := os.execute('go run "${os.resource_abs_path('transpiler')}/ast_getter.go" -- "${input_path}"')
+	path_ast_getter := os.join_path(os.resource_abs_path('transpiler'), 'ast_getter.go')
+	conversion := os.execute('go run "${path_ast_getter}" -- "${input_path}"')
 	if conversion.exit_code != 0 {
 		return error(term.red('"${input_path}" is not a valid Go file') +
 			'\n
