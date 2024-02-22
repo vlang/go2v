@@ -128,8 +128,8 @@ pub fn convert_and_write(input_path string, output_path string) ! {
 		output_mode: .silent
 		is_fmt: true
 	}
-	table := ast.new_table()
-	result := parser.parse_text(raw_v_file, output_path, table, .parse_comments, prefs)
+	mut table := ast.new_table()
+	result := parser.parse_text(raw_v_file, output_path, mut table, .parse_comments, prefs)
 	if result.errors.len > 0 {
 		eprintln(term.red('Generated output could not be formatted') + '\n==================')
 		for e in result.errors {
@@ -137,7 +137,7 @@ pub fn convert_and_write(input_path string, output_path string) ! {
 		}
 		return error('\n==================')
 	}
-	formatted_content := fmt.fmt(result, table, prefs, false)
+	formatted_content := fmt.fmt(result, mut table, prefs, false)
 
 	// compile with -cg to enable this block
 	// only works properly if converting single file.
