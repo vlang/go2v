@@ -299,12 +299,10 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 	mut ret := Statement(NotYetImplStmt{})
 
 	match tree.name {
-		// `var` syntax
-		'*ast.DeclStmt' {
-			mut var_stmt := v.extract_variable(tree.child['Decl'].tree.child['Specs'].tree.child['0'].tree,
-				false, true)
-
-			ret = var_stmt
+		'*ast.ArrayType' {
+			ret = ArrayStmt{
+				@type: v.get_name(tree.child['Elt'].tree, .ignore, .other)
+			}
 		}
 		// `:=`, `+=` etc. syntax
 		'*ast.AssignStmt' {
@@ -314,30 +312,6 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 		'*ast.BasicLit', '*ast.StarExpr', '*ast.TypeAssertExpr' {
 			ret = BasicValueStmt{v.get_name(tree, .ignore, .other)}
 		}
-		// variable, function call, etc.
-		'*ast.Ident', '*ast.IndexExpr', '*ast.SelectorExpr' {
-			ret = BasicValueStmt{v.get_name(tree, .snake_case, .other)}
-			v.extract_embedded_declaration(tree)
-		}
-		'*ast.MapType' {
-			ret = MapStmt{
-				key_type: v.get_name(tree.child['Key'].tree, .ignore, .other)
-				value_type: v.get_name(tree.child['Value'].tree, .ignore, .other)
-			}
-		}
-		'*ast.ArrayType' {
-			ret = ArrayStmt{
-				@type: v.get_name(tree.child['Elt'].tree, .ignore, .other)
-			}
-		}
-		'*ast.UnaryExpr' {
-			op := if tree.child['Op'].val !in ['range', '+'] { tree.child['Op'].val } else { '' }
-
-			ret = MultipleStmt{[
-				bv_stmt('${op}'),
-				v.extract_stmt(tree.child['X'].tree),
-			]}
-		}
 		'*ast.BinaryExpr' {
 			op := if tree.child['Op'].val != '&^' { tree.child['Op'].val } else { '&~' }
 
@@ -346,6 +320,48 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				bv_stmt(' ${op} '),
 				v.extract_stmt(tree.child['Y'].tree),
 			]}
+		}
+		'*ast.BlockStmt' {
+			ret = BlockStmt{v.extract_body(tree)}
+		}
+		// break/continue
+		'*ast.BranchStmt' {
+			ret = BranchStmt{tree.child['Tok'].val, v.get_name(tree.child['Label'].tree,
+				.snake_case, .other)}
+		}
+		// (nested) function/method call
+		'*ast.CallExpr', '*ast.ExprStmt' {
+			base := if tree.name == '*ast.ExprStmt' { tree.child['X'].tree } else { tree }
+
+			fn_stmt := v.extract_function(base.child['Fun'].tree, false)
+			if fn_stmt.body.len < 1 {
+				mut call_stmt := CallStmt{
+					namespaces: fn_stmt.name
+				}
+				// function/method arguments
+				for _, arg in base.child['Args'].tree.child {
+					call_stmt.args << v.extract_stmt(arg.tree)
+				}
+
+				// ellipsis (`...a` syntax)
+				if base.child['Ellipsis'].val != '0' {
+					idx := call_stmt.args.len - 1
+					call_stmt.args[idx] = MultipleStmt{[bv_stmt('...'), call_stmt.args[idx]]}
+				}
+
+				// `[]byte("Hello, 世界")` -> `"Hello, 世界".bytes()`
+				if fn_stmt.name[0] == `[` {
+					call_stmt = CallStmt{
+						namespaces: '${v.stmt_to_string(call_stmt.args[0])}.bytes'
+					}
+				}
+
+				v.extract_embedded_declaration(base.child['Fun'].tree)
+
+				ret = call_stmt
+			} else {
+				ret = fn_stmt
+			}
 		}
 		// arrays & `Struct{}` syntaxt
 		'*ast.CompositeLit' {
@@ -466,68 +482,67 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 				}
 			}
 		}
-		// `key: value` syntax
-		'*ast.KeyValueExpr' {
-			ret = KeyValStmt{
-				key: v.get_name(tree.child['Key'].tree, .snake_case, .other)
-				value: v.extract_stmt(tree.child['Value'].tree)
-			}
+		// `var` syntax
+		'*ast.DeclStmt' {
+			mut var_stmt := v.extract_variable(tree.child['Decl'].tree.child['Specs'].tree.child['0'].tree,
+				false, true)
+
+			ret = var_stmt
 		}
-		// slices (slicing)
-		'*ast.SliceExpr' {
-			mut slice_stmt := SliceStmt{
-				value: v.get_name(tree.child['X'].tree, .ignore, .other)
-				low: BasicValueStmt{}
-				high: BasicValueStmt{}
+		'*ast.DeferStmt' {
+			mut defer_stmt := DeferStmt{[v.extract_stmt(tree.child['Call'].tree)]}
+
+			// as Go's defer stmt only support deferring one stmt, in Go if you want to defer multiple stmts you have to use an anonymous function, here we just extract the anonymous function's body
+			if defer_stmt.body.len == 1 && defer_stmt.body[0] is FunctionStmt {
+				defer_stmt.body = (defer_stmt.body[0] as FunctionStmt).body
 			}
-			if 'Low' in tree.child {
-				slice_stmt.low = v.extract_stmt(tree.child['Low'].tree)
-			}
-			if 'High' in tree.child {
-				slice_stmt.high = v.extract_stmt(tree.child['High'].tree)
-			}
-			ret = slice_stmt
+
+			ret = defer_stmt
 		}
-		// (nested) function/method call
-		'*ast.ExprStmt', '*ast.CallExpr' {
-			base := if tree.name == '*ast.ExprStmt' { tree.child['X'].tree } else { tree }
+		'*ast.Ellipsis' {
+			ret = bv_stmt('...')
+		}
+		// condition for/bare for/C-style for
+		'*ast.ForStmt' {
+			mut for_stmt := ForStmt{}
 
-			fn_stmt := v.extract_function(base.child['Fun'].tree, false)
-			if fn_stmt.body.len < 1 {
-				mut call_stmt := CallStmt{
-					namespaces: fn_stmt.name
+			// init
+			for_stmt.init = v.extract_variable(tree.child['Init'].tree, true, false)
+			for_stmt.init.mutable = false
+
+			// condition
+			for_stmt.condition = v.extract_stmt(tree.child['Cond'].tree)
+
+			// post
+			post_base := tree.child['Post'].tree
+			if post_base.child.len > 0 {
+				for_stmt.post = v.extract_stmt(post_base)
+			}
+
+			// body
+			for_stmt.body = v.extract_body(tree.child['Body'].tree)
+
+			ret = for_stmt
+		}
+		'*ast.FuncLit' {
+			ret = v.extract_function(tree, true)
+		}
+		'*ast.GoStmt' {
+			to_call := v.extract_stmt(tree.child['Call'].tree)
+			if to_call is FunctionStmt {
+				mut multiple_stmts := MultipleStmt{}
+				for _, child_stmt in to_call.body {
+					multiple_stmts.stmts << GoStmt{child_stmt}
 				}
-				// function/method arguments
-				for _, arg in base.child['Args'].tree.child {
-					call_stmt.args << v.extract_stmt(arg.tree)
-				}
-
-				// ellipsis (`...a` syntax)
-				if base.child['Ellipsis'].val != '0' {
-					idx := call_stmt.args.len - 1
-					call_stmt.args[idx] = MultipleStmt{[bv_stmt('...'), call_stmt.args[idx]]}
-				}
-
-				// `[]byte("Hello, 世界")` -> `"Hello, 世界".bytes()`
-				if fn_stmt.name[0] == `[` {
-					call_stmt = CallStmt{
-						namespaces: '${v.stmt_to_string(call_stmt.args[0])}.bytes'
-					}
-				}
-
-				v.extract_embedded_declaration(base.child['Fun'].tree)
-
-				ret = call_stmt
+				ret = multiple_stmts
 			} else {
-				ret = fn_stmt
+				ret = GoStmt{to_call}
 			}
 		}
-		// `i++` & `i--`
-		'*ast.IncDecStmt' {
-			ret = IncDecStmt{
-				var: v.get_name(tree, .ignore, .other)
-				inc: tree.child['Tok'].val
-			}
+		// variable, function call, etc.
+		'*ast.Ident', '*ast.IndexExpr', '*ast.SelectorExpr' {
+			ret = BasicValueStmt{v.get_name(tree, .snake_case, .other)}
+			v.extract_embedded_declaration(tree)
 		}
 		// if/else
 		'*ast.IfStmt' {
@@ -569,32 +584,31 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 
 			ret = if_stmt
 		}
-		// condition for/bare for/C-style for
-		'*ast.ForStmt' {
-			mut for_stmt := ForStmt{}
-
-			// init
-			for_stmt.init = v.extract_variable(tree.child['Init'].tree, true, false)
-			for_stmt.init.mutable = false
-
-			// condition
-			for_stmt.condition = v.extract_stmt(tree.child['Cond'].tree)
-
-			// post
-			post_base := tree.child['Post'].tree
-			if post_base.child.len > 0 {
-				for_stmt.post = v.extract_stmt(post_base)
+		// `i++` & `i--`
+		'*ast.IncDecStmt' {
+			ret = IncDecStmt{
+				var: v.get_name(tree, .ignore, .other)
+				inc: tree.child['Tok'].val
 			}
-
-			// body
-			for_stmt.body = v.extract_body(tree.child['Body'].tree)
-
-			ret = for_stmt
 		}
-		// break/continue
-		'*ast.BranchStmt' {
-			ret = BranchStmt{tree.child['Tok'].val, v.get_name(tree.child['Label'].tree,
-				.snake_case, .other)}
+		// `key: value` syntax
+		'*ast.KeyValueExpr' {
+			ret = KeyValStmt{
+				key: v.get_name(tree.child['Key'].tree, .snake_case, .other)
+				value: v.extract_stmt(tree.child['Value'].tree)
+			}
+		}
+		'*ast.LabeledStmt' {
+			ret = LabelStmt{v.get_name(tree.child['Label'].tree, .snake_case, .other), v.extract_stmt(tree.child['Stmt'].tree)}
+		}
+		'*ast.MapType' {
+			ret = MapStmt{
+				key_type: v.get_name(tree.child['Key'].tree, .ignore, .other)
+				value_type: v.get_name(tree.child['Value'].tree, .ignore, .other)
+			}
+		}
+		'*ast.ParenExpr' {
+			ret = bv_stmt('(' + v.stmt_to_string(v.extract_stmt(tree.child['X'].tree)) + ')')
 		}
 		// for in
 		'*ast.RangeStmt' {
@@ -629,15 +643,20 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 
 			ret = return_stmt
 		}
-		'*ast.DeferStmt' {
-			mut defer_stmt := DeferStmt{[v.extract_stmt(tree.child['Call'].tree)]}
-
-			// as Go's defer stmt only support deferring one stmt, in Go if you want to defer multiple stmts you have to use an anonymous function, here we just extract the anonymous function's body
-			if defer_stmt.body.len == 1 && defer_stmt.body[0] is FunctionStmt {
-				defer_stmt.body = (defer_stmt.body[0] as FunctionStmt).body
+		// slices (slicing)
+		'*ast.SliceExpr' {
+			mut slice_stmt := SliceStmt{
+				value: v.get_name(tree.child['X'].tree, .ignore, .other)
+				low: BasicValueStmt{}
+				high: BasicValueStmt{}
 			}
-
-			ret = defer_stmt
+			if 'Low' in tree.child {
+				slice_stmt.low = v.extract_stmt(tree.child['Low'].tree)
+			}
+			if 'High' in tree.child {
+				slice_stmt.high = v.extract_stmt(tree.child['High'].tree)
+			}
+			ret = slice_stmt
 		}
 		'*ast.SwitchStmt', '*ast.TypeSwitchStmt' {
 			is_type_switch := tree.name == '*ast.TypeSwitchStmt'
@@ -694,32 +713,13 @@ fn (mut v VAST) extract_stmt(tree Tree) Statement {
 
 			ret = match_stmt
 		}
-		'*ast.FuncLit' {
-			ret = v.extract_function(tree, true)
-		}
-		'*ast.Ellipsis' {
-			ret = bv_stmt('...')
-		}
-		'*ast.LabeledStmt' {
-			ret = LabelStmt{v.get_name(tree.child['Label'].tree, .snake_case, .other), v.extract_stmt(tree.child['Stmt'].tree)}
-		}
-		'*ast.ParenExpr' {
-			ret = bv_stmt('(' + v.stmt_to_string(v.extract_stmt(tree.child['X'].tree)) + ')')
-		}
-		'*ast.GoStmt' {
-			to_call := v.extract_stmt(tree.child['Call'].tree)
-			if to_call is FunctionStmt {
-				mut multiple_stmts := MultipleStmt{}
-				for _, child_stmt in to_call.body {
-					multiple_stmts.stmts << GoStmt{child_stmt}
-				}
-				ret = multiple_stmts
-			} else {
-				ret = GoStmt{to_call}
-			}
-		}
-		'*ast.BlockStmt' {
-			ret = BlockStmt{v.extract_body(tree)}
+		'*ast.UnaryExpr' {
+			op := if tree.child['Op'].val !in ['range', '+'] { tree.child['Op'].val } else { '' }
+
+			ret = MultipleStmt{[
+				bv_stmt('${op}'),
+				v.extract_stmt(tree.child['X'].tree),
+			]}
 		}
 		'' {
 			ret = bv_stmt('')
