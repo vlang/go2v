@@ -114,159 +114,6 @@ fn (mut v VAST) write_body(body []Statement) {
 // write a statement
 fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 	match stmt {
-		FunctionStmt {
-			// comment
-			if stmt.comment.len > 0 {
-				v.out.writeln(stmt.comment)
-			}
-			// public/private
-			if stmt.public {
-				v.out.write_string('pub ')
-			}
-			// keyword
-			v.out.write_string('fn ')
-			// method
-			if stmt.method.len != 0 {
-				v.out.write_string('(mut ${stmt.method[0]} ${stmt.method[1]}) ')
-			}
-			// name
-			v.out.write_string('${stmt.name}')
-			// generic
-			if stmt.generic {
-				v.out.write_string('<T>')
-			}
-			v.out.write_rune(`(`)
-			// arguments
-			// useless after https://github.com/vlang/v/issues/14551 gets fixed
-			mut i := 0
-			for name, @type in stmt.args {
-				name_ := if stmt.type_ctx { '' } else { name }
-				if i != stmt.args.len - 1 {
-					v.out.write_string('${name_} ${@type}, ')
-				} else {
-					v.out.write_string('${name_} ${@type}')
-				}
-				i++
-			}
-			v.out.write_string(')')
-			// return value(s)
-
-			if stmt.ret_vals.len > 0 {
-				v.out.write_string(' (')
-				for val in stmt.ret_vals {
-					v.out.write_string('${val}, ')
-				}
-				v.out.write_string(')')
-			}
-			// body
-			if !stmt.type_ctx {
-				v.out.write_string(' {')
-				v.write_body(stmt.body)
-				v.out.writeln('}')
-			}
-		}
-		VariableStmt {
-			if stmt.names.len > 0 {
-				has_explicit_type := stmt.@type.len > 0
-
-				if stmt.mutable && stmt.middle == ':=' {
-					v.out.write_string('mut ')
-				}
-
-				// name(s)
-				for i, name in stmt.names {
-					v.out.write_string(name)
-					v.out.write_string(if i != stmt.names.len - 1 { ',' } else { '' })
-				}
-
-				// eg: `:=`, `+=`, `=`
-				v.out.write_string(stmt.middle)
-
-				// value(s)
-				if stmt.values.len > 0 {
-					for value in stmt.values {
-						// explicit type
-						if has_explicit_type {
-							v.out.write_string('${stmt.@type}(')
-						}
-						v.write_stmt(value, true)
-						if has_explicit_type {
-							v.out.write_rune(`)`)
-						}
-						v.out.write_rune(`,`)
-					}
-					v.out.cut_last(1)
-				} else {
-					for _ in stmt.names {
-						v.out.write_string(type_to_default_value(stmt.@type))
-						v.out.write_rune(`,`)
-					}
-					v.out.cut_last(1)
-				}
-			}
-		}
-		IncDecStmt {
-			v.out.write_string('${stmt.var}${stmt.inc}')
-		}
-		CallStmt {
-			v.out.write_string('${stmt.namespaces}(')
-			for arg in stmt.args {
-				v.write_stmt(arg, true)
-				v.out.write_rune(`,`)
-			}
-			v.out.write_rune(`)`)
-		}
-		IfStmt {
-			for var_stmt in stmt.init_vars {
-				v.write_stmt(var_stmt, false)
-			}
-			for i, branch in stmt.branchs {
-				if i != 0 {
-					v.out.write_string('else ')
-				}
-
-				if branch.condition != bv_stmt('') {
-					v.out.write_string('if ')
-					v.write_stmt(branch.condition, true)
-				}
-				v.out.write_string('{\n')
-				v.write_body(branch.body)
-				v.out.write_rune(`}`)
-			}
-		}
-		ForStmt {
-			v.out.write_string('for ')
-			// check if stmt.init or stmt.post aren't null
-			if stmt.init.names.len > 0 || stmt.post.type_name() != 'unknown transpiler.Statement' {
-				// c-style for
-				v.write_stmt(stmt.init, true)
-				v.out.write_rune(`;`)
-				v.write_stmt(stmt.condition, true)
-				v.out.write_rune(`;`)
-				v.write_stmt(stmt.post, true)
-			} else {
-				// while
-				v.write_stmt(stmt.condition, true)
-			}
-			// for bare loops no need to write anything
-			v.out.write_string('{\n')
-			v.write_body(stmt.body)
-			v.out.write_rune(`}`)
-		}
-		ForInStmt {
-			if stmt.idx.len > 0 || stmt.element.len > 0 {
-				v.out.write_string('for ${stmt.idx}, ${stmt.element} in ')
-			} else {
-				v.out.write_string('for _ in ')
-			}
-			v.write_stmt(stmt.variable, true)
-			v.out.write_string('{\n')
-			v.write_body(stmt.body)
-			v.out.write_rune(`}`)
-		}
-		BranchStmt {
-			v.out.write_string('${stmt.name} ${stmt.label}')
-		}
 		ArrayStmt {
 			is_empty := stmt.values.len < 1
 			is_fixed_size := stmt.len.trim_space().len > 0
@@ -343,31 +190,151 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 		BasicValueStmt {
 			v.out.write_string(stmt.value)
 		}
-		SliceStmt {
-			v.out.write_string('${stmt.value}[')
-			v.write_stmt(stmt.low, true)
-			v.out.write_string('..')
-			v.write_stmt(stmt.high, true)
-			v.out.write_rune(`]`)
+		BlockStmt {
+			v.out.write_rune(`{`)
+			v.write_body(stmt.body)
+			v.out.write_rune(`}`)
 		}
-		ReturnStmt {
-			v.out.write_string('return ')
-			for i, el in stmt.values {
-				v.write_stmt(el, true)
-				if i != stmt.values.len - 1 {
-					v.out.write_rune(`,`)
-				}
+		BranchStmt {
+			v.out.write_string('${stmt.name} ${stmt.label}')
+		}
+		CallStmt {
+			v.out.write_string('${stmt.namespaces}(')
+			for arg in stmt.args {
+				v.write_stmt(arg, true)
+				v.out.write_rune(`,`)
 			}
+			v.out.write_rune(`)`)
 		}
 		DeferStmt {
 			v.out.write_string('defer {')
 			v.write_body(stmt.body)
 			v.out.write_rune(`}`)
 		}
-		UnsafeStmt {
-			v.out.write_string('unsafe {')
+		ForInStmt {
+			if stmt.idx.len > 0 || stmt.element.len > 0 {
+				v.out.write_string('for ${stmt.idx}, ${stmt.element} in ')
+			} else {
+				v.out.write_string('for _ in ')
+			}
+			v.write_stmt(stmt.variable, true)
+			v.out.write_string('{\n')
 			v.write_body(stmt.body)
 			v.out.write_rune(`}`)
+		}
+		ForStmt {
+			v.out.write_string('for ')
+			// check if stmt.init or stmt.post aren't null
+			if stmt.init.names.len > 0 || stmt.post.type_name() != 'unknown transpiler.Statement' {
+				// c-style for
+				v.write_stmt(stmt.init, true)
+				v.out.write_rune(`;`)
+				v.write_stmt(stmt.condition, true)
+				v.out.write_rune(`;`)
+				v.write_stmt(stmt.post, true)
+			} else {
+				// while
+				v.write_stmt(stmt.condition, true)
+			}
+			// for bare loops no need to write anything
+			v.out.write_string('{\n')
+			v.write_body(stmt.body)
+			v.out.write_rune(`}`)
+		}
+		FunctionStmt {
+			// comment
+			if stmt.comment.len > 0 {
+				v.out.writeln(stmt.comment)
+			}
+			// public/private
+			if stmt.public {
+				v.out.write_string('pub ')
+			}
+			// keyword
+			v.out.write_string('fn ')
+			// method
+			if stmt.method.len != 0 {
+				v.out.write_string('(mut ${stmt.method[0]} ${stmt.method[1]}) ')
+			}
+			// name
+			v.out.write_string('${stmt.name}')
+			// generic
+			if stmt.generic {
+				v.out.write_string('<T>')
+			}
+			v.out.write_rune(`(`)
+			// arguments
+			// useless after https://github.com/vlang/v/issues/14551 gets fixed
+			mut i := 0
+			for name, @type in stmt.args {
+				name_ := if stmt.type_ctx { '' } else { name }
+				if i != stmt.args.len - 1 {
+					v.out.write_string('${name_} ${@type}, ')
+				} else {
+					v.out.write_string('${name_} ${@type}')
+				}
+				i++
+			}
+			v.out.write_string(')')
+			// return value(s)
+
+			if stmt.ret_vals.len > 0 {
+				v.out.write_string(' (')
+				for val in stmt.ret_vals {
+					v.out.write_string('${val}, ')
+				}
+				v.out.write_string(')')
+			}
+			// body
+			if !stmt.type_ctx {
+				v.out.write_string(' {')
+				v.write_body(stmt.body)
+				v.out.writeln('}')
+			}
+		}
+		GoStmt {
+			v.out.write_string('go ')
+			v.write_stmt(stmt.stmt, true)
+		}
+		IncDecStmt {
+			v.out.write_string('${stmt.var}${stmt.inc}')
+		}
+		IfStmt {
+			for var_stmt in stmt.init_vars {
+				v.write_stmt(var_stmt, false)
+			}
+			for i, branch in stmt.branchs {
+				if i != 0 {
+					v.out.write_string('else ')
+				}
+
+				if branch.condition != bv_stmt('') {
+					v.out.write_string('if ')
+					v.write_stmt(branch.condition, true)
+				}
+				v.out.write_string('{\n')
+				v.write_body(branch.body)
+				v.out.write_rune(`}`)
+			}
+		}
+		KeyValStmt {
+			v.out.write_string('\n${stmt.key}:')
+			v.write_stmt(stmt.value, true)
+		}
+		LabelStmt {
+			v.out.write_string('${stmt.name}: ')
+			v.write_stmt(stmt.stmt, true)
+		}
+		MapStmt {
+			if stmt.values.len > 0 {
+				v.out.write_rune(`{`)
+				for value in stmt.values {
+					v.write_stmt(value, true)
+				}
+				v.out.write_rune(`}`)
+			} else {
+				v.out.write_string('map[${stmt.key_type}]${stmt.value_type}{}')
+			}
 		}
 		MatchStmt {
 			v.write_stmt(stmt.init, true)
@@ -398,6 +365,39 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			}
 			v.out.write_rune(`}`)
 		}
+		MultipleStmt {
+			for el in stmt.stmts {
+				v.write_stmt(el, true)
+			}
+		}
+		NotYetImplStmt {
+			v.out.write_string('NOT_YET_IMPLEMENTED')
+		}
+		OptionalStmt {
+			v.write_stmt(stmt.stmt, true)
+			v.out.write_rune(`?`)
+		}
+		PushStmt {
+			v.write_stmt(stmt.stmt, true)
+			v.out.write_string('<<')
+			v.write_stmt(stmt.value, true)
+		}
+		ReturnStmt {
+			v.out.write_string('return ')
+			for i, el in stmt.values {
+				v.write_stmt(el, true)
+				if i != stmt.values.len - 1 {
+					v.out.write_rune(`,`)
+				}
+			}
+		}
+		SliceStmt {
+			v.out.write_string('${stmt.value}[')
+			v.write_stmt(stmt.low, true)
+			v.out.write_string('..')
+			v.write_stmt(stmt.high, true)
+			v.out.write_rune(`]`)
+		}
 		StructStmt {
 			v.out.write_string('${stmt.name}{')
 			for i, field in stmt.fields {
@@ -408,50 +408,50 @@ fn (mut v VAST) write_stmt(stmt Statement, is_value bool) {
 			}
 			v.out.write_rune(`}`)
 		}
-		KeyValStmt {
-			v.out.write_string('\n${stmt.key}:')
-			v.write_stmt(stmt.value, true)
-		}
-		MapStmt {
-			if stmt.values.len > 0 {
-				v.out.write_rune(`{`)
-				for value in stmt.values {
-					v.write_stmt(value, true)
-				}
-				v.out.write_rune(`}`)
-			} else {
-				v.out.write_string('map[${stmt.key_type}]${stmt.value_type}{}')
-			}
-		}
-		PushStmt {
-			v.write_stmt(stmt.stmt, true)
-			v.out.write_string('<<')
-			v.write_stmt(stmt.value, true)
-		}
-		OptionalStmt {
-			v.write_stmt(stmt.stmt, true)
-			v.out.write_rune(`?`)
-		}
-		MultipleStmt {
-			for el in stmt.stmts {
-				v.write_stmt(el, true)
-			}
-		}
-		LabelStmt {
-			v.out.write_string('${stmt.name}: ')
-			v.write_stmt(stmt.stmt, true)
-		}
-		GoStmt {
-			v.out.write_string('go ')
-			v.write_stmt(stmt.stmt, true)
-		}
-		BlockStmt {
-			v.out.write_rune(`{`)
+		UnsafeStmt {
+			v.out.write_string('unsafe {')
 			v.write_body(stmt.body)
 			v.out.write_rune(`}`)
 		}
-		NotYetImplStmt {
-			v.out.write_string('NOT_YET_IMPLEMENTED')
+		VariableStmt {
+			if stmt.names.len > 0 {
+				has_explicit_type := stmt.@type.len > 0
+
+				if stmt.mutable && stmt.middle == ':=' {
+					v.out.write_string('mut ')
+				}
+
+				// name(s)
+				for i, name in stmt.names {
+					v.out.write_string(name)
+					v.out.write_string(if i != stmt.names.len - 1 { ',' } else { '' })
+				}
+
+				// eg: `:=`, `+=`, `=`
+				v.out.write_string(stmt.middle)
+
+				// value(s)
+				if stmt.values.len > 0 {
+					for value in stmt.values {
+						// explicit type
+						if has_explicit_type {
+							v.out.write_string('${stmt.@type}(')
+						}
+						v.write_stmt(value, true)
+						if has_explicit_type {
+							v.out.write_rune(`)`)
+						}
+						v.out.write_rune(`,`)
+					}
+					v.out.cut_last(1)
+				} else {
+					for _ in stmt.names {
+						v.out.write_string(type_to_default_value(stmt.@type))
+						v.out.write_rune(`,`)
+					}
+					v.out.cut_last(1)
+				}
+			}
 		}
 	}
 

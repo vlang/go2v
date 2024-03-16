@@ -78,11 +78,55 @@ type Statement = ArrayStmt
 	| UnsafeStmt
 	| VariableStmt
 
-struct NotYetImplStmt {}
-
-struct MultipleStmt {
+struct ArrayStmt {
 mut:
-	stmts []Statement
+	@type  string
+	values []Statement
+	len    string
+}
+
+struct BasicValueStmt {
+mut:
+	value string
+}
+
+struct BlockStmt {
+mut:
+	body []Statement
+}
+
+struct BranchStmt {
+mut:
+	name  string
+	label string
+}
+
+struct CallStmt {
+mut:
+	comment    string
+	namespaces string
+	args       []Statement
+}
+
+struct DeferStmt {
+mut:
+	body []Statement
+}
+
+struct ForInStmt {
+mut:
+	idx      string
+	element  string
+	variable Statement
+	body     []Statement
+}
+
+struct ForStmt {
+mut:
+	init      VariableStmt
+	condition Statement
+	post      Statement
+	body      []Statement
 }
 
 struct FunctionStmt {
@@ -98,57 +142,9 @@ mut:
 	body     []Statement
 }
 
-struct VariableStmt {
-mut:
-	comment string
-	names   []string
-	middle  string
-	values  []Statement
-	mutable bool = true
-	@type   string
-}
-
-struct ArrayStmt {
-mut:
-	@type  string
-	values []Statement
-	len    string
-}
-
-struct SliceStmt {
-mut:
-	value string
-	low   Statement
-	high  Statement
-}
-
-struct BasicValueStmt {
-mut:
-	value string
-}
-
-struct OptionalStmt {
+struct GoStmt {
 mut:
 	stmt Statement
-}
-
-struct IncDecStmt {
-mut:
-	var string
-	inc string
-}
-
-struct CallStmt {
-mut:
-	comment    string
-	namespaces string
-	args       []Statement
-}
-
-struct IfStmt {
-mut:
-	init_vars []VariableStmt
-	branchs   []IfElse
 }
 
 struct IfElse {
@@ -157,78 +153,21 @@ mut:
 	body      []Statement
 }
 
-struct ForStmt {
+struct IfStmt {
 mut:
-	init      VariableStmt
-	condition Statement
-	post      Statement
-	body      []Statement
+	init_vars []VariableStmt
+	branchs   []IfElse
 }
 
-struct ForInStmt {
+struct IncDecStmt {
 mut:
-	idx      string
-	element  string
-	variable Statement
-	body     []Statement
-}
-
-struct BranchStmt {
-mut:
-	name  string
-	label string
-}
-
-struct ReturnStmt {
-mut:
-	values []Statement
-}
-
-struct DeferStmt {
-mut:
-	body []Statement
-}
-
-struct UnsafeStmt {
-mut:
-	body []Statement
-}
-
-struct MatchStmt {
-mut:
-	init  VariableStmt
-	value Statement
-	cases []MatchCase
-}
-
-struct MatchCase {
-mut:
-	values []Statement
-	body   []Statement
-}
-
-struct StructStmt {
-mut:
-	name   string
-	fields []Statement
+	var string
+	inc string
 }
 
 struct KeyValStmt {
 mut:
 	key   string
-	value Statement
-}
-
-struct MapStmt {
-mut:
-	key_type   string
-	value_type string
-	values     []Statement
-}
-
-struct PushStmt {
-mut:
-	stmt  Statement
 	value Statement
 }
 
@@ -238,12 +177,73 @@ mut:
 	stmt Statement
 }
 
-struct GoStmt {
+struct MapStmt {
+mut:
+	key_type   string
+	value_type string
+	values     []Statement
+}
+
+struct MatchCase {
+mut:
+	values []Statement
+	body   []Statement
+}
+
+struct MatchStmt {
+mut:
+	init  VariableStmt
+	value Statement
+	cases []MatchCase
+}
+
+struct MultipleStmt {
+mut:
+	stmts []Statement
+}
+
+struct NotYetImplStmt {}
+
+struct OptionalStmt {
 mut:
 	stmt Statement
 }
 
-struct BlockStmt {
+struct PushStmt {
+mut:
+	stmt  Statement
+	value Statement
+}
+
+struct ReturnStmt {
+mut:
+	values []Statement
+}
+
+struct SliceStmt {
+mut:
+	value string
+	low   Statement
+	high  Statement
+}
+
+struct StructStmt {
+mut:
+	name   string
+	fields []Statement
+}
+
+struct UnsafeStmt {
 mut:
 	body []Statement
+}
+
+struct VariableStmt {
+mut:
+	comment string
+	names   []string
+	middle  string
+	values  []Statement
+	mutable bool = true
+	@type   string
 }

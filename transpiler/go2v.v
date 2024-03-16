@@ -113,12 +113,13 @@ pub fn convert_and_write(input_path string, output_path string) ! {
 	// compile with -cg to enable this block
 	// only works properly if converting single file.
 	$if debug {
-		os.mkdir('temp') or {}
-		os.write_file('temp/go_ast', go_ast)!
-		os.write_file('temp/tokens', tokens.str())!
-		os.write_file('temp/tree', tree.str())!
-		os.write_file('temp/v_ast', v_ast.str())!
-		os.write_file('temp/raw_file.v', raw_v_file)!
+		temp_output_path := 'temp/${os.file_name(input_path)}/'
+		os.mkdir_all(temp_output_path) or {}
+		os.write_file('${temp_output_path}go_ast', go_ast)!
+		os.write_file('${temp_output_path}tokens', tokens.str())!
+		os.write_file('${temp_output_path}tree', tree.str())!
+		os.write_file('${temp_output_path}v_ast', v_ast.str())!
+		os.write_file('${temp_output_path}raw_file.v', raw_v_file)!
 	}
 
 	os.mkdir_all(os.dir(output_path))!
@@ -142,7 +143,8 @@ pub fn convert_and_write(input_path string, output_path string) ! {
 	// compile with -cg to enable this block
 	// only works properly if converting single file.
 	$if debug {
-		os.write_file('temp/formatted_file.v', formatted_content)!
+		formatted_output_path := 'temp/${os.file_name(input_path)}/'
+		os.write_file('${formatted_output_path}formatted_file.v', formatted_content)!
 	}
 
 	os.write_file(output_path, formatted_content)!
