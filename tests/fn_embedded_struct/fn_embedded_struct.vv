@@ -1,9 +1,0 @@
-module main
-
-struct Ok {
-mut:
-	a int
-	b []string
-}
-
-fn abc(a int, b []string, c Ok) {}

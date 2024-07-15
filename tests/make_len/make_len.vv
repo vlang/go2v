@@ -1,6 +1,0 @@
-module main
-
-fn main() {
-	mut x := ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
-	mut y := []string{len: x.len}
-}

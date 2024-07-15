@@ -1,8 +1,0 @@
-module main
-
-enum EnumTest {
-	enum_test_zero
-	enum_test_one
-	enum_test_two
-	enum_test_three
-}

@@ -1,5 +1,0 @@
-module main
-
-fn main() {
-	mut b := 'Hello, 世界'.bytes()
-}

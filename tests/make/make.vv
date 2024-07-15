@@ -1,5 +1,0 @@
-module main
-
-fn main() {
-	mut m := map[string]f64{}
-}

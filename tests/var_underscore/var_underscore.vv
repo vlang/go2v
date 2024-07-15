@@ -1,6 +1,0 @@
-module main
-
-fn main() {
-	_ := `a`
-	_ := `b`
-}

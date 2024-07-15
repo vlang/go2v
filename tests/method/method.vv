@@ -1,8 +1,0 @@
-module main
-
-struct Abc {
-mut:
-	a int
-}
-
-fn (mut a Abc) ok(d int, b []string, c rune) string {}
