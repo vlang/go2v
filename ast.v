@@ -1,0 +1,190 @@
+// Copyright (c) 2024 Alexander Medvednikov. All rights reserved.
+// Use of this source code is governed by a GPL license that can be found in the LICENSE file.
+import json
+import os
+
+type Expr = BasicLit
+	| BinaryExpr
+	| CallExpr
+	| CompositeLit
+	| Ident
+	| IndexExpr
+	| KeyValueExpr
+	| ParenExpr
+	| SelectorExpr
+	| TypeOrIdent
+	| UnaryExpr
+
+type Stmt = AssignStmt | BlockStmt | CaseClause | DeclStmt | ExprStmt | IfStmt | SwitchStmt
+
+struct GoFile {
+	decls []Decl @[json: 'Decls']
+}
+
+struct Decl {
+	node_type_str string    @[json: '_type']
+	specs         []Spec    @[json: 'Specs']
+	decls         []Decl    @[json: 'Decls']
+	name          Ident     @[json: 'Name']
+	typ           FuncType  @[json: 'Type']
+	recv          FieldList @[json: 'Recv']
+	body          BlockStmt @[json: 'Body']
+}
+
+struct Spec {
+	node_type_str string @[json: '_type']
+	name          Ident  @[json: 'Name']
+	typ           Type   @[json: 'Type']
+}
+
+struct FuncType {
+	params  FieldList @[json: 'Params']
+	results FieldList @[json: 'Results']
+}
+
+struct ValueSpec {
+	node_type_str string @[json: '_type']
+
+	names  []Ident     @[json: 'Names']
+	typ    TypeOrIdent @[json: 'Type']
+	values []Expr      @[json: 'Values']
+}
+
+struct DeclStmt {
+	node_type_str string        @[json: '_type']
+	decl          struct {
+		tok   string      @[json: 'Tok']
+		specs []ValueSpec @[json: 'Specs']
+	} @[json: 'Decl']
+}
+
+struct BlockStmt {
+	node_type_str string @[json: '_type']
+	list          []Stmt @[json: 'List']
+}
+
+struct SwitchStmt {
+	init          AssignStmt @[json: 'Init']
+	tag           Expr       @[json: 'Tag']
+	body          BlockStmt  @[json: 'Body']
+	node_type_str string     @[json: '_type']
+}
+
+struct CaseClause {
+	list          []Expr @[json: 'List']
+	body          []Stmt @[json: 'Body']
+	node_type_str string @[json: '_type']
+}
+
+struct IfStmt {
+	node_type_str string    @[json: '_type']
+	cond          Expr      @[json: 'Cond']
+	body          BlockStmt @[json: 'Body']
+	else_         Stmt      @[json: 'Else']
+}
+
+struct ExprStmt {
+	node_type_str string @[json: '_type']
+	x             Expr   @[json: 'X']
+}
+
+struct AssignStmt {
+	node_type_str string @[json: '_type']
+	lhs           []Expr @[json: 'Lhs']
+
+	rhs []Expr @[json: 'Rhs']
+	tok string @[json: 'Tok']
+}
+
+struct Type {
+	node_type_str string    @[json: '_type']
+	fields        FieldList @[json: 'Fields']
+}
+
+struct FieldList {
+	list []Field @[json: 'List']
+}
+
+struct Field {
+	node_type_str string      @[json: '_type']
+	names         []Ident     @[json: 'Names']
+	typ           TypeOrIdent @[json: 'Type']
+}
+
+struct Ident {
+	name string @[json: 'Name']
+}
+
+struct TypeOrIdent {
+	node_type_str string @[json: '_type']
+	name          string @[json: 'Name']
+	elt           Ident  @[json: 'Elt']
+}
+
+struct BasicLit {
+	kind  string @[json: 'Kind']
+	value string @[json: 'Value']
+}
+
+struct CallExpr {
+	fun  Expr   @[json: 'Fun']
+	args []Expr @[json: 'Args']
+}
+
+struct SelectorExpr {
+	sel Ident @[json: 'Sel']
+	x   Expr  @[json: 'X']
+}
+
+// Foo{bar:baz}
+// []bool{}
+struct CompositeLit {
+	typ TypeOrIdent @[json: 'Type']
+
+	elts []Expr @[json: 'Elts']
+}
+
+/*
+struct Elt {
+	key struct {
+		name string @[json: 'Name']
+	} @[json: 'Key']
+
+	value Expr @[json: 'Value']
+}
+*/
+
+struct BinaryExpr {
+	x  Expr   @[json: 'X']
+	op string @[json: 'Op']
+	y  Expr   @[json: 'Y']
+}
+
+struct UnaryExpr {
+	x  Expr   @[json: 'X']
+	op string @[json: 'Op']
+}
+
+struct KeyValueExpr {
+	key           Ident  @[json: 'Key']
+	value         Expr   @[json: 'Value']
+	node_type_str string @[json: '_type']
+}
+
+struct IndexExpr {
+	x     Expr @[json: 'X']
+	index Expr @[json: 'Index']
+
+	node_type_str string @[json: '_type']
+}
+
+struct ParenExpr {
+	x Expr @[json: 'X']
+
+	node_type_str string @[json: '_type']
+}
+
+fn parse_go_ast(file_path string) !GoFile {
+	data := os.read_file(file_path)!
+	return json.decode(GoFile, data)!
+}

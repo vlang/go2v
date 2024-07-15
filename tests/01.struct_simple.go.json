@@ -1,0 +1,173 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "type",
+      "Specs": [
+        {
+          "_type": "TypeSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "Struct1"
+          },
+          "TypeParams": null,
+          "Type": {
+            "_type": "StructType",
+            "Fields": {
+              "_type": "FieldList",
+              "List": [
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "a"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "int"
+                  }
+                },
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "b"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "ArrayType",
+                    "Len": null,
+                    "Elt": {
+                      "_type": "Ident",
+                      "Name": "string"
+                    }
+                  }
+                }
+              ]
+            },
+            "Incomplete": false
+          }
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+			  "_type": "Ident",
+                "_type": "Ident",
+                "Name": "foo"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+			  "_type": "CompositeLit",
+                "Type": {
+                  "_type": "Ident",
+                  "Name": "Struct1"
+                },
+                "Elts": [
+                  {
+                    "_type": "KeyValueExpr",
+                    "Key": {
+                      "_type": "Ident",
+                      "Name": "a"
+                    },
+                    "Value": {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "5"
+                    }
+                  }
+                ],
+                "Incomplete": false
+              }
+            ]
+          },
+          {
+			  "_type": "AssignStmt",
+            "Lhs": [
+              {
+			  "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "foo"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "a"
+                }
+              }
+            ],
+            "Tok": "=",
+            "Rhs": [
+              {
+                "_type": "BasicLit",
+                "_type": "BasicLit",
+                "Kind": "INT",
+                "Value": "7"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 108,
+    "Files": [
+      {
+        "Name": "1.struct_simple.go",
+        "Base": 1,
+        "Size": 106,
+        "Lines": [
+          0,
+          13,
+          14,
+          36,
+          43,
+          55,
+          57,
+          58,
+          72,
+          93,
+          104
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}
