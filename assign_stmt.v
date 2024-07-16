@@ -37,10 +37,21 @@ fn (mut app App) check_and_handle_append(assign AssignStmt) bool {
 
 fn (mut app App) gen_append(args []Expr) {
 	app.gen(' << ')
+	if args.len == 2 {
+		app.expr(args[1])
+		app.genln('')
+		return
+	}
+
 	for i := 1; i < args.len; i++ {
+		if i == 1 && args[i] is BasicLit {
+			app.gen('[')
+		}
 		app.expr(args[i])
 		if i < args.len - 1 {
 			app.gen(',')
+		} else if i == args.len - 1 && args[i] is BasicLit {
+			app.gen(']')
 		}
 	}
 	app.genln('')
