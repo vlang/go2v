@@ -83,7 +83,6 @@
             "_type": "AssignStmt",
             "Lhs": [
               {
-			  "_type": "Ident",
                 "_type": "Ident",
                 "Name": "foo"
               }
@@ -91,7 +90,7 @@
             "Tok": ":=",
             "Rhs": [
               {
-			  "_type": "CompositeLit",
+                "_type": "CompositeLit",
                 "Type": {
                   "_type": "Ident",
                   "Name": "Struct1"
@@ -115,10 +114,10 @@
             ]
           },
           {
-			  "_type": "AssignStmt",
+            "_type": "AssignStmt",
             "Lhs": [
               {
-			  "_type": "SelectorExpr",
+                "_type": "SelectorExpr",
                 "X": {
                   "_type": "Ident",
                   "Name": "foo"
@@ -132,7 +131,6 @@
             "Tok": "=",
             "Rhs": [
               {
-                "_type": "BasicLit",
                 "_type": "BasicLit",
                 "Kind": "INT",
                 "Value": "7"
@@ -150,7 +148,7 @@
     "Base": 108,
     "Files": [
       {
-        "Name": "1.struct_simple.go",
+        "Name": "01.struct_simple.go",
         "Base": 1,
         "Size": 106,
         "Lines": [
