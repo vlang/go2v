@@ -1,7 +1,9 @@
-fn (mut app App) assign_stmt(assign AssignStmt) {
+fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
 	// app.genln('//assign_stmt')
-	if assign.tok == ':=' {
-		app.gen('mut ')
+	if !no_mut {
+		if assign.tok == ':=' {
+			app.gen('mut ')
+		}
 	}
 	for i, expr in assign.lhs {
 		app.expr(expr)

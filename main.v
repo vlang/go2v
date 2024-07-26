@@ -92,7 +92,7 @@ fn (mut app App) run_test(test_name string) ! {
 	}
 }
 
-const nr_tests = 13
+const nr_tests = 14
 
 fn main() {
 	mut app := &App{

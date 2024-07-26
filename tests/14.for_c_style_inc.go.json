@@ -1,0 +1,143 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "import",
+      "Specs": [
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"fmt\""
+          }
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "ForStmt",
+            "Init": {
+              "_type": "AssignStmt",
+              "Lhs": [
+                {
+                  "_type": "Ident",
+                  "Name": "i"
+                }
+              ],
+              "Tok": ":=",
+              "Rhs": [
+                {
+                  "_type": "BasicLit",
+                  "Kind": "INT",
+                  "Value": "1"
+                }
+              ]
+            },
+            "Cond": {
+              "_type": "BinaryExpr",
+              "X": {
+                "_type": "Ident",
+                "Name": "i"
+              },
+              "Op": "\u003c",
+              "Y": {
+                "_type": "BasicLit",
+                "Kind": "INT",
+                "Value": "5"
+              }
+            },
+            "Post": {
+              "_type": "IncDecStmt",
+              "X": {
+                "_type": "Ident",
+                "Name": "i"
+              },
+              "Tok": "++"
+            },
+            "Body": {
+              "_type": "BlockStmt",
+              "List": [
+                {
+                  "_type": "ExprStmt",
+                  "X": {
+                    "_type": "CallExpr",
+                    "Fun": {
+                      "_type": "SelectorExpr",
+                      "X": {
+                        "_type": "Ident",
+                        "Name": "fmt"
+                      },
+                      "Sel": {
+                        "_type": "Ident",
+                        "Name": "Println"
+                      }
+                    },
+                    "Args": [
+                      {
+                        "_type": "BasicLit",
+                        "Kind": "STRING",
+                        "Value": "\"Hi buddy\""
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 101,
+    "Files": [
+      {
+        "Name": "14.for_c_style_inc.go",
+        "Base": 1,
+        "Size": 99,
+        "Lines": [
+          0,
+          13,
+          14,
+          27,
+          28,
+          42,
+          68,
+          94,
+          97
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

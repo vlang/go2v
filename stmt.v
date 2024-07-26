@@ -3,35 +3,45 @@
 
 fn (mut app App) stmt_list(list []Stmt) {
 	for stmt in list {
-		// app.genln('TYPE = ${stmt.node_type} ${stmt is ExprStmt}')
-		// println('FOR STMT')
-		// println(stmt)
-		match stmt {
-			AssignStmt {
-				// println('GOT A')
-				app.assign_stmt(stmt)
-			}
-			ExprStmt {
-				// app.genln('expr stmt')
-				app.expr_stmt(stmt)
-			}
-			SwitchStmt {
-				app.switch_stmt(stmt)
-			}
-			IfStmt {
-				app.if_stmt(stmt)
-			}
-			DeclStmt {
-				app.decl_stmt(stmt)
-			}
-			else {
-				app.genln('\t// unhandled in block_stmt: ${stmt}')
-			} // Add additional handlers as needed
+		app.stmt(stmt)
+	}
+}
+
+fn (mut app App) stmt(stmt Stmt) {
+	// app.genln('TYPE = ${stmt.node_type} ${stmt is ExprStmt}')
+	// println('FOR STMT')
+	// println(stmt)
+	match stmt {
+		AssignStmt {
+			// println('GOT A')
+			app.assign_stmt(stmt, false) // no_mut:false
 		}
-		if stmt.node_type_str == 'GenDecl' { //.gen_decl {
-			app.gen_decl_stmt(stmt)
-			continue
+		ExprStmt {
+			// app.genln('expr stmt')
+			app.expr_stmt(stmt)
 		}
+		SwitchStmt {
+			app.switch_stmt(stmt)
+		}
+		IfStmt {
+			app.if_stmt(stmt)
+		}
+		ForStmt {
+			app.for_stmt(stmt)
+		}
+		DeclStmt {
+			app.decl_stmt(stmt)
+		}
+		IncDecStmt {
+			app.inc_dec_stmt(stmt)
+		}
+		else {
+			app.genln('\t// unhandled in stmt: ${stmt}')
+		} // Add additional handlers as needed
+	}
+	if stmt.node_type_str == 'GenDecl' { //.gen_decl {
+		app.gen_decl_stmt(stmt)
+		return
 	}
 }
 
@@ -62,6 +72,23 @@ fn (mut app App) if_stmt(i IfStmt) {
 			app.genln('}')
 		}
 	}
+}
+
+fn (mut app App) for_stmt(f ForStmt) {
+	app.gen('for ')
+	app.assign_stmt(f.init, true)
+	app.gen('; ')
+	app.expr(f.cond)
+	app.gen('; ')
+	app.stmt(f.post)
+	app.genln('{')
+	app.block_stmt(f.body)
+	app.genln('}')
+}
+
+fn (mut app App) inc_dec_stmt(i IncDecStmt) {
+	app.expr(i.x)
+	app.gen(i.tok)
 }
 
 fn (mut app App) decl_stmt(d DeclStmt) {

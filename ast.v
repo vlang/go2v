@@ -15,7 +15,15 @@ type Expr = BasicLit
 	| TypeOrIdent
 	| UnaryExpr
 
-type Stmt = AssignStmt | BlockStmt | CaseClause | DeclStmt | ExprStmt | IfStmt | SwitchStmt
+type Stmt = AssignStmt
+	| BlockStmt
+	| CaseClause
+	| DeclStmt
+	| ExprStmt
+	| ForStmt
+	| IfStmt
+	| IncDecStmt
+	| SwitchStmt
 
 struct GoFile {
 	decls []Decl @[json: 'Decls']
@@ -64,16 +72,16 @@ struct BlockStmt {
 }
 
 struct SwitchStmt {
+	node_type_str string     @[json: '_type']
 	init          AssignStmt @[json: 'Init']
 	tag           Expr       @[json: 'Tag']
 	body          BlockStmt  @[json: 'Body']
-	node_type_str string     @[json: '_type']
 }
 
 struct CaseClause {
+	node_type_str string @[json: '_type']
 	list          []Expr @[json: 'List']
 	body          []Stmt @[json: 'Body']
-	node_type_str string @[json: '_type']
 }
 
 struct IfStmt {
@@ -81,6 +89,15 @@ struct IfStmt {
 	cond          Expr      @[json: 'Cond']
 	body          BlockStmt @[json: 'Body']
 	else_         Stmt      @[json: 'Else']
+}
+
+struct ForStmt {
+	node_type_str string     @[json: '_type']
+	init          AssignStmt @[json: 'Init']
+	cond          Expr       @[json: 'Cond']
+	post          Stmt       @[json: 'Post']
+
+	body BlockStmt @[json: 'Body']
 }
 
 struct ExprStmt {
@@ -169,6 +186,12 @@ struct KeyValueExpr {
 	key           Ident  @[json: 'Key']
 	value         Expr   @[json: 'Value']
 	node_type_str string @[json: '_type']
+}
+
+struct IncDecStmt {
+	node_type_str string @[json: '_type']
+	tok           string @[json: 'Tok']
+	x             Expr   @[json: 'X']
 }
 
 struct IndexExpr {

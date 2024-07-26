@@ -3,7 +3,7 @@
 
 fn (mut app App) switch_stmt(switch_stmt SwitchStmt) {
 	if switch_stmt.init.lhs.len > 0 {
-		app.assign_stmt(switch_stmt.init)
+		app.assign_stmt(switch_stmt.init, false)
 	}
 	app.gen('match ')
 	app.expr(switch_stmt.tag)
