@@ -3,7 +3,8 @@
 import json
 import os
 
-type Expr = BasicLit
+type Expr = ArrayType
+	| BasicLit
 	| BinaryExpr
 	| CallExpr
 	| CompositeLit
@@ -44,6 +45,12 @@ struct Spec {
 	node_type_str string @[json: '_type']
 	name          Ident  @[json: 'Name']
 	typ           Type   @[json: 'Type']
+	args          []Expr @[json: 'Args']
+}
+
+struct ArrayType {
+	node_type_str string @[json: '_type']
+	elt           Ident  @[json: 'Elt']
 }
 
 struct FuncType {
@@ -147,8 +154,9 @@ struct BasicLit {
 }
 
 struct CallExpr {
-	fun  Expr   @[json: 'Fun']
-	args []Expr @[json: 'Args']
+	node_type_str string @[json: '_type']
+	fun           Expr   @[json: 'Fun']
+	args          []Expr @[json: 'Args']
 }
 
 struct SelectorExpr {

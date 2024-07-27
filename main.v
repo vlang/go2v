@@ -22,6 +22,8 @@ const passing_tests = [
 	'if',
 	'if_complex_condition',
 	'if_else_if',
+	'array',
+	'array_byte',
 ]
 
 struct App {
@@ -131,8 +133,13 @@ fn print_diff_line(formatted_v_code string, expected_v_code string) {
 }
 
 fn main() {
+	go_file_name := if os.args.len > 1 { os.args[1] } else { '' }
 	mut app := &App{
 		sb: strings.new_builder(1000)
+	}
+	if go_file_name != '' {
+		app.run_test(go_file_name)!
+		return
 	}
 	test_names := os.ls('tests') or { return }
 	//.filter(it.ends_with('.go'))

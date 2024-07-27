@@ -36,6 +36,9 @@ fn (mut app App) expr(expr Expr) {
 		UnaryExpr {
 			app.unary_expr(expr)
 		}
+		ArrayType {
+			app.array_type(expr)
+		}
 		// else {
 		// app.gen('/* UNHANDLED EXPR ${expr.node_type} */')
 		//}
@@ -96,4 +99,8 @@ fn (mut app App) key_value_expr(k KeyValueExpr) {
 	app.gen('\t${k.key.name}: ')
 	app.expr(k.value)
 	app.genln('')
+}
+
+fn (mut app App) array_type(node ArrayType) {
+	app.gen('array type TODO')
 }

@@ -8,4 +8,12 @@ To run the tests:
 
 ```bash
 v run .
+
+```
+
+To run a single test:
+
+```bash
+v .
+./go2v array_byte
 ```
