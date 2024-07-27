@@ -1,0 +1,190 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "type",
+      "Specs": [
+        {
+          "_type": "TypeSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "Ok"
+          },
+          "TypeParams": null,
+          "Type": {
+            "_type": "StructType",
+            "Fields": {
+              "_type": "FieldList",
+              "List": [
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "a"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "int"
+                  }
+                },
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "b"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "string"
+                  }
+                }
+              ]
+            },
+            "Incomplete": false
+          }
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "long"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "Ident",
+                  "Name": "Ok"
+                },
+                "Elts": [
+                  {
+                    "_type": "KeyValueExpr",
+                    "Key": {
+                      "_type": "Ident",
+                      "Name": "a"
+                    },
+                    "Value": {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "1"
+                    }
+                  },
+                  {
+                    "_type": "KeyValueExpr",
+                    "Key": {
+                      "_type": "Ident",
+                      "Name": "b"
+                    },
+                    "Value": {
+                      "_type": "BasicLit",
+                      "Kind": "STRING",
+                      "Value": "\"hello\""
+                    }
+                  }
+                ],
+                "Incomplete": false
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "short"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "Ident",
+                  "Name": "Ok"
+                },
+                "Elts": [
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "3"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "STRING",
+                    "Value": "\"hello\""
+                  }
+                ],
+                "Incomplete": false
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 132,
+    "Files": [
+      {
+        "Name": "tests/var_struct_fields/var_struct_fields.go",
+        "Base": 1,
+        "Size": 130,
+        "Lines": [
+          0,
+          13,
+          14,
+          31,
+          38,
+          48,
+          50,
+          51,
+          65,
+          78,
+          86,
+          100,
+          103,
+          128
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

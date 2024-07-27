@@ -1,0 +1,120 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "m"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "MapType",
+                  "Key": {
+                    "_type": "Ident",
+                    "Name": "string"
+                  },
+                  "Value": {
+                    "_type": "Ident",
+                    "Name": "float64"
+                  }
+                },
+                "Elts": [
+                  {
+                    "_type": "KeyValueExpr",
+                    "Key": {
+                      "_type": "BasicLit",
+                      "Kind": "STRING",
+                      "Value": "\"pi\""
+                    },
+                    "Value": {
+                      "_type": "BasicLit",
+                      "Kind": "FLOAT",
+                      "Value": "3.14"
+                    }
+                  }
+                ],
+                "Incomplete": false
+              }
+            ]
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "Ident",
+                "Name": "delete"
+              },
+              "Args": [
+                {
+                  "_type": "Ident",
+                  "Name": "m"
+                },
+                {
+                  "_type": "BasicLit",
+                  "Kind": "STRING",
+                  "Value": "\"pi\""
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 92,
+    "Files": [
+      {
+        "Name": "tests/delete/delete.go",
+        "Base": 1,
+        "Size": 90,
+        "Lines": [
+          0,
+          13,
+          14,
+          28,
+          54,
+          68,
+          71,
+          88
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

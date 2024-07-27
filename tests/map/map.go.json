@@ -1,0 +1,207 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "type",
+      "Specs": [
+        {
+          "_type": "TypeSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "Vertex"
+          },
+          "TypeParams": null,
+          "Type": {
+            "_type": "StructType",
+            "Fields": {
+              "_type": "FieldList",
+              "List": [
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "Lat"
+                    },
+                    {
+                      "_type": "Ident",
+                      "Name": "Long"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "float64"
+                  }
+                }
+              ]
+            },
+            "Incomplete": false
+          }
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "DeclStmt",
+            "Decl": {
+              "_type": "GenDecl",
+              "Tok": "var",
+              "Specs": [
+                {
+                  "_type": "ValueSpec",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "m"
+                    }
+                  ],
+                  "Type": null,
+                  "Values": [
+                    {
+                      "_type": "CompositeLit",
+                      "Type": {
+                        "_type": "MapType",
+                        "Key": {
+                          "_type": "Ident",
+                          "Name": "string"
+                        },
+                        "Value": {
+                          "_type": "Ident",
+                          "Name": "Vertex"
+                        }
+                      },
+                      "Elts": [
+                        {
+                          "_type": "KeyValueExpr",
+                          "Key": {
+                            "_type": "BasicLit",
+                            "Kind": "STRING",
+                            "Value": "\"Bell Labs\""
+                          },
+                          "Value": {
+                            "_type": "CompositeLit",
+                            "Type": {
+                              "_type": "Ident",
+                              "Name": "Vertex"
+                            },
+                            "Elts": [
+                              {
+                                "_type": "BasicLit",
+                                "Kind": "FLOAT",
+                                "Value": "40.68433"
+                              },
+                              {
+                                "_type": "UnaryExpr",
+                                "Op": "-",
+                                "X": {
+                                  "_type": "BasicLit",
+                                  "Kind": "FLOAT",
+                                  "Value": "74.39967"
+                                }
+                              }
+                            ],
+                            "Incomplete": false
+                          }
+                        },
+                        {
+                          "_type": "KeyValueExpr",
+                          "Key": {
+                            "_type": "BasicLit",
+                            "Kind": "STRING",
+                            "Value": "\"Google\""
+                          },
+                          "Value": {
+                            "_type": "CompositeLit",
+                            "Type": {
+                              "_type": "Ident",
+                              "Name": "Vertex"
+                            },
+                            "Elts": [
+                              {
+                                "_type": "BasicLit",
+                                "Kind": "FLOAT",
+                                "Value": "37.42202"
+                              },
+                              {
+                                "_type": "UnaryExpr",
+                                "Op": "-",
+                                "X": {
+                                  "_type": "BasicLit",
+                                  "Kind": "FLOAT",
+                                  "Value": "122.08408"
+                                }
+                              }
+                            ],
+                            "Incomplete": false
+                          }
+                        }
+                      ],
+                      "Incomplete": false
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 208,
+    "Files": [
+      {
+        "Name": "tests/map/map.go",
+        "Base": 1,
+        "Size": 206,
+        "Lines": [
+          0,
+          13,
+          14,
+          35,
+          54,
+          56,
+          57,
+          71,
+          99,
+          122,
+          146,
+          151,
+          171,
+          196,
+          201,
+          204
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

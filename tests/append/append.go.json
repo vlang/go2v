@@ -1,0 +1,277 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "DeclStmt",
+            "Decl": {
+              "_type": "GenDecl",
+              "Tok": "var",
+              "Specs": [
+                {
+                  "_type": "ValueSpec",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "s"
+                    }
+                  ],
+                  "Type": null,
+                  "Values": [
+                    {
+                      "_type": "CompositeLit",
+                      "Type": {
+                        "_type": "ArrayType",
+                        "Len": null,
+                        "Elt": {
+                          "_type": "Ident",
+                          "Name": "int"
+                        }
+                      },
+                      "Elts": null,
+                      "Incomplete": false
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "s"
+              }
+            ],
+            "Tok": "=",
+            "Rhs": [
+              {
+                "_type": "CallExpr",
+                "Fun": {
+                  "_type": "Ident",
+                  "Name": "append"
+                },
+                "Args": [
+                  {
+                    "_type": "Ident",
+                    "Name": "s"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "1"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "s"
+              }
+            ],
+            "Tok": "=",
+            "Rhs": [
+              {
+                "_type": "CallExpr",
+                "Fun": {
+                  "_type": "Ident",
+                  "Name": "append"
+                },
+                "Args": [
+                  {
+                    "_type": "Ident",
+                    "Name": "s"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "2"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "3"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "4"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "a"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "ArrayType",
+                  "Len": null,
+                  "Elt": {
+                    "_type": "Ident",
+                    "Name": "int"
+                  }
+                },
+                "Elts": [
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "4"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "5"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "6"
+                  }
+                ],
+                "Incomplete": false
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "b"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "ArrayType",
+                  "Len": null,
+                  "Elt": {
+                    "_type": "Ident",
+                    "Name": "int"
+                  }
+                },
+                "Elts": [
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "1"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "2"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "3"
+                  }
+                ],
+                "Incomplete": false
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "b"
+              }
+            ],
+            "Tok": "=",
+            "Rhs": [
+              {
+                "_type": "CallExpr",
+                "Fun": {
+                  "_type": "Ident",
+                  "Name": "append"
+                },
+                "Args": [
+                  {
+                    "_type": "Ident",
+                    "Name": "b"
+                  },
+                  {
+                    "_type": "Ident",
+                    "Name": "a"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 157,
+    "Files": [
+      {
+        "Name": "tests/append/append.go",
+        "Base": 1,
+        "Size": 155,
+        "Lines": [
+          0,
+          13,
+          14,
+          28,
+          45,
+          46,
+          64,
+          65,
+          89,
+          90,
+          111,
+          132,
+          153
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

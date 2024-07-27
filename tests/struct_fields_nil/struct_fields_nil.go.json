@@ -1,0 +1,162 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "type",
+      "Specs": [
+        {
+          "_type": "TypeSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "Node"
+          },
+          "TypeParams": null,
+          "Type": {
+            "_type": "StructType",
+            "Fields": {
+              "_type": "FieldList",
+              "List": [
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "Parent"
+                    },
+                    {
+                      "_type": "Ident",
+                      "Name": "FirstChild"
+                    },
+                    {
+                      "_type": "Ident",
+                      "Name": "LastChild"
+                    },
+                    {
+                      "_type": "Ident",
+                      "Name": "PrevSibling"
+                    },
+                    {
+                      "_type": "Ident",
+                      "Name": "NextSibling"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "StarExpr",
+                    "X": {
+                      "_type": "Ident",
+                      "Name": "Node"
+                    }
+                  }
+                },
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "Type"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "string"
+                  }
+                },
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "DataAtom"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "int"
+                  }
+                },
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "Data"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "string"
+                  }
+                },
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "Namespace"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "string"
+                  }
+                },
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "Attr"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "ArrayType",
+                    "Len": null,
+                    "Elt": {
+                      "_type": "Ident",
+                      "Name": "Node"
+                    }
+                  }
+                }
+              ]
+            },
+            "Incomplete": false
+          }
+        }
+      ]
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 188,
+    "Files": [
+      {
+        "Name": "tests/struct_fields_nil/struct_fields_nil.go",
+        "Base": 1,
+        "Size": 186,
+        "Lines": [
+          0,
+          13,
+          14,
+          33,
+          96,
+          97,
+          115,
+          130,
+          148,
+          166,
+          184
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

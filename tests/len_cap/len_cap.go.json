@@ -1,0 +1,188 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "import",
+      "Specs": [
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"fmt\""
+          }
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "array"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "ArrayType",
+                  "Len": null,
+                  "Elt": {
+                    "_type": "Ident",
+                    "Name": "int"
+                  }
+                },
+                "Elts": [
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "2"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "3"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "5"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "7"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "11"
+                  }
+                ],
+                "Incomplete": false
+              }
+            ]
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "CallExpr",
+                  "Fun": {
+                    "_type": "Ident",
+                    "Name": "len"
+                  },
+                  "Args": [
+                    {
+                      "_type": "Ident",
+                      "Name": "array"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "CallExpr",
+                  "Fun": {
+                    "_type": "Ident",
+                    "Name": "cap"
+                  },
+                  "Args": [
+                    {
+                      "_type": "Ident",
+                      "Name": "array"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 128,
+    "Files": [
+      {
+        "Name": "tests/len_cap/len_cap.go",
+        "Base": 1,
+        "Size": 126,
+        "Lines": [
+          0,
+          13,
+          14,
+          27,
+          28,
+          42,
+          74,
+          99,
+          124
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

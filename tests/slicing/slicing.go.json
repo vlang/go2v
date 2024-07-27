@@ -1,0 +1,212 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "a"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "ArrayType",
+                  "Len": null,
+                  "Elt": {
+                    "_type": "Ident",
+                    "Name": "int"
+                  }
+                },
+                "Elts": [
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "0"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "1"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "2"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "3"
+                  }
+                ],
+                "Incomplete": false
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "s"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "SliceExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "a"
+                },
+                "Low": {
+                  "_type": "BasicLit",
+                  "Kind": "INT",
+                  "Value": "1"
+                },
+                "High": {
+                  "_type": "BasicLit",
+                  "Kind": "INT",
+                  "Value": "3"
+                },
+                "Max": null,
+                "Slice3": false
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "s"
+              }
+            ],
+            "Tok": "=",
+            "Rhs": [
+              {
+                "_type": "SliceExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "a"
+                },
+                "Low": null,
+                "High": {
+                  "_type": "BasicLit",
+                  "Kind": "INT",
+                  "Value": "2"
+                },
+                "Max": null,
+                "Slice3": false
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "s"
+              }
+            ],
+            "Tok": "=",
+            "Rhs": [
+              {
+                "_type": "SliceExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "a"
+                },
+                "Low": {
+                  "_type": "BasicLit",
+                  "Kind": "INT",
+                  "Value": "2"
+                },
+                "High": null,
+                "Max": null,
+                "Slice3": false
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "s"
+              }
+            ],
+            "Tok": "=",
+            "Rhs": [
+              {
+                "_type": "SliceExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "a"
+                },
+                "Low": null,
+                "High": null,
+                "Max": null,
+                "Slice3": false
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 101,
+    "Files": [
+      {
+        "Name": "tests/slicing/slicing.go",
+        "Base": 1,
+        "Size": 99,
+        "Lines": [
+          0,
+          13,
+          14,
+          28,
+          52,
+          65,
+          76,
+          87,
+          97
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+module main
+
+fn main() {
+	mut array := [2, 3, 5, 7, 11]
+	println(array.len)
+	println(array.cap)
+}

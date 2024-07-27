@@ -1,0 +1,302 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "import",
+      "Specs": [
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"fmt\""
+          }
+        }
+      ]
+    },
+    {
+      "_type": "GenDecl",
+      "Tok": "type",
+      "Specs": [
+        {
+          "_type": "TypeSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "insertionModeStack"
+          },
+          "TypeParams": null,
+          "Type": {
+            "_type": "ArrayType",
+            "Len": null,
+            "Elt": {
+              "_type": "Ident",
+              "Name": "int"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": {
+        "_type": "FieldList",
+        "List": [
+          {
+            "_type": "Field",
+            "Names": [
+              {
+                "_type": "Ident",
+                "Name": "s"
+              }
+            ],
+            "Type": {
+              "_type": "StarExpr",
+              "X": {
+                "_type": "Ident",
+                "Name": "insertionModeStack"
+              }
+            }
+          }
+        ]
+      },
+      "Name": {
+        "_type": "Ident",
+        "Name": "foo"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": {
+          "_type": "FieldList",
+          "List": [
+            {
+              "_type": "Field",
+              "Names": [
+                {
+                  "_type": "Ident",
+                  "Name": "im"
+                }
+              ],
+              "Type": {
+                "_type": "Ident",
+                "Name": "int"
+              }
+            }
+          ]
+        }
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "i"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CallExpr",
+                "Fun": {
+                  "_type": "Ident",
+                  "Name": "len"
+                },
+                "Args": [
+                  {
+                    "_type": "StarExpr",
+                    "X": {
+                      "_type": "Ident",
+                      "Name": "s"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "im"
+              }
+            ],
+            "Tok": "=",
+            "Rhs": [
+              {
+                "_type": "IndexExpr",
+                "X": {
+                  "_type": "ParenExpr",
+                  "X": {
+                    "_type": "StarExpr",
+                    "X": {
+                      "_type": "Ident",
+                      "Name": "s"
+                    }
+                  }
+                },
+                "Index": {
+                  "_type": "BinaryExpr",
+                  "X": {
+                    "_type": "Ident",
+                    "Name": "i"
+                  },
+                  "Op": "-",
+                  "Y": {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "1"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "StarExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "s"
+                }
+              }
+            ],
+            "Tok": "=",
+            "Rhs": [
+              {
+                "_type": "SliceExpr",
+                "X": {
+                  "_type": "ParenExpr",
+                  "X": {
+                    "_type": "StarExpr",
+                    "X": {
+                      "_type": "Ident",
+                      "Name": "s"
+                    }
+                  }
+                },
+                "Low": null,
+                "High": {
+                  "_type": "BinaryExpr",
+                  "X": {
+                    "_type": "Ident",
+                    "Name": "i"
+                  },
+                  "Op": "-",
+                  "Y": {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "1"
+                  }
+                },
+                "Max": null,
+                "Slice3": false
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "a"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "UnaryExpr",
+                "Op": "\u0026",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "i"
+                }
+              }
+            ]
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "StarExpr",
+                  "X": {
+                    "_type": "Ident",
+                    "Name": "a"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "_type": "ReturnStmt",
+            "Results": [
+              {
+                "_type": "Ident",
+                "Name": "im"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 193,
+    "Files": [
+      {
+        "Name": "tests/ref_deref/ref_deref.go",
+        "Base": 1,
+        "Size": 191,
+        "Lines": [
+          0,
+          13,
+          14,
+          27,
+          28,
+          58,
+          59,
+          105,
+          119,
+          135,
+          152,
+          161,
+          178,
+          189
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

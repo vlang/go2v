@@ -1,0 +1,13 @@
+module main
+
+import strings
+
+fn main() {
+	mut arr := ['hello', 'world']
+	for idx, el in arr {
+		println('${idx} ${el}')
+	}
+	println('${'Hello\n'.repeat(10)} 34 hello')
+	mut i := 34
+	println('Hi buddy ${i} 234 false true')
+}

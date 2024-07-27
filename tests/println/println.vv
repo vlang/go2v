@@ -1,0 +1,9 @@
+module main
+
+fn main() {
+	println('Hello World')
+	mut strings := ['hello', 'world']
+	for idx, _ in strings {
+		println(idx)
+	}
+}

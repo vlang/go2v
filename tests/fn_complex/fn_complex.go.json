@@ -1,0 +1,284 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "FuncDecl",
+      "Recv": {
+        "_type": "FieldList",
+        "List": [
+          {
+            "_type": "Field",
+            "Names": [
+              {
+                "_type": "Ident",
+                "Name": "a"
+              }
+            ],
+            "Type": {
+              "_type": "Ident",
+              "Name": "Abc"
+            }
+          }
+        ]
+      },
+      "Name": {
+        "_type": "Ident",
+        "Name": "Ok"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": [
+            {
+              "_type": "Field",
+              "Names": [
+                {
+                  "_type": "Ident",
+                  "Name": "d"
+                }
+              ],
+              "Type": {
+                "_type": "Ident",
+                "Name": "int"
+              }
+            },
+            {
+              "_type": "Field",
+              "Names": [
+                {
+                  "_type": "Ident",
+                  "Name": "b"
+                }
+              ],
+              "Type": {
+                "_type": "ArrayType",
+                "Len": null,
+                "Elt": {
+                  "_type": "Ident",
+                  "Name": "Bcd"
+                }
+              }
+            },
+            {
+              "_type": "Field",
+              "Names": [
+                {
+                  "_type": "Ident",
+                  "Name": "c"
+                }
+              ],
+              "Type": {
+                "_type": "Ident",
+                "Name": "rune"
+              }
+            }
+          ]
+        },
+        "Results": {
+          "_type": "FieldList",
+          "List": [
+            {
+              "_type": "Field",
+              "Names": [
+                {
+                  "_type": "Ident",
+                  "Name": "e"
+                }
+              ],
+              "Type": {
+                "_type": "Ident",
+                "Name": "int"
+              }
+            },
+            {
+              "_type": "Field",
+              "Names": [
+                {
+                  "_type": "Ident",
+                  "Name": "f"
+                }
+              ],
+              "Type": {
+                "_type": "ArrayType",
+                "Len": null,
+                "Elt": {
+                  "_type": "Ident",
+                  "Name": "Efg"
+                }
+              }
+            },
+            {
+              "_type": "Field",
+              "Names": [
+                {
+                  "_type": "Ident",
+                  "Name": "h"
+                }
+              ],
+              "Type": {
+                "_type": "Ident",
+                "Name": "rune"
+              }
+            }
+          ]
+        }
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": null
+      }
+    },
+    {
+      "_type": "GenDecl",
+      "Tok": "type",
+      "Specs": [
+        {
+          "_type": "TypeSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "Abc"
+          },
+          "TypeParams": null,
+          "Type": {
+            "_type": "StructType",
+            "Fields": {
+              "_type": "FieldList",
+              "List": [
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "a"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "int"
+                  }
+                }
+              ]
+            },
+            "Incomplete": false
+          }
+        }
+      ]
+    },
+    {
+      "_type": "GenDecl",
+      "Tok": "type",
+      "Specs": [
+        {
+          "_type": "TypeSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "Bcd"
+          },
+          "TypeParams": null,
+          "Type": {
+            "_type": "StructType",
+            "Fields": {
+              "_type": "FieldList",
+              "List": [
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "b"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "int"
+                  }
+                }
+              ]
+            },
+            "Incomplete": false
+          }
+        }
+      ]
+    },
+    {
+      "_type": "GenDecl",
+      "Tok": "type",
+      "Specs": [
+        {
+          "_type": "TypeSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "Efg"
+          },
+          "TypeParams": null,
+          "Type": {
+            "_type": "StructType",
+            "Fields": {
+              "_type": "FieldList",
+              "List": [
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "e"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "int"
+                  }
+                }
+              ]
+            },
+            "Incomplete": false
+          }
+        }
+      ]
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 263,
+    "Files": [
+      {
+        "Name": "tests/fn_complex/fn_complex.go",
+        "Base": 1,
+        "Size": 261,
+        "Lines": [
+          0,
+          13,
+          14,
+          83,
+          103,
+          105,
+          108,
+          175,
+          177,
+          178,
+          196,
+          203,
+          205,
+          206,
+          224,
+          231,
+          233,
+          234,
+          252,
+          259
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

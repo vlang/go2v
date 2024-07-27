@@ -1,0 +1,34 @@
+module main
+
+import crypto.aes
+import strings
+
+type InsertionMode = fn () bool
+
+struct BinTree {
+mut:
+	sil []&BinTree
+}
+
+struct HtmlEncoding {
+	encoding.Encoding
+}
+
+struct BinTree_1 {
+mut:
+	exter []&aes.KeySizeError
+}
+
+struct Foo {
+mut:
+	abc [3]int
+	def [][2]string
+}
+
+fn bis() {
+	mut s := []string{}
+}
+
+fn main() {
+	mut a := &BinTree{}
+}

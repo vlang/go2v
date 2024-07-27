@@ -1,0 +1,222 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "LabeledStmt",
+            "Label": {
+              "_type": "Ident",
+              "Name": "first"
+            },
+            "Stmt": {
+              "_type": "ForStmt",
+              "Init": {
+                "_type": "AssignStmt",
+                "Lhs": [
+                  {
+                    "_type": "Ident",
+                    "Name": "i"
+                  }
+                ],
+                "Tok": ":=",
+                "Rhs": [
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "0"
+                  }
+                ]
+              },
+              "Cond": {
+                "_type": "BinaryExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "i"
+                },
+                "Op": "\u003c",
+                "Y": {
+                  "_type": "BasicLit",
+                  "Kind": "INT",
+                  "Value": "10"
+                }
+              },
+              "Post": {
+                "_type": "IncDecStmt",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "i"
+                },
+                "Tok": "++"
+              },
+              "Body": {
+                "_type": "BlockStmt",
+                "List": [
+                  {
+                    "_type": "ForStmt",
+                    "Init": {
+                      "_type": "AssignStmt",
+                      "Lhs": [
+                        {
+                          "_type": "Ident",
+                          "Name": "j"
+                        }
+                      ],
+                      "Tok": ":=",
+                      "Rhs": [
+                        {
+                          "_type": "BasicLit",
+                          "Kind": "INT",
+                          "Value": "0"
+                        }
+                      ]
+                    },
+                    "Cond": {
+                      "_type": "BinaryExpr",
+                      "X": {
+                        "_type": "Ident",
+                        "Name": "j"
+                      },
+                      "Op": "\u003c",
+                      "Y": {
+                        "_type": "BasicLit",
+                        "Kind": "INT",
+                        "Value": "10"
+                      }
+                    },
+                    "Post": {
+                      "_type": "IncDecStmt",
+                      "X": {
+                        "_type": "Ident",
+                        "Name": "j"
+                      },
+                      "Tok": "++"
+                    },
+                    "Body": {
+                      "_type": "BlockStmt",
+                      "List": [
+                        {
+                          "_type": "IfStmt",
+                          "Init": null,
+                          "Cond": {
+                            "_type": "BinaryExpr",
+                            "X": {
+                              "_type": "Ident",
+                              "Name": "j"
+                            },
+                            "Op": "==",
+                            "Y": {
+                              "_type": "BasicLit",
+                              "Kind": "INT",
+                              "Value": "5"
+                            }
+                          },
+                          "Body": {
+                            "_type": "BlockStmt",
+                            "List": [
+                              {
+                                "_type": "BranchStmt",
+                                "Tok": "continue",
+                                "Label": {
+                                  "_type": "Ident",
+                                  "Name": "first"
+                                }
+                              }
+                            ]
+                          },
+                          "Else": null
+                        },
+                        {
+                          "_type": "IfStmt",
+                          "Init": null,
+                          "Cond": {
+                            "_type": "BinaryExpr",
+                            "X": {
+                              "_type": "Ident",
+                              "Name": "j"
+                            },
+                            "Op": "\u003e",
+                            "Y": {
+                              "_type": "BasicLit",
+                              "Kind": "INT",
+                              "Value": "7"
+                            }
+                          },
+                          "Body": {
+                            "_type": "BlockStmt",
+                            "List": [
+                              {
+                                "_type": "BranchStmt",
+                                "Tok": "break",
+                                "Label": null
+                              }
+                            ]
+                          },
+                          "Else": null
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 169,
+    "Files": [
+      {
+        "Name": "tests/for_label/for_label.go",
+        "Base": 1,
+        "Size": 167,
+        "Lines": [
+          0,
+          13,
+          14,
+          28,
+          35,
+          62,
+          90,
+          105,
+          124,
+          129,
+          143,
+          153,
+          158,
+          162,
+          165
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

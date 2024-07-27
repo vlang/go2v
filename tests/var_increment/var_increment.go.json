@@ -1,0 +1,167 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "type",
+      "Specs": [
+        {
+          "_type": "TypeSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "Ok"
+          },
+          "TypeParams": null,
+          "Type": {
+            "_type": "StructType",
+            "Fields": {
+              "_type": "FieldList",
+              "List": [
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "a"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "int"
+                  }
+                }
+              ]
+            },
+            "Incomplete": false
+          }
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "ok"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "Ident",
+                  "Name": "Ok"
+                },
+                "Elts": null,
+                "Incomplete": false
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "sum"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "BasicLit",
+                "Kind": "INT",
+                "Value": "0"
+              }
+            ]
+          },
+          {
+            "_type": "IncDecStmt",
+            "X": {
+              "_type": "Ident",
+              "Name": "sum"
+            },
+            "Tok": "++"
+          },
+          {
+            "_type": "IncDecStmt",
+            "X": {
+              "_type": "SelectorExpr",
+              "X": {
+                "_type": "Ident",
+                "Name": "ok"
+              },
+              "Sel": {
+                "_type": "Ident",
+                "Name": "a"
+              }
+            },
+            "Tok": "++"
+          },
+          {
+            "_type": "IncDecStmt",
+            "X": {
+              "_type": "Ident",
+              "Name": "sum"
+            },
+            "Tok": "--"
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 103,
+    "Files": [
+      {
+        "Name": "tests/var_increment/var_increment.go",
+        "Base": 1,
+        "Size": 101,
+        "Lines": [
+          0,
+          13,
+          14,
+          31,
+          38,
+          40,
+          41,
+          55,
+          67,
+          77,
+          84,
+          92,
+          99
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

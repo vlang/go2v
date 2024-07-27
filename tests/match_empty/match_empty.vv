@@ -1,0 +1,15 @@
+module main
+
+fn main() {
+	match true {
+		true {
+			println(1)
+		}
+		false {
+			println(2)
+		}
+		else {
+			println(3)
+		}
+	}
+}

@@ -1,0 +1,254 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "import",
+      "Specs": [
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"fmt\""
+          }
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "fn"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "Ident",
+                "Name": "match"
+              },
+              "Args": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "match"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "BasicLit",
+                  "Kind": "STRING",
+                  "Value": "\"hey\""
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "_type": "GenDecl",
+      "Tok": "type",
+      "Specs": [
+        {
+          "_type": "TypeSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "Foo"
+          },
+          "TypeParams": null,
+          "Type": {
+            "_type": "StructType",
+            "Fields": {
+              "_type": "FieldList",
+              "List": [
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "match"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "bool"
+                  }
+                }
+              ]
+            },
+            "Incomplete": false
+          }
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "Ident",
+                "Name": "fn"
+              },
+              "Args": null
+            }
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "match"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "Ident",
+                  "Name": "Foo"
+                },
+                "Elts": null,
+                "Incomplete": false
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "match"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "match"
+                }
+              }
+            ],
+            "Tok": "=",
+            "Rhs": [
+              {
+                "_type": "Ident",
+                "Name": "true"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 182,
+    "Files": [
+      {
+        "Name": "tests/name_keyword/name_keyword.go",
+        "Base": 1,
+        "Size": 180,
+        "Lines": [
+          0,
+          13,
+          14,
+          27,
+          28,
+          40,
+          49,
+          51,
+          66,
+          86,
+          88,
+          89,
+          107,
+          119,
+          121,
+          122,
+          136,
+          142,
+          158,
+          178
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

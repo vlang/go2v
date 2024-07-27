@@ -1,0 +1,303 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "var",
+      "Specs": [
+        {
+          "_type": "ValueSpec",
+          "Names": [
+            {
+              "_type": "Ident",
+              "Name": "boms"
+            }
+          ],
+          "Type": null,
+          "Values": [
+            {
+              "_type": "CompositeLit",
+              "Type": {
+                "_type": "ArrayType",
+                "Len": null,
+                "Elt": {
+                  "_type": "StructType",
+                  "Fields": {
+                    "_type": "FieldList",
+                    "List": [
+                      {
+                        "_type": "Field",
+                        "Names": [
+                          {
+                            "_type": "Ident",
+                            "Name": "bom"
+                          }
+                        ],
+                        "Type": {
+                          "_type": "ArrayType",
+                          "Len": null,
+                          "Elt": {
+                            "_type": "Ident",
+                            "Name": "int"
+                          }
+                        }
+                      },
+                      {
+                        "_type": "Field",
+                        "Names": [
+                          {
+                            "_type": "Ident",
+                            "Name": "enc"
+                          }
+                        ],
+                        "Type": {
+                          "_type": "Ident",
+                          "Name": "string"
+                        }
+                      }
+                    ]
+                  },
+                  "Incomplete": false
+                }
+              },
+              "Elts": [
+                {
+                  "_type": "CompositeLit",
+                  "Type": null,
+                  "Elts": [
+                    {
+                      "_type": "CompositeLit",
+                      "Type": {
+                        "_type": "ArrayType",
+                        "Len": null,
+                        "Elt": {
+                          "_type": "Ident",
+                          "Name": "int"
+                        }
+                      },
+                      "Elts": [
+                        {
+                          "_type": "BasicLit",
+                          "Kind": "INT",
+                          "Value": "0xfe"
+                        },
+                        {
+                          "_type": "BasicLit",
+                          "Kind": "INT",
+                          "Value": "0xff"
+                        }
+                      ],
+                      "Incomplete": false
+                    },
+                    {
+                      "_type": "BasicLit",
+                      "Kind": "STRING",
+                      "Value": "\"utf-16be\""
+                    }
+                  ],
+                  "Incomplete": false
+                },
+                {
+                  "_type": "CompositeLit",
+                  "Type": null,
+                  "Elts": [
+                    {
+                      "_type": "CompositeLit",
+                      "Type": {
+                        "_type": "ArrayType",
+                        "Len": null,
+                        "Elt": {
+                          "_type": "Ident",
+                          "Name": "int"
+                        }
+                      },
+                      "Elts": [
+                        {
+                          "_type": "BasicLit",
+                          "Kind": "INT",
+                          "Value": "0xff"
+                        },
+                        {
+                          "_type": "BasicLit",
+                          "Kind": "INT",
+                          "Value": "0xfe"
+                        }
+                      ],
+                      "Incomplete": false
+                    },
+                    {
+                      "_type": "BasicLit",
+                      "Kind": "STRING",
+                      "Value": "\"utf-16le\""
+                    }
+                  ],
+                  "Incomplete": false
+                },
+                {
+                  "_type": "CompositeLit",
+                  "Type": null,
+                  "Elts": [
+                    {
+                      "_type": "CompositeLit",
+                      "Type": {
+                        "_type": "ArrayType",
+                        "Len": null,
+                        "Elt": {
+                          "_type": "Ident",
+                          "Name": "int"
+                        }
+                      },
+                      "Elts": [
+                        {
+                          "_type": "BasicLit",
+                          "Kind": "INT",
+                          "Value": "0xef"
+                        },
+                        {
+                          "_type": "BasicLit",
+                          "Kind": "INT",
+                          "Value": "0xbb"
+                        },
+                        {
+                          "_type": "BasicLit",
+                          "Kind": "INT",
+                          "Value": "0xbf"
+                        }
+                      ],
+                      "Incomplete": false
+                    },
+                    {
+                      "_type": "BasicLit",
+                      "Kind": "STRING",
+                      "Value": "\"utf-8\""
+                    }
+                  ],
+                  "Incomplete": false
+                }
+              ],
+              "Incomplete": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "a"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "ArrayType",
+                  "Len": null,
+                  "Elt": {
+                    "_type": "StructType",
+                    "Fields": {
+                      "_type": "FieldList",
+                      "List": [
+                        {
+                          "_type": "Field",
+                          "Names": [
+                            {
+                              "_type": "Ident",
+                              "Name": "num"
+                            }
+                          ],
+                          "Type": {
+                            "_type": "Ident",
+                            "Name": "int"
+                          }
+                        }
+                      ]
+                    },
+                    "Incomplete": false
+                  }
+                },
+                "Elts": [
+                  {
+                    "_type": "CompositeLit",
+                    "Type": null,
+                    "Elts": [
+                      {
+                        "_type": "BasicLit",
+                        "Kind": "INT",
+                        "Value": "0"
+                      }
+                    ],
+                    "Incomplete": false
+                  }
+                ],
+                "Incomplete": false
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 229,
+    "Files": [
+      {
+        "Name": "tests/array_struct_inline/array_struct_inline.go",
+        "Base": 1,
+        "Size": 227,
+        "Lines": [
+          0,
+          13,
+          14,
+          36,
+          47,
+          59,
+          62,
+          96,
+          130,
+          167,
+          169,
+          170,
+          184,
+          201,
+          211,
+          215,
+          222,
+          225
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

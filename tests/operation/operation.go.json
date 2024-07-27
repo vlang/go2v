@@ -1,0 +1,117 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "import",
+      "Specs": [
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"fmt\""
+          }
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "finish"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": [
+            {
+              "_type": "Field",
+              "Names": [
+                {
+                  "_type": "Ident",
+                  "Name": "name"
+                }
+              ],
+              "Type": {
+                "_type": "Ident",
+                "Name": "string"
+              }
+            }
+          ]
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "BinaryExpr",
+                  "X": {
+                    "_type": "BasicLit",
+                    "Kind": "STRING",
+                    "Value": "\"My job here is done. Good bye \""
+                  },
+                  "Op": "+",
+                  "Y": {
+                    "_type": "Ident",
+                    "Name": "name"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 113,
+    "Files": [
+      {
+        "Name": "tests/operation/operation.go",
+        "Base": 1,
+        "Size": 111,
+        "Lines": [
+          0,
+          13,
+          14,
+          27,
+          28,
+          55,
+          109
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

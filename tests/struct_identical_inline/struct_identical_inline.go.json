@@ -1,0 +1,134 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "foo"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "DeclStmt",
+            "Decl": {
+              "_type": "GenDecl",
+              "Tok": "var",
+              "Specs": [
+                {
+                  "_type": "ValueSpec",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "empty"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "StructType",
+                    "Fields": {
+                      "_type": "FieldList",
+                      "List": null
+                    },
+                    "Incomplete": false
+                  },
+                  "Values": null
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "bar"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "DeclStmt",
+            "Decl": {
+              "_type": "GenDecl",
+              "Tok": "var",
+              "Specs": [
+                {
+                  "_type": "ValueSpec",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "empty"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "StructType",
+                    "Fields": {
+                      "_type": "FieldList",
+                      "List": null
+                    },
+                    "Incomplete": false
+                  },
+                  "Values": null
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 87,
+    "Files": [
+      {
+        "Name": "tests/struct_identical_inline/struct_identical_inline.go",
+        "Base": 1,
+        "Size": 85,
+        "Lines": [
+          0,
+          13,
+          14,
+          27,
+          47,
+          49,
+          50,
+          63,
+          83
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

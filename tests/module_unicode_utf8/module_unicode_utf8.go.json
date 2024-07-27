@@ -1,0 +1,728 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "import",
+      "Specs": [
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"fmt\""
+          }
+        },
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"unicode/utf8\""
+          }
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "b"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CallExpr",
+                "Fun": {
+                  "_type": "ArrayType",
+                  "Len": null,
+                  "Elt": {
+                    "_type": "Ident",
+                    "Name": "byte"
+                  }
+                },
+                "Args": [
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "STRING",
+                    "Value": "\"Hello, 世界\""
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "x"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "BasicLit",
+                "Kind": "CHAR",
+                "Value": "'a'"
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "a"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "BinaryExpr",
+                "X": {
+                  "_type": "BasicLit",
+                  "Kind": "INT",
+                  "Value": "1"
+                },
+                "Op": "+",
+                "Y": {
+                  "_type": "CallExpr",
+                  "Fun": {
+                    "_type": "SelectorExpr",
+                    "X": {
+                      "_type": "Ident",
+                      "Name": "utf8"
+                    },
+                    "Sel": {
+                      "_type": "Ident",
+                      "Name": "EncodeRune"
+                    }
+                  },
+                  "Args": [
+                    {
+                      "_type": "Ident",
+                      "Name": "b"
+                    },
+                    {
+                      "_type": "Ident",
+                      "Name": "x"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "Ident",
+                  "Name": "b"
+                }
+              ]
+            }
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "Ident",
+                  "Name": "a"
+                }
+              ]
+            }
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "CallExpr",
+                  "Fun": {
+                    "_type": "SelectorExpr",
+                    "X": {
+                      "_type": "Ident",
+                      "Name": "utf8"
+                    },
+                    "Sel": {
+                      "_type": "Ident",
+                      "Name": "RuneLen"
+                    }
+                  },
+                  "Args": [
+                    {
+                      "_type": "BasicLit",
+                      "Kind": "CHAR",
+                      "Value": "'世'"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "buf"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CallExpr",
+                "Fun": {
+                  "_type": "ArrayType",
+                  "Len": null,
+                  "Elt": {
+                    "_type": "Ident",
+                    "Name": "byte"
+                  }
+                },
+                "Args": [
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "STRING",
+                    "Value": "\"a界\""
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "CallExpr",
+                  "Fun": {
+                    "_type": "SelectorExpr",
+                    "X": {
+                      "_type": "Ident",
+                      "Name": "utf8"
+                    },
+                    "Sel": {
+                      "_type": "Ident",
+                      "Name": "RuneStart"
+                    }
+                  },
+                  "Args": [
+                    {
+                      "_type": "IndexExpr",
+                      "X": {
+                        "_type": "Ident",
+                        "Name": "buf"
+                      },
+                      "Index": {
+                        "_type": "BasicLit",
+                        "Kind": "INT",
+                        "Value": "0"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "CallExpr",
+                  "Fun": {
+                    "_type": "SelectorExpr",
+                    "X": {
+                      "_type": "Ident",
+                      "Name": "utf8"
+                    },
+                    "Sel": {
+                      "_type": "Ident",
+                      "Name": "RuneStart"
+                    }
+                  },
+                  "Args": [
+                    {
+                      "_type": "IndexExpr",
+                      "X": {
+                        "_type": "Ident",
+                        "Name": "buf"
+                      },
+                      "Index": {
+                        "_type": "BasicLit",
+                        "Kind": "INT",
+                        "Value": "1"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "CallExpr",
+                  "Fun": {
+                    "_type": "SelectorExpr",
+                    "X": {
+                      "_type": "Ident",
+                      "Name": "utf8"
+                    },
+                    "Sel": {
+                      "_type": "Ident",
+                      "Name": "RuneStart"
+                    }
+                  },
+                  "Args": [
+                    {
+                      "_type": "IndexExpr",
+                      "X": {
+                        "_type": "Ident",
+                        "Name": "buf"
+                      },
+                      "Index": {
+                        "_type": "BasicLit",
+                        "Kind": "INT",
+                        "Value": "2"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "valid"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CallExpr",
+                "Fun": {
+                  "_type": "ArrayType",
+                  "Len": null,
+                  "Elt": {
+                    "_type": "Ident",
+                    "Name": "byte"
+                  }
+                },
+                "Args": [
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "STRING",
+                    "Value": "\"Hello, 世界\""
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "invalid"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "ArrayType",
+                  "Len": null,
+                  "Elt": {
+                    "_type": "Ident",
+                    "Name": "byte"
+                  }
+                },
+                "Elts": [
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "0xff"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "0xfe"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "0xfd"
+                  }
+                ],
+                "Incomplete": false
+              }
+            ]
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "CallExpr",
+                  "Fun": {
+                    "_type": "SelectorExpr",
+                    "X": {
+                      "_type": "Ident",
+                      "Name": "utf8"
+                    },
+                    "Sel": {
+                      "_type": "Ident",
+                      "Name": "Valid"
+                    }
+                  },
+                  "Args": [
+                    {
+                      "_type": "Ident",
+                      "Name": "valid"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "CallExpr",
+                  "Fun": {
+                    "_type": "SelectorExpr",
+                    "X": {
+                      "_type": "Ident",
+                      "Name": "utf8"
+                    },
+                    "Sel": {
+                      "_type": "Ident",
+                      "Name": "Valid"
+                    }
+                  },
+                  "Args": [
+                    {
+                      "_type": "Ident",
+                      "Name": "invalid"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "SelectorExpr",
+                  "X": {
+                    "_type": "Ident",
+                    "Name": "utf8"
+                  },
+                  "Sel": {
+                    "_type": "Ident",
+                    "Name": "RuneError"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "SelectorExpr",
+                  "X": {
+                    "_type": "Ident",
+                    "Name": "utf8"
+                  },
+                  "Sel": {
+                    "_type": "Ident",
+                    "Name": "RuneSelf"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "SelectorExpr",
+                  "X": {
+                    "_type": "Ident",
+                    "Name": "utf8"
+                  },
+                  "Sel": {
+                    "_type": "Ident",
+                    "Name": "MaxRune"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "SelectorExpr",
+                  "X": {
+                    "_type": "Ident",
+                    "Name": "utf8"
+                  },
+                  "Sel": {
+                    "_type": "Ident",
+                    "Name": "UTFMax"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 656,
+    "Files": [
+      {
+        "Name": "tests/module_unicode_utf8/module_unicode_utf8.go",
+        "Base": 1,
+        "Size": 654,
+        "Lines": [
+          0,
+          13,
+          14,
+          23,
+          30,
+          46,
+          48,
+          49,
+          63,
+          78,
+          108,
+          118,
+          150,
+          166,
+          182,
+          183,
+          195,
+          229,
+          230,
+          244,
+          267,
+          304,
+          341,
+          378,
+          379,
+          389,
+          423,
+          460,
+          461,
+          493,
+          527,
+          528,
+          542,
+          571,
+          599,
+          626,
+          652
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,239 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "import",
+      "Specs": [
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"fmt\""
+          }
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "DeferStmt",
+            "Call": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "FuncLit",
+                "Type": {
+                  "_type": "FuncType",
+                  "TypeParams": null,
+                  "Params": {
+                    "_type": "FieldList",
+                    "List": null
+                  },
+                  "Results": null
+                },
+                "Body": {
+                  "_type": "BlockStmt",
+                  "List": [
+                    {
+                      "_type": "IfStmt",
+                      "Init": {
+                        "_type": "AssignStmt",
+                        "Lhs": [
+                          {
+                            "_type": "Ident",
+                            "Name": "x"
+                          }
+                        ],
+                        "Tok": ":=",
+                        "Rhs": [
+                          {
+                            "_type": "CallExpr",
+                            "Fun": {
+                              "_type": "Ident",
+                              "Name": "recover"
+                            },
+                            "Args": null
+                          }
+                        ]
+                      },
+                      "Cond": {
+                        "_type": "BinaryExpr",
+                        "X": {
+                          "_type": "Ident",
+                          "Name": "x"
+                        },
+                        "Op": "!=",
+                        "Y": {
+                          "_type": "Ident",
+                          "Name": "nil"
+                        }
+                      },
+                      "Body": {
+                        "_type": "BlockStmt",
+                        "List": [
+                          {
+                            "_type": "TypeSwitchStmt",
+                            "Init": null,
+                            "Assign": {
+                              "_type": "AssignStmt",
+                              "Lhs": [
+                                {
+                                  "_type": "Ident",
+                                  "Name": "e"
+                                }
+                              ],
+                              "Tok": ":=",
+                              "Rhs": [
+                                {
+                                  "_type": "TypeAssertExpr",
+                                  "X": {
+                                    "_type": "Ident",
+                                    "Name": "x"
+                                  },
+                                  "Type": null
+                                }
+                              ]
+                            },
+                            "Body": {
+                              "_type": "BlockStmt",
+                              "List": [
+                                {
+                                  "_type": "CaseClause",
+                                  "List": [
+                                    {
+                                      "_type": "Ident",
+                                      "Name": "error"
+                                    }
+                                  ],
+                                  "Body": [
+                                    {
+                                      "_type": "ExprStmt",
+                                      "X": {
+                                        "_type": "CallExpr",
+                                        "Fun": {
+                                          "_type": "SelectorExpr",
+                                          "X": {
+                                            "_type": "Ident",
+                                            "Name": "fmt"
+                                          },
+                                          "Sel": {
+                                            "_type": "Ident",
+                                            "Name": "Println"
+                                          }
+                                        },
+                                        "Args": [
+                                          {
+                                            "_type": "Ident",
+                                            "Name": "e"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "_type": "CaseClause",
+                                  "List": null,
+                                  "Body": [
+                                    {
+                                      "_type": "ExprStmt",
+                                      "X": {
+                                        "_type": "CallExpr",
+                                        "Fun": {
+                                          "_type": "SelectorExpr",
+                                          "X": {
+                                            "_type": "Ident",
+                                            "Name": "fmt"
+                                          },
+                                          "Sel": {
+                                            "_type": "Ident",
+                                            "Name": "Println"
+                                          }
+                                        },
+                                        "Args": [
+                                          {
+                                            "_type": "Ident",
+                                            "Name": "e"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      "Else": null
+                    }
+                  ]
+                }
+              },
+              "Args": null
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 204,
+    "Files": [
+      {
+        "Name": "tests/match_type_special/match_type_special.go",
+        "Base": 1,
+        "Size": 202,
+        "Lines": [
+          0,
+          13,
+          14,
+          23,
+          30,
+          32,
+          33,
+          47,
+          63,
+          95,
+          121,
+          136,
+          155,
+          167,
+          186,
+          191,
+          195,
+          200
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

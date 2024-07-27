@@ -1,0 +1,15 @@
+module main
+
+fn main() {
+	for i := 1; i < 5; i += 1 {
+		println('Hi buddy')
+	}
+	mut i_1 := 0
+	for ; i_1 < 5; i_1 += 1 {
+		println('Hi buddy ${i_1}')
+	}
+	for j := 1; j < 5; {
+		println('Hi buddy')
+		j++
+	}
+}

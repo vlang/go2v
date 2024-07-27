@@ -1,0 +1,155 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "type",
+      "Specs": [
+        {
+          "_type": "TypeSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "Ok"
+          },
+          "TypeParams": null,
+          "Type": {
+            "_type": "StructType",
+            "Fields": {
+              "_type": "FieldList",
+              "List": [
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "aaa"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "string"
+                  }
+                },
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "bbb"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "FuncType",
+                    "TypeParams": null,
+                    "Params": {
+                      "_type": "FieldList",
+                      "List": null
+                    },
+                    "Results": null
+                  }
+                },
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "ccc"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "FuncType",
+                    "TypeParams": null,
+                    "Params": {
+                      "_type": "FieldList",
+                      "List": [
+                        {
+                          "_type": "Field",
+                          "Names": null,
+                          "Type": {
+                            "_type": "Ident",
+                            "Name": "int"
+                          }
+                        }
+                      ]
+                    },
+                    "Results": null
+                  }
+                },
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "ddd"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "FuncType",
+                    "TypeParams": null,
+                    "Params": {
+                      "_type": "FieldList",
+                      "List": [
+                        {
+                          "_type": "Field",
+                          "Names": null,
+                          "Type": {
+                            "_type": "Ident",
+                            "Name": "Ok"
+                          }
+                        }
+                      ]
+                    },
+                    "Results": {
+                      "_type": "FieldList",
+                      "List": [
+                        {
+                          "_type": "Field",
+                          "Names": null,
+                          "Type": {
+                            "_type": "Ident",
+                            "Name": "uint16"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "Incomplete": false
+          }
+        }
+      ]
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 95,
+    "Files": [
+      {
+        "Name": "tests/struct_fields_fn/struct_fields_fn.go",
+        "Base": 1,
+        "Size": 93,
+        "Lines": [
+          0,
+          13,
+          14,
+          31,
+          43,
+          55,
+          70,
+          91
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,4 @@
+module main
+struct Node {}
+fn main() {mut a:=map[&Node]bool{}  
+}

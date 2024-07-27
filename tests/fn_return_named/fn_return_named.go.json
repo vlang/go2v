@@ -1,0 +1,98 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "foo"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": {
+          "_type": "FieldList",
+          "List": [
+            {
+              "_type": "Field",
+              "Names": [
+                {
+                  "_type": "Ident",
+                  "Name": "im"
+                }
+              ],
+              "Type": {
+                "_type": "Ident",
+                "Name": "int"
+              }
+            }
+          ]
+        }
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "im"
+              }
+            ],
+            "Tok": "=",
+            "Rhs": [
+              {
+                "_type": "BasicLit",
+                "Kind": "INT",
+                "Value": "123"
+              }
+            ]
+          },
+          {
+            "_type": "ReturnStmt",
+            "Results": [
+              {
+                "_type": "Ident",
+                "Name": "im"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 61,
+    "Files": [
+      {
+        "Name": "tests/fn_return_named/fn_return_named.go",
+        "Base": 1,
+        "Size": 59,
+        "Lines": [
+          0,
+          13,
+          14,
+          36,
+          46,
+          57
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

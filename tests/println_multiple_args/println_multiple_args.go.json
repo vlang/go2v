@@ -1,0 +1,288 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "import",
+      "Specs": [
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"fmt\""
+          }
+        },
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"strings\""
+          }
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "arr"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "ArrayType",
+                  "Len": null,
+                  "Elt": {
+                    "_type": "Ident",
+                    "Name": "string"
+                  }
+                },
+                "Elts": [
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "STRING",
+                    "Value": "\"hello\""
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "STRING",
+                    "Value": "\"world\""
+                  }
+                ],
+                "Incomplete": false
+              }
+            ]
+          },
+          {
+            "_type": "RangeStmt",
+            "Key": {
+              "_type": "Ident",
+              "Name": "idx"
+            },
+            "Value": {
+              "_type": "Ident",
+              "Name": "el"
+            },
+            "Tok": ":=",
+            "X": {
+              "_type": "Ident",
+              "Name": "arr"
+            },
+            "Body": {
+              "_type": "BlockStmt",
+              "List": [
+                {
+                  "_type": "ExprStmt",
+                  "X": {
+                    "_type": "CallExpr",
+                    "Fun": {
+                      "_type": "SelectorExpr",
+                      "X": {
+                        "_type": "Ident",
+                        "Name": "fmt"
+                      },
+                      "Sel": {
+                        "_type": "Ident",
+                        "Name": "Println"
+                      }
+                    },
+                    "Args": [
+                      {
+                        "_type": "Ident",
+                        "Name": "idx"
+                      },
+                      {
+                        "_type": "Ident",
+                        "Name": "el"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "CallExpr",
+                  "Fun": {
+                    "_type": "SelectorExpr",
+                    "X": {
+                      "_type": "Ident",
+                      "Name": "strings"
+                    },
+                    "Sel": {
+                      "_type": "Ident",
+                      "Name": "Repeat"
+                    }
+                  },
+                  "Args": [
+                    {
+                      "_type": "BasicLit",
+                      "Kind": "STRING",
+                      "Value": "\"Hello\\n\""
+                    },
+                    {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "10"
+                    }
+                  ]
+                },
+                {
+                  "_type": "BasicLit",
+                  "Kind": "INT",
+                  "Value": "34"
+                },
+                {
+                  "_type": "BasicLit",
+                  "Kind": "STRING",
+                  "Value": "\"hello\""
+                }
+              ]
+            }
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "i"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "BasicLit",
+                "Kind": "INT",
+                "Value": "34"
+              }
+            ]
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "BasicLit",
+                  "Kind": "STRING",
+                  "Value": "\"Hi buddy\""
+                },
+                {
+                  "_type": "Ident",
+                  "Name": "i"
+                },
+                {
+                  "_type": "BasicLit",
+                  "Kind": "INT",
+                  "Value": "234"
+                },
+                {
+                  "_type": "Ident",
+                  "Name": "false"
+                },
+                {
+                  "_type": "Ident",
+                  "Name": "true"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 265,
+    "Files": [
+      {
+        "Name": "tests/println_multiple_args/println_multiple_args.go",
+        "Base": 1,
+        "Size": 263,
+        "Lines": [
+          0,
+          13,
+          14,
+          23,
+          30,
+          41,
+          43,
+          44,
+          58,
+          93,
+          121,
+          144,
+          147,
+          148,
+          205,
+          206,
+          215,
+          261
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

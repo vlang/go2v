@@ -1,0 +1,92 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "html"
+  },
+  "Decls": [
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "abc"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "actual"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CallExpr",
+                "Fun": {
+                  "_type": "SelectorExpr",
+                  "X": {
+                    "_type": "CallExpr",
+                    "Fun": {
+                      "_type": "SelectorExpr",
+                      "X": {
+                        "_type": "Ident",
+                        "Name": "a"
+                      },
+                      "Sel": {
+                        "_type": "Ident",
+                        "Name": "Token"
+                      }
+                    },
+                    "Args": null
+                  },
+                  "Sel": {
+                    "_type": "Ident",
+                    "Name": "String"
+                  }
+                },
+                "Args": null
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 61,
+    "Files": [
+      {
+        "Name": "tests/fn_call_chained/fn_call_chained.go",
+        "Base": 1,
+        "Size": 59,
+        "Lines": [
+          0,
+          13,
+          14,
+          27,
+          57
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

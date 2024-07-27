@@ -1,0 +1,176 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "a"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "BasicLit",
+                "Kind": "INT",
+                "Value": "4"
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "A"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "ArrayType",
+                  "Len": null,
+                  "Elt": {
+                    "_type": "Ident",
+                    "Name": "int"
+                  }
+                },
+                "Elts": [
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "1"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "2"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "3"
+                  }
+                ],
+                "Incomplete": false
+              }
+            ]
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "Ident",
+                "Name": "println"
+              },
+              "Args": [
+                {
+                  "_type": "Ident",
+                  "Name": "a"
+                },
+                {
+                  "_type": "IndexExpr",
+                  "X": {
+                    "_type": "Ident",
+                    "Name": "A"
+                  },
+                  "Index": {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "0"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "_type": "IfStmt",
+            "Init": null,
+            "Cond": {
+              "_type": "Ident",
+              "Name": "true"
+            },
+            "Body": {
+              "_type": "BlockStmt",
+              "List": [
+                {
+                  "_type": "AssignStmt",
+                  "Lhs": [
+                    {
+                      "_type": "Ident",
+                      "Name": "a"
+                    }
+                  ],
+                  "Tok": ":=",
+                  "Rhs": [
+                    {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "6"
+                    }
+                  ]
+                }
+              ]
+            },
+            "Else": null
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 102,
+    "Files": [
+      {
+        "Name": "tests/name_var/name_var.go",
+        "Base": 1,
+        "Size": 100,
+        "Lines": [
+          0,
+          13,
+          14,
+          28,
+          36,
+          57,
+          75,
+          86,
+          95,
+          98
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

@@ -4,7 +4,25 @@ import os
 import term
 import strings
 
-const nr_tests = 15
+// const nr_tests = 15
+
+const passing_tests = [
+	'struct_simple',
+	'method',
+	'operators',
+	'fn_call',
+	'fn_case',
+	'append',
+	'for_c_style_inc',
+	'for_in',
+	'operation',
+	'match',
+	'arrays',
+	'math_expr',
+	'if',
+	'if_complex_condition',
+	'if_else_if',
+]
 
 struct App {
 mut:
@@ -49,8 +67,8 @@ fn (app &App) type_or_ident(typ TypeOrIdent) string {
 }
 
 fn (mut app App) run_test(test_name string) ! {
-	go_file_path := 'tests/${test_name}.go.json'
-	expected_v_code_path := 'tests/${test_name}.v'
+	go_file_path := 'tests/${test_name}/${test_name}.go.json'
+	expected_v_code_path := 'tests/${test_name}/${test_name}.vv'
 
 	go_file := parse_go_ast(go_file_path) or {
 		eprintln('Failed to parse Go AST: ${err}')
@@ -65,7 +83,7 @@ fn (mut app App) run_test(test_name string) ! {
 	os.write_file(v_path, generated_v_code) or { panic(err) }
 	res := os.execute('v fmt -w ${v_path}')
 	if res.exit_code != 0 {
-		println(res)
+		// println(res)
 	}
 
 	formatted_v_code := os.read_file(v_path) or { panic(err) }
@@ -117,20 +135,30 @@ fn main() {
 		sb: strings.new_builder(1000)
 	}
 	test_names := os.ls('tests') or { return }
-		.filter(it.ends_with('.go.json'))
-		.map(it.replace('.go.json', ''))
+	//.filter(it.ends_with('.go'))
+	//.map(it.replace('.go', ''))
 
 	// test_names.sort(it.split('.')[0]
 
 	for test_name in test_names {
-		// Extract the number before the first dot
-		test_number_str := test_name.before('.')
-		test_number := test_number_str.int()
-
-		// Continue if the number is greater than what we need
-		if test_number > nr_tests {
+		if test_name !in passing_tests {
 			continue
 		}
+		// println(test_name)
+		if !os.exists('tests/${test_name}/${test_name}.go.json') {
+			println('generating ast for ${test_name}')
+			os.system('asty go2json -indent 2 -input tests/${test_name}/${test_name}.go -output tests/${test_name}/${test_name}.go.json')
+
+			continue
+		}
+		// Extract the number before the first dot
+		// test_number_str := test_name.before('.')
+		// test_number := test_number_str.int()
+
+		// Continue if the number is greater than what we need
+		// if test_number > nr_tests {
+		// continue
+		//}
 		// for test_name in test_names {
 		println('===========================================')
 

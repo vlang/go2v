@@ -1,0 +1,86 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "m"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CallExpr",
+                "Fun": {
+                  "_type": "Ident",
+                  "Name": "make"
+                },
+                "Args": [
+                  {
+                    "_type": "MapType",
+                    "Key": {
+                      "_type": "Ident",
+                      "Name": "string"
+                    },
+                    "Value": {
+                      "_type": "Ident",
+                      "Name": "float64"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 63,
+    "Files": [
+      {
+        "Name": "tests/make/make.go",
+        "Base": 1,
+        "Size": 61,
+        "Lines": [
+          0,
+          13,
+          14,
+          28,
+          59
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

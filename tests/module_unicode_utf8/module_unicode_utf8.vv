@@ -1,0 +1,30 @@
+module main
+
+import encoding.utf8
+
+fn go2v_utf8_encode_rune(mut p []u8, r rune) int {
+	mut bytes := r.bytes()
+	p << bytes
+	return bytes.len
+}
+
+fn main() {
+	mut b := 'Hello, 世界'.bytes()
+	mut x := `a`
+	mut a := 1 + go2v_utf8_encode_rune(mut b, x)
+	println(b)
+	println(a)
+	println(`世`.length_in_bytes())
+	mut buf := 'a界'.bytes()
+	println(utf8.is_letter(buf[0]))
+	println(utf8.is_letter(buf[1]))
+	println(utf8.is_letter(buf[2]))
+	mut valid := 'Hello, 世界'.bytes()
+	mut invalid := [u8(0xff), 0xfe, 0xfd]
+	println(utf8.validate_str(valid.bytestr()))
+	println(utf8.validate_str(invalid.bytestr()))
+	println(`�`)
+	println(0x80)
+	println(`􏿿`)
+	println(4)
+}

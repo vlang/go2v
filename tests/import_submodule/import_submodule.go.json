@@ -1,0 +1,47 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "html"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "import",
+      "Specs": [
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"golang.org/x/net/html/atom\""
+          }
+        }
+      ]
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 57,
+    "Files": [
+      {
+        "Name": "tests/import_submodule/import_submodule.go",
+        "Base": 1,
+        "Size": 55,
+        "Lines": [
+          0,
+          13,
+          14,
+          23,
+          53
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

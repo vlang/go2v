@@ -1,0 +1,8 @@
+module main
+
+fn main() {
+	mut m := {
+		'pi': 3.14
+	}
+	m.delete('pi')
+}

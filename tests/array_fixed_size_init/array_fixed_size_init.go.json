@@ -1,0 +1,182 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "arr1"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "ArrayType",
+                  "Len": {
+                    "_type": "BinaryExpr",
+                    "X": {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "1"
+                    },
+                    "Op": "\u003c\u003c",
+                    "Y": {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "9"
+                    }
+                  },
+                  "Elt": {
+                    "_type": "Ident",
+                    "Name": "int"
+                  }
+                },
+                "Elts": [
+                  {
+                    "_type": "KeyValueExpr",
+                    "Key": {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "0x1"
+                    },
+                    "Value": {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "0xe60a"
+                    }
+                  },
+                  {
+                    "_type": "KeyValueExpr",
+                    "Key": {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "0x2"
+                    },
+                    "Value": {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "0x2e404"
+                    }
+                  },
+                  {
+                    "_type": "KeyValueExpr",
+                    "Key": {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "0x4"
+                    },
+                    "Value": {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "0x2c09"
+                    }
+                  }
+                ],
+                "Incomplete": false
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "arr2"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "ArrayType",
+                  "Len": {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "3"
+                  },
+                  "Elt": {
+                    "_type": "Ident",
+                    "Name": "int"
+                  }
+                },
+                "Elts": [
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "1"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "2"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "3"
+                  }
+                ],
+                "Incomplete": false
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 128,
+    "Files": [
+      {
+        "Name": "tests/array_fixed_size_init/array_fixed_size_init.go",
+        "Base": 1,
+        "Size": 126,
+        "Lines": [
+          0,
+          13,
+          14,
+          28,
+          50,
+          65,
+          81,
+          96,
+          99,
+          124
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

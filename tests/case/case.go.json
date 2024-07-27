@@ -1,0 +1,335 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "import",
+      "Specs": [
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"fmt\""
+          }
+        }
+      ]
+    },
+    {
+      "_type": "GenDecl",
+      "Tok": "const",
+      "Specs": [
+        {
+          "_type": "ValueSpec",
+          "Names": [
+            {
+              "_type": "Ident",
+              "Name": "UPPERCASE_WITH_UNDERSCORES"
+            }
+          ],
+          "Type": null,
+          "Values": [
+            {
+              "_type": "BasicLit",
+              "Kind": "INT",
+              "Value": "0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "_type": "GenDecl",
+      "Tok": "const",
+      "Specs": [
+        {
+          "_type": "ValueSpec",
+          "Names": [
+            {
+              "_type": "Ident",
+              "Name": "lowercase_with_underscores"
+            }
+          ],
+          "Type": null,
+          "Values": [
+            {
+              "_type": "BasicLit",
+              "Kind": "INT",
+              "Value": "0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "_type": "GenDecl",
+      "Tok": "const",
+      "Specs": [
+        {
+          "_type": "ValueSpec",
+          "Names": [
+            {
+              "_type": "Ident",
+              "Name": "camelCase"
+            }
+          ],
+          "Type": null,
+          "Values": [
+            {
+              "_type": "BasicLit",
+              "Kind": "INT",
+              "Value": "0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "_type": "GenDecl",
+      "Tok": "const",
+      "Specs": [
+        {
+          "_type": "ValueSpec",
+          "Names": [
+            {
+              "_type": "Ident",
+              "Name": "UpperCamelCase"
+            }
+          ],
+          "Type": null,
+          "Values": [
+            {
+              "_type": "BasicLit",
+              "Kind": "INT",
+              "Value": "0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "_type": "GenDecl",
+      "Tok": "const",
+      "Specs": [
+        {
+          "_type": "ValueSpec",
+          "Names": [
+            {
+              "_type": "Ident",
+              "Name": "uppercase"
+            }
+          ],
+          "Type": null,
+          "Values": [
+            {
+              "_type": "BasicLit",
+              "Kind": "INT",
+              "Value": "0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "_type": "GenDecl",
+      "Tok": "const",
+      "Specs": [
+        {
+          "_type": "ValueSpec",
+          "Names": [
+            {
+              "_type": "Ident",
+              "Name": "lowercase"
+            }
+          ],
+          "Type": null,
+          "Values": [
+            {
+              "_type": "BasicLit",
+              "Kind": "INT",
+              "Value": "0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "ok"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "ER_fd_fs324"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "ArrayType",
+                  "Len": null,
+                  "Elt": {
+                    "_type": "Ident",
+                    "Name": "string"
+                  }
+                },
+                "Elts": [
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "STRING",
+                    "Value": "\"a\""
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "STRING",
+                    "Value": "\"b\""
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "STRING",
+                    "Value": "\"c\""
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "STRING",
+                    "Value": "\"d\""
+                  }
+                ],
+                "Incomplete": false
+              }
+            ]
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "IdWeird"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "BasicLit",
+                "Kind": "INT",
+                "Value": "0"
+              }
+            ]
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "IndexExpr",
+                  "X": {
+                    "_type": "Ident",
+                    "Name": "ER_fd_fs324"
+                  },
+                  "Index": {
+                    "_type": "Ident",
+                    "Name": "IdWeird"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "Ident",
+                  "Name": "ER_fd_fs324"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 324,
+    "Files": [
+      {
+        "Name": "tests/case/case.go",
+        "Base": 1,
+        "Size": 322,
+        "Lines": [
+          0,
+          13,
+          14,
+          27,
+          28,
+          65,
+          102,
+          122,
+          147,
+          167,
+          187,
+          188,
+          200,
+          245,
+          259,
+          294,
+          320
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

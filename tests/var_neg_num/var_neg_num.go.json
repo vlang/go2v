@@ -1,0 +1,75 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "ok"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "UnaryExpr",
+                "Op": "-",
+                "X": {
+                  "_type": "BasicLit",
+                  "Kind": "INT",
+                  "Value": "1"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 42,
+    "Files": [
+      {
+        "Name": "tests/var_neg_num/var_neg_num.go",
+        "Base": 1,
+        "Size": 40,
+        "Lines": [
+          0,
+          13,
+          14,
+          28,
+          38
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

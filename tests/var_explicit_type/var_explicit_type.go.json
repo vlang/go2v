@@ -1,0 +1,122 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "DeclStmt",
+            "Decl": {
+              "_type": "GenDecl",
+              "Tok": "var",
+              "Specs": [
+                {
+                  "_type": "ValueSpec",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "a"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "uint64"
+                  },
+                  "Values": [
+                    {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "12"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "_type": "DeclStmt",
+            "Decl": {
+              "_type": "GenDecl",
+              "Tok": "var",
+              "Specs": [
+                {
+                  "_type": "ValueSpec",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "ok"
+                    },
+                    {
+                      "_type": "Ident",
+                      "Name": "ko"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "int16"
+                  },
+                  "Values": [
+                    {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "23"
+                    },
+                    {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "34"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 78,
+    "Files": [
+      {
+        "Name": "tests/var_explicit_type/var_explicit_type.go",
+        "Base": 1,
+        "Size": 76,
+        "Lines": [
+          0,
+          13,
+          14,
+          28,
+          47,
+          74
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

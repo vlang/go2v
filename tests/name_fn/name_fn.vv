@@ -1,0 +1,9 @@
+module main
+
+fn main() {
+	mut a := 42
+}
+
+pub fn a_1() {}
+
+fn a_3() {}

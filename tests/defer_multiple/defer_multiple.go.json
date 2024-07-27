@@ -1,0 +1,153 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "foo"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": {
+          "_type": "FieldList",
+          "List": [
+            {
+              "_type": "Field",
+              "Names": null,
+              "Type": {
+                "_type": "Ident",
+                "Name": "bool"
+              }
+            }
+          ]
+        }
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "fosterParenting"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "Ident",
+                "Name": "true"
+              }
+            ]
+          },
+          {
+            "_type": "DeferStmt",
+            "Call": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "FuncLit",
+                "Type": {
+                  "_type": "FuncType",
+                  "TypeParams": null,
+                  "Params": {
+                    "_type": "FieldList",
+                    "List": null
+                  },
+                  "Results": null
+                },
+                "Body": {
+                  "_type": "BlockStmt",
+                  "List": [
+                    {
+                      "_type": "AssignStmt",
+                      "Lhs": [
+                        {
+                          "_type": "Ident",
+                          "Name": "fosterParenting"
+                        }
+                      ],
+                      "Tok": "=",
+                      "Rhs": [
+                        {
+                          "_type": "Ident",
+                          "Name": "false"
+                        }
+                      ]
+                    },
+                    {
+                      "_type": "ExprStmt",
+                      "X": {
+                        "_type": "CallExpr",
+                        "Fun": {
+                          "_type": "Ident",
+                          "Name": "println"
+                        },
+                        "Args": [
+                          {
+                            "_type": "BasicLit",
+                            "Kind": "STRING",
+                            "Value": "\"hello\""
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "Args": null
+            }
+          },
+          {
+            "_type": "ReturnStmt",
+            "Results": [
+              {
+                "_type": "Ident",
+                "Name": "fosterParenting"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 151,
+    "Files": [
+      {
+        "Name": "tests/defer_multiple/defer_multiple.go",
+        "Base": 1,
+        "Size": 149,
+        "Lines": [
+          0,
+          13,
+          14,
+          32,
+          57,
+          73,
+          99,
+          118,
+          123,
+          147
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

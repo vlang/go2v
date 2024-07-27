@@ -1,0 +1,179 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "DeclStmt",
+            "Decl": {
+              "_type": "GenDecl",
+              "Tok": "var",
+              "Specs": [
+                {
+                  "_type": "ValueSpec",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "ok"
+                    }
+                  ],
+                  "Type": null,
+                  "Values": [
+                    {
+                      "_type": "CompositeLit",
+                      "Type": {
+                        "_type": "MapType",
+                        "Key": {
+                          "_type": "Ident",
+                          "Name": "string"
+                        },
+                        "Value": {
+                          "_type": "ArrayType",
+                          "Len": {
+                            "_type": "BasicLit",
+                            "Kind": "INT",
+                            "Value": "2"
+                          },
+                          "Elt": {
+                            "_type": "Ident",
+                            "Name": "rune"
+                          }
+                        }
+                      },
+                      "Elts": [
+                        {
+                          "_type": "KeyValueExpr",
+                          "Key": {
+                            "_type": "BasicLit",
+                            "Kind": "STRING",
+                            "Value": "\"a;\""
+                          },
+                          "Value": {
+                            "_type": "CompositeLit",
+                            "Type": null,
+                            "Elts": [
+                              {
+                                "_type": "BasicLit",
+                                "Kind": "CHAR",
+                                "Value": "'\\u2242'"
+                              },
+                              {
+                                "_type": "BasicLit",
+                                "Kind": "CHAR",
+                                "Value": "'\\u0338'"
+                              }
+                            ],
+                            "Incomplete": false
+                          }
+                        },
+                        {
+                          "_type": "KeyValueExpr",
+                          "Key": {
+                            "_type": "BasicLit",
+                            "Kind": "STRING",
+                            "Value": "\"b;\""
+                          },
+                          "Value": {
+                            "_type": "CompositeLit",
+                            "Type": null,
+                            "Elts": [
+                              {
+                                "_type": "BasicLit",
+                                "Kind": "CHAR",
+                                "Value": "'\\u2267'"
+                              },
+                              {
+                                "_type": "BasicLit",
+                                "Kind": "CHAR",
+                                "Value": "'\\u0338'"
+                              }
+                            ],
+                            "Incomplete": false
+                          }
+                        },
+                        {
+                          "_type": "KeyValueExpr",
+                          "Key": {
+                            "_type": "BasicLit",
+                            "Kind": "STRING",
+                            "Value": "\"c;\""
+                          },
+                          "Value": {
+                            "_type": "CompositeLit",
+                            "Type": null,
+                            "Elts": [
+                              {
+                                "_type": "BasicLit",
+                                "Kind": "CHAR",
+                                "Value": "'\\u226B'"
+                              },
+                              {
+                                "_type": "BasicLit",
+                                "Kind": "CHAR",
+                                "Value": "'\\u0338'"
+                              }
+                            ],
+                            "Incomplete": false
+                          }
+                        }
+                      ],
+                      "Incomplete": false
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 155,
+    "Files": [
+      {
+        "Name": "tests/map_direct_val/map_direct_val.go",
+        "Base": 1,
+        "Size": 153,
+        "Lines": [
+          0,
+          13,
+          14,
+          28,
+          58,
+          88,
+          118,
+          148,
+          151
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "type",
+      "Specs": [
+        {
+          "_type": "TypeSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "Type1"
+          },
+          "TypeParams": null,
+          "Type": {
+            "_type": "Ident",
+            "Name": "int"
+          }
+        }
+      ]
+    },
+    {
+      "_type": "GenDecl",
+      "Tok": "type",
+      "Specs": [
+        {
+          "_type": "TypeSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "Type2"
+          },
+          "TypeParams": null,
+          "Type": {
+            "_type": "ArrayType",
+            "Len": null,
+            "Elt": {
+              "_type": "Ident",
+              "Name": "string"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 55,
+    "Files": [
+      {
+        "Name": "tests/sumtype/sumtype.go",
+        "Base": 1,
+        "Size": 53,
+        "Lines": [
+          0,
+          13,
+          14,
+          31
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

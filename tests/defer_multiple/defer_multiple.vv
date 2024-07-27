@@ -1,0 +1,10 @@
+module main
+
+fn foo() bool {
+	mut foster_parenting := true
+	defer {
+		foster_parenting = false
+		println('hello')
+	}
+	return foster_parenting
+}

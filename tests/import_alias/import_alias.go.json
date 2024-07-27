@@ -1,0 +1,64 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "html"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "import",
+      "Specs": [
+        {
+          "_type": "ImportSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "abc"
+          },
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"archive/zip\""
+          }
+        },
+        {
+          "_type": "ImportSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "def"
+          },
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"os\""
+          }
+        }
+      ]
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 80,
+    "Files": [
+      {
+        "Name": "tests/import_alias/import_alias.go",
+        "Base": 1,
+        "Size": 78,
+        "Lines": [
+          0,
+          13,
+          14,
+          23,
+          47,
+          66,
+          76
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

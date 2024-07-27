@@ -1,0 +1,90 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "type",
+      "Specs": [
+        {
+          "_type": "TypeSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "Foo"
+          },
+          "TypeParams": null,
+          "Type": {
+            "_type": "StructType",
+            "Fields": {
+              "_type": "FieldList",
+              "List": null
+            },
+            "Incomplete": false
+          }
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": {
+        "_type": "FieldList",
+        "List": [
+          {
+            "_type": "Field",
+            "Names": null,
+            "Type": {
+              "_type": "StarExpr",
+              "X": {
+                "_type": "Ident",
+                "Name": "Foo"
+              }
+            }
+          }
+        ]
+      },
+      "Name": {
+        "_type": "Ident",
+        "Name": "foo"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": null
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 56,
+    "Files": [
+      {
+        "Name": "tests/method_no_name/method_no_name.go",
+        "Base": 1,
+        "Size": 54,
+        "Lines": [
+          0,
+          13,
+          14,
+          32,
+          33
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

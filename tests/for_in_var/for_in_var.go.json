@@ -1,0 +1,95 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "foo"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "RangeStmt",
+            "Key": {
+              "_type": "Ident",
+              "Name": "i"
+            },
+            "Value": {
+              "_type": "Ident",
+              "Name": "c"
+            },
+            "Tok": ":=",
+            "X": {
+              "_type": "BasicLit",
+              "Kind": "STRING",
+              "Value": "\"\""
+            },
+            "Body": {
+              "_type": "BlockStmt",
+              "List": [
+                {
+                  "_type": "AssignStmt",
+                  "Lhs": [
+                    {
+                      "_type": "Ident",
+                      "Name": "c"
+                    }
+                  ],
+                  "Tok": ":=",
+                  "Rhs": [
+                    {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "2"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 67,
+    "Files": [
+      {
+        "Name": "tests/for_in_var/for_in_var.go",
+        "Base": 1,
+        "Size": 65,
+        "Lines": [
+          0,
+          13,
+          14,
+          27,
+          51,
+          60,
+          63
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

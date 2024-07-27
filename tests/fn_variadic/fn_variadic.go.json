@@ -1,0 +1,272 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "import",
+      "Specs": [
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"fmt\""
+          }
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "Sum"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": [
+            {
+              "_type": "Field",
+              "Names": [
+                {
+                  "_type": "Ident",
+                  "Name": "nums"
+                }
+              ],
+              "Type": {
+                "_type": "Ellipsis",
+                "Elt": {
+                  "_type": "Ident",
+                  "Name": "int"
+                }
+              }
+            }
+          ]
+        },
+        "Results": {
+          "_type": "FieldList",
+          "List": [
+            {
+              "_type": "Field",
+              "Names": null,
+              "Type": {
+                "_type": "Ident",
+                "Name": "int"
+              }
+            }
+          ]
+        }
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "res"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "BasicLit",
+                "Kind": "INT",
+                "Value": "0"
+              }
+            ]
+          },
+          {
+            "_type": "RangeStmt",
+            "Key": {
+              "_type": "Ident",
+              "Name": "_"
+            },
+            "Value": {
+              "_type": "Ident",
+              "Name": "n"
+            },
+            "Tok": ":=",
+            "X": {
+              "_type": "Ident",
+              "Name": "nums"
+            },
+            "Body": {
+              "_type": "BlockStmt",
+              "List": [
+                {
+                  "_type": "AssignStmt",
+                  "Lhs": [
+                    {
+                      "_type": "Ident",
+                      "Name": "res"
+                    }
+                  ],
+                  "Tok": "+=",
+                  "Rhs": [
+                    {
+                      "_type": "Ident",
+                      "Name": "n"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "_type": "ReturnStmt",
+            "Results": [
+              {
+                "_type": "Ident",
+                "Name": "res"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "primes"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CompositeLit",
+                "Type": {
+                  "_type": "ArrayType",
+                  "Len": null,
+                  "Elt": {
+                    "_type": "Ident",
+                    "Name": "int"
+                  }
+                },
+                "Elts": [
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "2"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "3"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "5"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "7"
+                  }
+                ],
+                "Incomplete": false
+              }
+            ]
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "CallExpr",
+                  "Fun": {
+                    "_type": "Ident",
+                    "Name": "Sum"
+                  },
+                  "Args": [
+                    {
+                      "_type": "Ident",
+                      "Name": "primes"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 197,
+    "Files": [
+      {
+        "Name": "tests/fn_variadic/fn_variadic.go",
+        "Base": 1,
+        "Size": 195,
+        "Lines": [
+          0,
+          13,
+          14,
+          27,
+          28,
+          56,
+          66,
+          92,
+          103,
+          106,
+          118,
+          120,
+          121,
+          135,
+          164,
+          193
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

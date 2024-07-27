@@ -1,0 +1,8 @@
+module main
+
+struct Struct1 {}
+
+fn main() {
+	mut a := Struct1{}
+	mut b := Struct1{}
+}

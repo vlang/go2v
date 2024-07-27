@@ -1,0 +1,168 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "import",
+      "Specs": [
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"crypto/aes\""
+          }
+        }
+      ]
+    },
+    {
+      "_type": "GenDecl",
+      "Tok": "type",
+      "Specs": [
+        {
+          "_type": "TypeSpec",
+          "Name": {
+            "_type": "Ident",
+            "Name": "BinTree"
+          },
+          "TypeParams": null,
+          "Type": {
+            "_type": "StructType",
+            "Fields": {
+              "_type": "FieldList",
+              "List": [
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "Value"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "Ident",
+                    "Name": "string"
+                  }
+                },
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "Left"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "StarExpr",
+                    "X": {
+                      "_type": "Ident",
+                      "Name": "BinTree"
+                    }
+                  }
+                },
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "Right"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "StarExpr",
+                    "X": {
+                      "_type": "Ident",
+                      "Name": "BinTree"
+                    }
+                  }
+                },
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "List"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "ArrayType",
+                    "Len": null,
+                    "Elt": {
+                      "_type": "StarExpr",
+                      "X": {
+                        "_type": "Ident",
+                        "Name": "BinTree"
+                      }
+                    }
+                  }
+                },
+                {
+                  "_type": "Field",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "Exter"
+                    }
+                  ],
+                  "Type": {
+                    "_type": "ArrayType",
+                    "Len": null,
+                    "Elt": {
+                      "_type": "StarExpr",
+                      "X": {
+                        "_type": "SelectorExpr",
+                        "X": {
+                          "_type": "Ident",
+                          "Name": "aes"
+                        },
+                        "Sel": {
+                          "_type": "Ident",
+                          "Name": "KeySizeError"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "Incomplete": false
+          }
+        }
+      ]
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 152,
+    "Files": [
+      {
+        "Name": "tests/ref/ref.go",
+        "Base": 1,
+        "Size": 150,
+        "Lines": [
+          0,
+          13,
+          14,
+          34,
+          35,
+          57,
+          71,
+          87,
+          103,
+          121,
+          148
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

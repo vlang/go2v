@@ -1,0 +1,9 @@
+module main
+
+fn main() {
+	mut abc := 123
+	mut a := 1
+	if abc != a {
+		println('abc')
+	}
+}

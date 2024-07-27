@@ -1,0 +1,15 @@
+module main
+
+fn abc[T](s T) {
+	match s.type_name() {
+		'int' {
+			println('a')
+		}
+		'string' {
+			println('b')
+		}
+		else {
+			println('c')
+		}
+	}
+}
