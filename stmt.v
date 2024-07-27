@@ -35,6 +35,9 @@ fn (mut app App) stmt(stmt Stmt) {
 		IncDecStmt {
 			app.inc_dec_stmt(stmt)
 		}
+		RangeStmt {
+			app.range_stmt(stmt)
+		}
 		else {
 			app.genln('\t// unhandled in stmt: ${stmt}')
 		} // Add additional handlers as needed
@@ -83,6 +86,28 @@ fn (mut app App) for_stmt(f ForStmt) {
 	app.stmt(f.post)
 	app.genln('{')
 	app.block_stmt(f.body)
+	app.genln('}')
+}
+
+fn (mut app App) range_stmt(node RangeStmt) {
+	app.gen('for ')
+	// Both key and value are present
+	// if node.key.name != node.value.name {
+	if node.key.name == '' {
+		app.gen('_ ')
+	} else {
+		app.gen(node.key.name)
+		app.gen(', ')
+		if node.value.name == '' {
+			app.gen(' _ ')
+		} else {
+			app.gen(node.value.name)
+		}
+	}
+	app.gen(' in ')
+	app.expr(node.x)
+	app.genln('{')
+	app.block_stmt(node.body)
 	app.genln('}')
 }
 

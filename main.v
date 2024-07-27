@@ -4,6 +4,8 @@ import os
 import term
 import strings
 
+const nr_tests = 15
+
 struct App {
 mut:
 	sb         strings.Builder
@@ -89,10 +91,26 @@ fn (mut app App) run_test(test_name string) ! {
 		}
 		println('=======================\nExpected V code:')
 		println(expected_v_code)
+		if res.exit_code == 0 {
+			print_diff_line(formatted_v_code, expected_v_code)
+		}
 	}
 }
 
-const nr_tests = 14
+fn print_diff_line(formatted_v_code string, expected_v_code string) {
+	lines0 := formatted_v_code.split('\n')
+	lines1 := expected_v_code.split('\n')
+	for i in 0 .. lines0.len {
+		if i >= lines1.len {
+			return
+		}
+		if lines0[i].trim_space() != lines1[i].trim_space() {
+			println('!!!!!!!!!!!!')
+			println(lines0[i])
+			return
+		}
+	}
+}
 
 fn main() {
 	mut app := &App{

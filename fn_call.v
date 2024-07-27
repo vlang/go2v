@@ -27,6 +27,24 @@ fn (mut app App) call_expr(call CallExpr) {
 		}
 	}
 	app.gen('${fn_name}(')
+	// In V println can only accept one argument, so convert multiple argumnents into a single string
+	// with concatenation:
+	// `println(a, b)` => `println('${a} ${b}')`
+	if is_println && call.args.len > 1 {
+		app.gen("'")
+		for i, arg in call.args {
+			app.gen('\${')
+			app.expr(arg)
+			app.gen('}')
+			if i < call.args.len - 1 {
+				app.gen(' ')
+			}
+		}
+		app.gen("'")
+		app.genln(')')
+		return
+	}
+
 	for i, arg in call.args {
 		app.expr(arg)
 		if i < call.args.len - 1 {

@@ -36,7 +36,11 @@ fn (mut app App) composite_lit(c CompositeLit) {
 	if c.typ.node_type_str == 'ArrayType' {
 		// No elements, just `[]bool{}` (specify type)
 		if c.elts.len == 0 {
-			app.gen('[]')
+			app.gen('[')
+			if c.typ.len.value != '' {
+				app.gen(c.typ.len.value)
+			}
+			app.gen(']')
 			app.gen(c.typ.elt.name)
 			app.gen('{}')
 		} else {

@@ -23,6 +23,7 @@ type Stmt = AssignStmt
 	| ForStmt
 	| IfStmt
 	| IncDecStmt
+	| RangeStmt
 	| SwitchStmt
 
 struct GoFile {
@@ -133,14 +134,16 @@ struct Ident {
 }
 
 struct TypeOrIdent {
-	node_type_str string @[json: '_type']
-	name          string @[json: 'Name']
-	elt           Ident  @[json: 'Elt']
+	node_type_str string   @[json: '_type']
+	name          string   @[json: 'Name']
+	elt           Ident    @[json: 'Elt']
+	len           BasicLit @[json: 'Len']
 }
 
 struct BasicLit {
-	kind  string @[json: 'Kind']
-	value string @[json: 'Value']
+	node_type_str string @[json: '_type']
+	kind          string @[json: 'Kind']
+	value         string @[json: 'Value']
 }
 
 struct CallExpr {
@@ -199,6 +202,16 @@ struct IndexExpr {
 	index Expr @[json: 'Index']
 
 	node_type_str string @[json: '_type']
+}
+
+// `for ... := range` loop
+struct RangeStmt {
+	node_type_str string    @[json: '_type']
+	key           Ident     @[json: 'Key']
+	value         Ident     @[json: 'Value']
+	tok           string    @[json: 'Tok']
+	x             Expr      @[json: 'X']
+	body          BlockStmt @[json: 'Body']
 }
 
 struct ParenExpr {
