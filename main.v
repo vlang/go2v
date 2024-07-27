@@ -21,7 +21,7 @@ fn (mut app App) gen(s string) {
 }
 
 fn (mut app App) generate_v_code(go_file GoFile) string {
-	app.genln('module main\n')
+	app.genln('module ${go_file.name.name}\n')
 
 	for decl in go_file.decls {
 		match decl.node_type_str {
