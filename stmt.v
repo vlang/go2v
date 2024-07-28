@@ -42,6 +42,9 @@ fn (mut app App) stmt(stmt Stmt) {
 		RangeStmt {
 			app.range_stmt(stmt)
 		}
+		ReturnStmt {
+			app.return_stmt(stmt)
+		}
 		DeferStmt {
 			app.defer_stmt(stmt)
 		}
@@ -61,6 +64,8 @@ fn (mut app App) expr_stmt(stmt ExprStmt) {
 
 fn (mut app App) block_stmt(body BlockStmt) {
 	app.genln('{')
+	// println('LIST=')
+	// println(body.list)
 	app.stmt_list(body.list)
 	app.genln('}')
 }
@@ -136,9 +141,28 @@ fn (mut app App) decl_stmt(d DeclStmt) {
 }
 
 fn (mut app App) defer_stmt(node DeferStmt) {
-	app.genln('defer {')
-	app.expr(node.call)
-	app.genln('}')
+	// print_backtrace()
+	app.gen('defer')
+	// `defer fn() { ... } ()
+	// empty function, just generate `defer { ... }` in V
+	if node.call is CallExpr && node.call.args.len == 0 {
+		func_lit := node.call.fun as FuncLit
+		app.block_stmt(func_lit.body)
+	} else {
+		app.genln('{')
+		app.expr(node.call)
+		app.genln('}')
+	}
+}
+
+fn (mut app App) return_stmt(node ReturnStmt) {
+	app.gen('return ')
+	for i, result in node.results {
+		app.expr(result)
+		if i < node.results.len - 1 {
+			app.gen(',')
+		}
+	}
 }
 
 fn go2v_type(typ string) string {

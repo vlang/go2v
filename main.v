@@ -24,6 +24,7 @@ const passing_tests = [
 	'array_byte',
 	'array_fixed_size',
 	'defer',
+	'defer_multiple',
 ]
 
 struct App {

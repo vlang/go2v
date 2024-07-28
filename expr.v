@@ -10,7 +10,7 @@ fn (mut app App) expr(expr Expr) {
 			app.binary_expr(expr)
 		}
 		Ident {
-			app.gen(expr.name.to_lower()) // TODO ?
+			app.gen(expr.name.camel_to_snake()) // to_lower()) // TODO ?
 		}
 		CallExpr {
 			app.call_expr(expr)
@@ -38,6 +38,9 @@ fn (mut app App) expr(expr Expr) {
 		}
 		ArrayType {
 			app.array_type(expr)
+		}
+		FuncLit {
+			app.func_lit(expr)
 		}
 		Ellipsis {}
 		// else {

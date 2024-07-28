@@ -9,6 +9,7 @@ type Expr = ArrayType
 	| CallExpr
 	| CompositeLit
 	| Ellipsis
+	| FuncLit
 	| Ident
 	| IndexExpr
 	| KeyValueExpr
@@ -27,6 +28,7 @@ type Stmt = AssignStmt
 	| IfStmt
 	| IncDecStmt
 	| RangeStmt
+	| ReturnStmt
 	| SwitchStmt
 
 struct GoFile {
@@ -145,7 +147,8 @@ struct Field {
 }
 
 struct Ident {
-	name string @[json: 'Name']
+	node_type_str string @[json: '_type']
+	name          string @[json: 'Name']
 }
 
 struct TypeOrIdent {
@@ -239,6 +242,17 @@ struct ParenExpr {
 struct DeferStmt {
 	node_type_str string @[json: '_type']
 	call          Expr   @[json: 'Call']
+}
+
+struct ReturnStmt {
+	node_type_str string @[json: '_type']
+	results       []Expr @[json: 'Results']
+}
+
+struct FuncLit {
+	node_type_str string    @[json: '_type']
+	typ           FuncType  @[json: 'Type']
+	body          BlockStmt @[json: 'Body']
 }
 
 fn parse_go_ast(file_path string) !GoFile {
