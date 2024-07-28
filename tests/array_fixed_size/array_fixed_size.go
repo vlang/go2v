@@ -25,4 +25,5 @@ func main() {
 	missing_empty := [2]int{}
 
 	var abc = [...]int{1, 2, 3}
+	var bytes = [...]byte{1, 2, 3}
 }

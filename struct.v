@@ -34,11 +34,21 @@ fn (mut app App) composite_lit(c CompositeLit) {
 		return
 	}
 	if c.typ.node_type_str == 'ArrayType' {
+		mut have_len := false
+		mut len_val := ''
+		mut is_fixed := false
+		if c.typ.len is BasicLit {
+			is_fixed = c.typ.len.value != ''
+			have_len = c.typ.len.value != ''
+			len_val = c.typ.len.value
+		} else if c.typ.len is Ellipsis {
+			is_fixed = true
+		}
 		// No elements, just `[]bool{}` (specify type)
 		if c.elts.len == 0 {
 			app.gen('[')
-			if c.typ.len.value != '' {
-				app.gen(c.typ.len.value)
+			if have_len {
+				app.gen(len_val)
 			}
 			app.gen(']')
 			app.gen(c.typ.elt.name)
@@ -47,12 +57,24 @@ fn (mut app App) composite_lit(c CompositeLit) {
 			// [1,2,3]
 			app.gen('[')
 			for i, elt in c.elts {
-				app.expr(elt)
+				elt_name := go2v_type(c.typ.elt.name)
+				if i == 0 && is_fixed && elt_name != '' && elt_name != 'string' && elt_name != 'int' {
+					// specify type in the first element
+					// [u8(1), 2, 3]
+					app.gen('${elt_name}(')
+					app.expr(elt)
+					app.gen(')')
+				} else {
+					app.expr(elt)
+				}
 				if i < c.elts.len - 1 {
 					app.gen(',')
 				}
 			}
 			app.gen(']')
+			if is_fixed {
+				app.gen('!')
+			}
 		}
 	}
 }

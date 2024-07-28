@@ -24,6 +24,7 @@ const passing_tests = [
 	'if_else_if',
 	'array',
 	'array_byte',
+	'array_fixed_size',
 ]
 
 struct App {
@@ -114,6 +115,9 @@ fn (mut app App) run_test(test_name string) ! {
 		if res.exit_code == 0 {
 			print_diff_line(formatted_v_code, expected_v_code)
 		}
+		println('=======================\nGo code:')
+		go_code := os.read_file(expected_v_code_path.replace('.vv', '.go')) or { panic(err) }
+		println(go_code)
 	}
 }
 

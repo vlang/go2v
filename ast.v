@@ -8,6 +8,7 @@ type Expr = ArrayType
 	| BinaryExpr
 	| CallExpr
 	| CompositeLit
+	| Ellipsis
 	| Ident
 	| IndexExpr
 	| KeyValueExpr
@@ -50,6 +51,11 @@ struct Spec {
 }
 
 struct ArrayType {
+	node_type_str string @[json: '_type']
+	elt           Ident  @[json: 'Elt']
+}
+
+struct Ellipsis {
 	node_type_str string @[json: '_type']
 	elt           Ident  @[json: 'Elt']
 }
@@ -142,10 +148,11 @@ struct Ident {
 }
 
 struct TypeOrIdent {
-	node_type_str string   @[json: '_type']
-	name          string   @[json: 'Name']
-	elt           Ident    @[json: 'Elt']
-	len           BasicLit @[json: 'Len']
+	node_type_str string @[json: '_type']
+	name          string @[json: 'Name']
+	elt           Ident  @[json: 'Elt']
+	// len           BasicLit @[json: 'Len']
+	len Expr @[json: 'Len']
 }
 
 struct BasicLit {

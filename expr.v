@@ -39,6 +39,7 @@ fn (mut app App) expr(expr Expr) {
 		ArrayType {
 			app.array_type(expr)
 		}
+		Ellipsis {}
 		// else {
 		// app.gen('/* UNHANDLED EXPR ${expr.node_type} */')
 		//}

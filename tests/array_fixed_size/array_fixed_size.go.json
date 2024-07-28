@@ -279,6 +279,59 @@
                 }
               ]
             }
+          },
+          {
+            "_type": "DeclStmt",
+            "Decl": {
+              "_type": "GenDecl",
+              "Tok": "var",
+              "Specs": [
+                {
+                  "_type": "ValueSpec",
+                  "Names": [
+                    {
+                      "_type": "Ident",
+                      "Name": "bytes"
+                    }
+                  ],
+                  "Type": null,
+                  "Values": [
+                    {
+                      "_type": "CompositeLit",
+                      "Type": {
+                        "_type": "ArrayType",
+                        "Len": {
+                          "_type": "Ellipsis",
+                          "Elt": null
+                        },
+                        "Elt": {
+                          "_type": "Ident",
+                          "Name": "byte"
+                        }
+                      },
+                      "Elts": [
+                        {
+                          "_type": "BasicLit",
+                          "Kind": "INT",
+                          "Value": "1"
+                        },
+                        {
+                          "_type": "BasicLit",
+                          "Kind": "INT",
+                          "Value": "2"
+                        },
+                        {
+                          "_type": "BasicLit",
+                          "Kind": "INT",
+                          "Value": "3"
+                        }
+                      ],
+                      "Incomplete": false
+                    }
+                  ]
+                }
+              ]
+            }
           }
         ]
       }
@@ -288,12 +341,12 @@
   "Unresolved": null,
   "Comments": null,
   "FileSet": {
-    "Base": 303,
+    "Base": 335,
     "Files": [
       {
         "Name": "tests/array_fixed_size/array_fixed_size.go",
         "Base": 1,
-        "Size": 301,
+        "Size": 333,
         "Lines": [
           0,
           13,
@@ -322,7 +375,8 @@
           242,
           269,
           270,
-          299
+          299,
+          331
         ],
         "Infos": null
       }
