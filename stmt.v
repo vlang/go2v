@@ -16,6 +16,10 @@ fn (mut app App) stmt(stmt Stmt) {
 			// println('GOT A')
 			app.assign_stmt(stmt, false) // no_mut:false
 		}
+		// have to keep track of variable names which match outer scope, so they can be renamed in inner...
+		// BlockStmt {
+		// 	app.block_stmt(stmt)
+		// }
 		ExprStmt {
 			// app.genln('expr stmt')
 			app.expr_stmt(stmt)
@@ -53,27 +57,24 @@ fn (mut app App) expr_stmt(stmt ExprStmt) {
 }
 
 fn (mut app App) block_stmt(body BlockStmt) {
+	app.genln('{')
 	app.stmt_list(body.list)
+	app.genln('}')
 }
 
 fn (mut app App) if_stmt(i IfStmt) {
 	app.gen('if ')
 	app.expr(i.cond)
-	app.genln('{')
 	app.block_stmt(i.body)
-	app.genln('}')
 	// else if ... {
 	if i.else_ is IfStmt {
-		app.gen('else ')
+		app.genln('else')
 		app.if_stmt(i.else_)
 	}
 	// else {
 	else if i.else_ is BlockStmt {
-		if i.else_.list.len > 0 {
-			app.genln('else {')
-			app.block_stmt(i.else_)
-			app.genln('}')
-		}
+		app.genln('else')
+		app.block_stmt(i.else_)
 	}
 }
 
@@ -84,9 +85,7 @@ fn (mut app App) for_stmt(f ForStmt) {
 	app.expr(f.cond)
 	app.gen('; ')
 	app.stmt(f.post)
-	app.genln('{')
 	app.block_stmt(f.body)
-	app.genln('}')
 }
 
 fn (mut app App) range_stmt(node RangeStmt) {
@@ -106,9 +105,7 @@ fn (mut app App) range_stmt(node RangeStmt) {
 	}
 	app.gen(' in ')
 	app.expr(node.x)
-	app.genln('{')
 	app.block_stmt(node.body)
-	app.genln('}')
 }
 
 fn (mut app App) inc_dec_stmt(i IncDecStmt) {
