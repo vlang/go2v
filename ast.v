@@ -28,6 +28,7 @@ type Stmt = AssignStmt
 	| SwitchStmt
 
 struct GoFile {
+	name  Ident  @[json: 'Name']
 	decls []Decl @[json: 'Decls']
 }
 
