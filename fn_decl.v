@@ -20,6 +20,6 @@ fn (mut app App) func_decl(decl Decl) {
 	} else {
 		app.gen('fn ')
 	}
-	app.genln('${method_name}(${params})${results} ')
+	app.genln('${method_name}(${params})${results}')
 	app.block_stmt(decl.body)
 }

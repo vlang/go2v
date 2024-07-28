@@ -68,12 +68,12 @@ fn (mut app App) if_stmt(i IfStmt) {
 	app.block_stmt(i.body)
 	// else if ... {
 	if i.else_ is IfStmt {
-		app.gen('else ')
+		app.genln('else')
 		app.if_stmt(i.else_)
 	}
 	// else {
 	else if i.else_ is BlockStmt {
-		app.genln('else ')
+		app.genln('else')
 		app.block_stmt(i.else_)
 	}
 }
