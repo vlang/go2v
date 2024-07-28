@@ -4,8 +4,6 @@ import os
 import term
 import strings
 
-// const nr_tests = 15
-
 const passing_tests = [
 	'struct_simple',
 	'method',
@@ -25,6 +23,7 @@ const passing_tests = [
 	'array',
 	'array_byte',
 	'array_fixed_size',
+	'defer',
 ]
 
 struct App {

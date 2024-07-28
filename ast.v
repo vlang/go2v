@@ -21,6 +21,7 @@ type Stmt = AssignStmt
 	| BlockStmt
 	| CaseClause
 	| DeclStmt
+	| DeferStmt
 	| ExprStmt
 	| ForStmt
 	| IfStmt
@@ -231,9 +232,13 @@ struct RangeStmt {
 }
 
 struct ParenExpr {
-	x Expr @[json: 'X']
-
 	node_type_str string @[json: '_type']
+	x             Expr   @[json: 'X']
+}
+
+struct DeferStmt {
+	node_type_str string @[json: '_type']
+	call          Expr   @[json: 'Call']
 }
 
 fn parse_go_ast(file_path string) !GoFile {

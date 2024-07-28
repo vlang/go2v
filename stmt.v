@@ -42,6 +42,9 @@ fn (mut app App) stmt(stmt Stmt) {
 		RangeStmt {
 			app.range_stmt(stmt)
 		}
+		DeferStmt {
+			app.defer_stmt(stmt)
+		}
 		else {
 			app.genln('\t// unhandled in stmt: ${stmt}')
 		} // Add additional handlers as needed
@@ -130,6 +133,12 @@ fn (mut app App) decl_stmt(d DeclStmt) {
 		}
 	}
 	app.genln('')
+}
+
+fn (mut app App) defer_stmt(node DeferStmt) {
+	app.genln('defer {')
+	app.expr(node.call)
+	app.genln('}')
 }
 
 fn go2v_type(typ string) string {
