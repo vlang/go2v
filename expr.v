@@ -1,3 +1,5 @@
+module main
+
 // Copyright (c) 2024 Alexander Medvednikov. All rights reserved.
 // Use of this source code is governed by a GPL license that can be found in the LICENSE file.
 
@@ -10,7 +12,7 @@ fn (mut app App) expr(expr Expr) {
 			app.binary_expr(expr)
 		}
 		Ident {
-			app.gen(expr.name.camel_to_snake()) // to_lower()) // TODO ?
+			app.gen(go2v_ident(expr.name))
 		}
 		CallExpr {
 			app.call_expr(expr)
@@ -99,9 +101,14 @@ fn (mut app App) paren_expr(p ParenExpr) {
 	app.gen(')')
 }
 
-fn (mut app App) key_value_expr(k KeyValueExpr) {
-	app.gen('\t${k.key.name}: ')
-	app.expr(k.value)
+fn (mut app App) key_value_expr(expr KeyValueExpr) {
+	if expr.key is Ident {
+		app.gen('\t${expr.key.name}: ')
+	} else {
+		app.expr(expr.key)
+		app.gen(': ')
+	}
+	app.expr(expr.value)
 	app.genln('')
 }
 

@@ -204,7 +204,8 @@ struct UnaryExpr {
 }
 
 struct KeyValueExpr {
-	key           Ident  @[json: 'Key']
+	// key           Ident  @[json: 'Key']
+	key           Expr   @[json: 'Key']
 	value         Expr   @[json: 'Value']
 	node_type_str string @[json: '_type']
 }

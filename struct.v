@@ -23,7 +23,9 @@ fn (mut app App) struct_decl(spec Spec) {
 	}
 	for field in spec.typ.fields.list {
 		type_name := app.type_or_ident(field.typ)
-		app.genln('\t${field.names.map(it.name).join(', ')} ${type_name}')
+		for n in field.names {
+			app.genln('\t${go2v_ident(n.name)} ${go2v_type(type_name)}')
+		}
 	}
 	app.genln('}\n')
 }

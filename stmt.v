@@ -164,10 +164,3 @@ fn (mut app App) return_stmt(node ReturnStmt) {
 		}
 	}
 }
-
-fn go2v_type(typ string) string {
-	if typ == 'byte' {
-		return 'u8'
-	}
-	return typ
-}

@@ -1,7 +1,7 @@
 module main
 
 struct Vertex {
-mut:
+pub mut:
 	lat  f64
 	long f64
 }
