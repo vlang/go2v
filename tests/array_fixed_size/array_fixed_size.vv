@@ -5,8 +5,8 @@ struct Ok {
 
 fn main() {
 	mut full := [4, 5, 23, 55]!
-	mut one_missing := [4, 5, 23, 55]!
-	mut missing := ['John', 'Paul', 'George', 'Ringo']!
+	mut one_missing := [4, 5, 23, 55, 0]!
+	mut missing := ['John', 'Paul', 'George', 'Ringo', '', '']!
 	mut missing_empty := [2]int{}
 	mut abc := [1, 2, 3]!
 	mut bytes := [u8(1), 2, 3]!
