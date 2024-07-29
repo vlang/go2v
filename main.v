@@ -25,6 +25,7 @@ const passing_tests = [
 	'array_fixed_size',
 	'defer',
 	'defer_multiple',
+	'map',
 ]
 
 struct App {
