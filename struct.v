@@ -71,6 +71,20 @@ fn (mut app App) composite_lit(c CompositeLit) {
 					app.gen(',')
 				}
 			}
+			if have_len {
+				elt_name := go2v_type(c.typ.elt.name)
+				diff := len_val.int() - c.elts.len
+				if diff > 0 {
+					for _ in 0 .. diff {
+						app.gen(',')
+						match elt_name {
+							'int' { app.gen('0') }
+							'string' { app.gen("''") }
+							else { app.gen('unknown element type??') }
+						}
+					}
+				}
+			}
 			app.gen(']')
 			if is_fixed {
 				app.gen('!')

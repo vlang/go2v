@@ -151,9 +151,8 @@ struct Ident {
 struct TypeOrIdent {
 	node_type_str string @[json: '_type']
 	name          string @[json: 'Name']
+	len           Expr   @[json: 'Len']
 	elt           Ident  @[json: 'Elt']
-	// len           BasicLit @[json: 'Len']
-	len Expr @[json: 'Len']
 }
 
 struct BasicLit {
@@ -176,9 +175,8 @@ struct SelectorExpr {
 // Foo{bar:baz}
 // []bool{}
 struct CompositeLit {
-	typ TypeOrIdent @[json: 'Type']
-
-	elts []Expr @[json: 'Elts']
+	typ  TypeOrIdent @[json: 'Type']
+	elts []Expr      @[json: 'Elts']
 }
 
 /*
