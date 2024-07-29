@@ -1,7 +1,6 @@
-module main
-
 // Copyright (c) 2024 Alexander Medvednikov. All rights reserved.
 // Use of this source code is governed by a GPL license that can be found in the LICENSE file.
+module main
 
 fn (mut app App) expr(expr Expr) {
 	match expr {

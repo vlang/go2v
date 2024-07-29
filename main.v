@@ -26,12 +26,14 @@ const passing_tests = [
 	'defer',
 	'defer_multiple',
 	'map',
+	'if_nested',
 ]
 
 struct App {
 mut:
 	sb         strings.Builder
 	is_fn_call bool // for lowercase idents
+	tests_ok   bool
 }
 
 fn (mut app App) genln(s string) {
@@ -105,6 +107,7 @@ fn (mut app App) run_test(test_name string) ! {
 		println(term.green('OK'))
 	} else {
 		println('Test ${test_name} failed.')
+		app.tests_ok = false
 		println('Generated V code:')
 		println(generated_v_code)
 		if res.exit_code == 0 {
@@ -178,5 +181,8 @@ fn main() {
 			eprintln('Error running test ${test_name}: ${err}')
 			break
 		}
+	}
+	if !app.tests_ok {
+		exit(1)
 	}
 }
