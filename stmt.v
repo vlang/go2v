@@ -70,19 +70,23 @@ fn (mut app App) block_stmt(body BlockStmt) {
 	app.genln('}')
 }
 
-fn (mut app App) if_stmt(i IfStmt) {
+fn (mut app App) if_stmt(node IfStmt) {
+	if node.init.tok != '' {
+		app.assign_stmt(node.init, false)
+	}
+
 	app.gen('if ')
-	app.expr(i.cond)
-	app.block_stmt(i.body)
+	app.expr(node.cond)
+	app.block_stmt(node.body)
 	// else if ... {
-	if i.else_ is IfStmt {
+	if node.else_ is IfStmt {
 		app.genln('else')
-		app.if_stmt(i.else_)
+		app.if_stmt(node.else_)
 	}
 	// else {
-	else if i.else_ is BlockStmt {
+	else if node.else_ is BlockStmt {
 		app.genln('else')
-		app.block_stmt(i.else_)
+		app.block_stmt(node.else_)
 	}
 }
 

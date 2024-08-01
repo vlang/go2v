@@ -90,7 +90,7 @@
                     "Lhs": [
                       {
                         "_type": "Ident",
-                        "Name": "z"
+                        "Name": "x"
                       }
                     ],
                     "Tok": ":=",
@@ -106,7 +106,7 @@
                     "_type": "BinaryExpr",
                     "X": {
                       "_type": "Ident",
-                      "Name": "z"
+                      "Name": "x"
                     },
                     "Op": "==",
                     "Y": {
@@ -129,7 +129,7 @@
                           "Args": [
                             {
                               "_type": "Ident",
-                              "Name": "z"
+                              "Name": "x"
                             }
                           ]
                         }

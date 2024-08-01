@@ -103,10 +103,11 @@ struct CaseClause {
 }
 
 struct IfStmt {
-	node_type_str string    @[json: '_type']
-	cond          Expr      @[json: 'Cond']
-	body          BlockStmt @[json: 'Body']
-	else_         Stmt      @[json: 'Else']
+	node_type_str string     @[json: '_type']
+	cond          Expr       @[json: 'Cond']
+	init          AssignStmt @[json: 'Init']
+	body          BlockStmt  @[json: 'Body']
+	else_         Stmt       @[json: 'Else']
 }
 
 struct ForStmt {

@@ -5,9 +5,9 @@ fn main() {
 	if z == 0 {
 		println('ok')
 	} else {
-		mut z_1 := 456
-		if z_1 == 0 {
-			println(z_1)
+		mut x := 456
+		if x == 0 {
+			println(x)
 		}
 	}
 }
