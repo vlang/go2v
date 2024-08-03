@@ -33,7 +33,7 @@ struct App {
 mut:
 	sb         strings.Builder
 	is_fn_call bool // for lowercase idents
-	tests_ok   bool
+	tests_ok   bool = true
 }
 
 fn (mut app App) genln(s string) {
