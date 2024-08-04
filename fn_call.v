@@ -2,6 +2,7 @@
 // Use of this source code is governed by a GPL license that can be found in the LICENSE file.
 
 fn (mut app App) call_expr(call CallExpr) {
+	// app.genln('// cal_expr')
 	mut fn_name := ''
 	mut is_println := false
 
@@ -31,7 +32,7 @@ fn (mut app App) call_expr(call CallExpr) {
 		// app.is_fn_call = false
 		if fun is SelectorExpr {
 			// Custom selector expr fn for lower case
-			app.selector_expr_fn_call(fun)
+			app.selector_expr_fn_call(call, fun) // fun)
 		} else {
 			app.expr(fun)
 		}
@@ -56,10 +57,57 @@ fn (mut app App) call_expr(call CallExpr) {
 	}
 
 	for i, arg in call.args {
+		if app.skip_first_arg {
+			app.skip_first_arg = false
+			continue
+		}
 		app.expr(arg)
 		if i < call.args.len - 1 {
 			app.gen(', ')
 		}
 	}
 	app.genln(')')
+}
+
+const unexisting_modules = ['fmt', 'path', 'strings']
+
+fn (mut app App) selector_expr_fn_call(call CallExpr, sel SelectorExpr) {
+	// app.genln('///selector_expr_fn_call')
+	if sel.x is Ident {
+		if sel.x.name in unexisting_modules {
+			app.handle_nonexistent_module_call(sel.x.name, sel.sel.name, call)
+			return
+		}
+	}
+	app.expr(sel.x)
+	app.gen('.')
+	app.gen(sel.sel.name.to_lower())
+}
+
+fn (mut app App) handle_nonexistent_module_call(mod_name string, fn_name string, node CallExpr) {
+	// println('nonexistent module "${mod_name}" node=${node}')
+	match mod_name {
+		'strings' {
+			app.handle_strings_call(go2v_ident(fn_name), node.args)
+		}
+		'path' {
+			app.handle_path_call(go2v_ident(fn_name), node.args)
+		}
+		else {}
+	}
+}
+
+// strings functions are defined as string methods in V
+fn (mut app App) handle_strings_call(fn_name string, args []Expr) {
+	app.expr(args[0])
+	app.gen('.')
+	app.gen(fn_name)
+	app.skip_first_arg = true
+}
+
+fn (mut app App) handle_path_call(fn_name string, args []Expr) {
+	// path.Base => os.base
+	if fn_name == 'base' {
+		app.gen('os.base')
+	}
 }

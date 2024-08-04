@@ -11,8 +11,19 @@ fn (mut app App) gen_decl(decl Decl) {
 	for spec in decl.specs {
 		if spec.node_type_str == 'TypeSpec' && spec.typ.node_type_str == 'StructType' {
 			app.struct_decl(spec)
+		} else if spec.node_type_str == 'ImportSpec' && spec.path.value != '' {
+			app.import_spec(spec)
 		}
 	}
+}
+
+fn (mut app App) import_spec(spec Spec) {
+	name := spec.path.value.replace('"', '')
+	// Skip modules that don't exist in V (fmt, strings etc)
+	if name in unexisting_modules {
+		return
+	}
+	app.genln('import ${name}')
 }
 
 fn (mut app App) struct_decl(spec Spec) {

@@ -1,0 +1,11 @@
+module main
+
+import os
+
+fn main() {
+	mut progname := os.base(os.args[0])
+	println(progname)
+	mut p := progname.split_n('-', 2)
+	println(p)
+	println('Hello')
+}

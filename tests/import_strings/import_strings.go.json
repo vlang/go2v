@@ -1,0 +1,266 @@
+{
+  "_type": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "_type": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "_type": "GenDecl",
+      "Tok": "import",
+      "Specs": [
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"fmt\""
+          }
+        },
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"os\""
+          }
+        },
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"path\""
+          }
+        },
+        {
+          "_type": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "_type": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"strings\""
+          }
+        }
+      ]
+    },
+    {
+      "_type": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "_type": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "_type": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "_type": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "_type": "BlockStmt",
+        "List": [
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "progname"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CallExpr",
+                "Fun": {
+                  "_type": "SelectorExpr",
+                  "X": {
+                    "_type": "Ident",
+                    "Name": "path"
+                  },
+                  "Sel": {
+                    "_type": "Ident",
+                    "Name": "Base"
+                  }
+                },
+                "Args": [
+                  {
+                    "_type": "IndexExpr",
+                    "X": {
+                      "_type": "SelectorExpr",
+                      "X": {
+                        "_type": "Ident",
+                        "Name": "os"
+                      },
+                      "Sel": {
+                        "_type": "Ident",
+                        "Name": "Args"
+                      }
+                    },
+                    "Index": {
+                      "_type": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "0"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "Ident",
+                  "Name": "progname"
+                }
+              ]
+            }
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "p"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "CallExpr",
+                "Fun": {
+                  "_type": "SelectorExpr",
+                  "X": {
+                    "_type": "Ident",
+                    "Name": "strings"
+                  },
+                  "Sel": {
+                    "_type": "Ident",
+                    "Name": "SplitN"
+                  }
+                },
+                "Args": [
+                  {
+                    "_type": "Ident",
+                    "Name": "progname"
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "STRING",
+                    "Value": "\"-\""
+                  },
+                  {
+                    "_type": "BasicLit",
+                    "Kind": "INT",
+                    "Value": "2"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "Ident",
+                  "Name": "p"
+                }
+              ]
+            }
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "SelectorExpr",
+                "X": {
+                  "_type": "Ident",
+                  "Name": "fmt"
+                },
+                "Sel": {
+                  "_type": "Ident",
+                  "Name": "Println"
+                }
+              },
+              "Args": [
+                {
+                  "_type": "BasicLit",
+                  "Kind": "STRING",
+                  "Value": "\"Hello\""
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 211,
+    "Files": [
+      {
+        "Name": "tests/import_strings/import_strings.go",
+        "Base": 1,
+        "Size": 209,
+        "Lines": [
+          0,
+          13,
+          14,
+          23,
+          30,
+          36,
+          44,
+          55,
+          57,
+          58,
+          72,
+          107,
+          130,
+          169,
+          185,
+          207
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

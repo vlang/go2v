@@ -61,13 +61,7 @@ fn (mut app App) basic_lit(l BasicLit) {
 fn (mut app App) selector_expr(s SelectorExpr) {
 	app.expr(s.x)
 	app.gen('.')
-	app.gen(s.sel.name)
-}
-
-fn (mut app App) selector_expr_fn_call(s SelectorExpr) {
-	app.expr(s.x)
-	app.gen('.')
-	app.gen(s.sel.name.to_lower())
+	app.gen(go2v_ident(s.sel.name))
 }
 
 fn (mut app App) index_expr(s IndexExpr) {

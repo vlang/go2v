@@ -47,10 +47,11 @@ struct Decl {
 }
 
 struct Spec {
-	node_type_str string @[json: '_type']
-	name          Ident  @[json: 'Name']
-	typ           Type   @[json: 'Type']
-	args          []Expr @[json: 'Args']
+	node_type_str string   @[json: '_type']
+	name          Ident    @[json: 'Name']
+	typ           Type     @[json: 'Type']
+	args          []Expr   @[json: 'Args']
+	path          BasicLit @[json: 'Path']
 }
 
 struct ArrayType {
