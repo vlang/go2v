@@ -11,9 +11,12 @@ v run .
 
 ```
 
-To run a single test:
+To attempt a new test, specify the path to the directory as well as
+the name of the test:
 
 ```bash
 v .
-./go2v array_byte
+./go2v untested/block
 ```
+
+When a test passes, move it from `untested` to `tests`.

@@ -20,7 +20,7 @@ fn (mut app App) expr(expr Expr) {
 			app.selector_expr(expr)
 		}
 		TypeOrIdent {
-			app.type_or_ident(expr)
+			type_or_ident(expr)
 		}
 		CompositeLit {
 			app.composite_lit(expr)
