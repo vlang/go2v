@@ -33,7 +33,7 @@ fn (mut app App) struct_decl(spec Spec) {
 		app.genln('pub mut:')
 	}
 	for field in spec.typ.fields.list {
-		type_name := app.type_or_ident(field.typ)
+		type_name := type_or_ident(field.typ)
 		for n in field.names {
 			app.genln('\t${go2v_ident(n.name)} ${go2v_type(type_name)}')
 		}

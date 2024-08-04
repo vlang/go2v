@@ -5,14 +5,14 @@ fn (mut app App) func_decl(decl Decl) {
 	// println('FUNC DECL ${method_name}')
 	mut recv := ''
 	if decl.recv.list.len > 0 {
-		recv_type := app.type_or_ident(decl.recv.list[0].typ)
+		recv_type := type_or_ident(decl.recv.list[0].typ)
 		recv_name := decl.recv.list[0].names[0].name
 		recv = '(${recv_name} ${recv_type})'
 	}
 	// params := decl.typ.params.list.map(it.names.map(it.name).join(', ') + ' ' +
-	// app.type_or_ident(it.typ)).join(', ')
+	// type_or_ident(it.typ)).join(', ')
 	results := if decl.typ.results.list.len > 0 {
-		' ${decl.typ.results.list.map(app.type_or_ident(it.typ)).join(', ')}'
+		' ${decl.typ.results.list.map(type_or_ident(it.typ)).join(', ')}'
 	} else {
 		''
 	}
@@ -28,7 +28,7 @@ fn (mut app App) func_decl(decl Decl) {
 }
 
 fn (mut app App) func_params(params FieldList) {
-	p := params.list.map(it.names.map(it.name).join(', ') + ' ' + app.type_or_ident(it.typ)).join(', ')
+	p := params.list.map(it.names.map(it.name).join(', ') + ' ' + type_or_ident(it.typ)).join(', ')
 	app.gen('(')
 	app.gen(p)
 	app.gen(')')
@@ -36,7 +36,7 @@ fn (mut app App) func_params(params FieldList) {
 	for i, param in params.list {
 		app.gen(param.names[0].name)
 		app.gen(' ')
-		app.gen(app.type_or_ident(param.typ))
+		app.gen(type_or_ident(param.typ))
 		if i < params.list.len - 1 {
 			app.gen(',')
 		}
