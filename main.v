@@ -121,6 +121,47 @@ fn print_diff_line(formatted_v_code string, expected_v_code string) {
 	}
 }
 
+fn create_json_if_needed(subdir string, test_name string) {
+	input_file := '${subdir}/${test_name}/${test_name}.go'
+	output_file := '${input_file}.json'
+
+	if !os.exists(output_file) {
+		// Check if asty is installed
+		asty_installed := os.system('go list -m -json github.com/asty-org/asty@latest > /dev/null 2>&1') == 0
+
+		if !asty_installed {
+			println('asty not found, installing...')
+			install_result := os.system('go install github.com/asty-org/asty@latest')
+			if install_result != 0 {
+				eprintln('Failed to install asty')
+				return
+			}
+		}
+
+		println('generating ast for ${input_file}')
+
+		run_result := os.system('asty go2json -indent 2 -input ${input_file} -output ${output_file}')
+
+		if run_result != 0 {
+			eprintln('Failed to run asty')
+			return
+		}
+
+		json_content := os.read_file(output_file) or {
+			eprintln('Failed to read ${output_file}')
+			return
+		}
+
+		// Replace "NodeType": " with "_type": " to handle sum types
+		updated_content := json_content.replace('"NodeType": "', '"_type": "')
+
+		os.write_file(output_file, updated_content) or {
+			eprintln('Failed to write to ${output_file}')
+			return
+		}
+	}
+}
+
 fn main() {
 	mut subdir := 'tests'
 
@@ -134,10 +175,7 @@ fn main() {
 		subdir = os.dir(go_file_name)
 		test_name := os.base(go_file_name)
 
-		if !os.exists('${subdir}/${test_name}/${test_name}.go.json') {
-			println('generating ast for ${test_name}')
-			os.system('asty go2json -indent 2 -input ${subdir}/${test_name}/${test_name}.go -output ${subdir}/${test_name}/${test_name}.go.json')
-		}
+		create_json_if_needed(subdir, test_name)
 
 		app.run_test(subdir, test_name)!
 		return
@@ -145,15 +183,9 @@ fn main() {
 
 	mut test_names := os.ls('tests') or { return }
 	test_names.sort()
-	//.filter(it.ends_with('.go'))
-	//.map(it.replace('.go', ''))
 
 	for test_name in test_names {
-		// println(test_name)
-		if !os.exists('${subdir}/${test_name}/${test_name}.go.json') {
-			println('generating ast for ${test_name}')
-			os.system('asty go2json -indent 2 -input ${subdir}/${test_name}/${test_name}.go -output ${subdir}/${test_name}/${test_name}.go.json')
-		}
+		create_json_if_needed(subdir, test_name)
 
 		println('===========================================')
 
