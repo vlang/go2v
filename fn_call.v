@@ -18,12 +18,15 @@ fn (mut app App) call_expr(call CallExpr) {
 	}
 
 	// []byte(str) => str.bytes()
-	if fun is ArrayType && fun.elt.name == 'byte' {
-		x := call.args[0]
-		if x is BasicLit {
-			app.expr(x)
-			app.gen('.bytes()')
-			return
+	if fun is ArrayType {
+		elt := fun.elt
+		if elt is Ident && elt.name == 'byte' {
+			x := call.args[0]
+			if x is BasicLit {
+				app.expr(x)
+				app.gen('.bytes()')
+				return
+			}
 		}
 	}
 	if !is_println {

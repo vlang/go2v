@@ -31,6 +31,8 @@ type Stmt = AssignStmt
 	| ReturnStmt
 	| SwitchStmt
 
+type Type2 = ArrayType | Ident | StarExpr
+
 struct GoFile {
 	name  Ident  @[json: 'Name']
 	decls []Decl @[json: 'Decls']
@@ -56,7 +58,8 @@ struct Spec {
 
 struct ArrayType {
 	node_type_str string @[json: '_type']
-	elt           Ident  @[json: 'Elt']
+	// elt           Ident  @[json: 'Elt']
+	elt Expr @[json: 'Elt']
 }
 
 struct Ellipsis {
@@ -236,6 +239,11 @@ struct RangeStmt {
 }
 
 struct ParenExpr {
+	node_type_str string @[json: '_type']
+	x             Expr   @[json: 'X']
+}
+
+struct StarExpr {
 	node_type_str string @[json: '_type']
 	x             Expr   @[json: 'X']
 }

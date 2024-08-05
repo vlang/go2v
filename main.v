@@ -44,6 +44,9 @@ fn (mut app App) generate_v_code(go_file GoFile) string {
 	return app.sb.str()
 }
 
+fn (mut app App) typ() {
+}
+
 fn type_or_ident(typ TypeOrIdent) string {
 	return if typ.elt.name != '' { '[]${typ.elt.name}' } else { typ.name }
 }
