@@ -3,10 +3,10 @@ module main
 import crypto.aes
 
 struct BinTree {
-mut:
+pub mut:
 	value string
-	left  &BinTree = nil
-	right &BinTree = nil
+	left  &BinTree = unsafe { nil }
+	right &BinTree = unsafe { nil }
 	list  []&BinTree
 	exter []&aes.KeySizeError
 }

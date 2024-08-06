@@ -10,6 +10,7 @@ mut:
 	is_fn_call     bool // for lowercase idents
 	tests_ok       bool = true
 	skip_first_arg bool // for `strings.Replace(s...)` => `s.replace(...)`
+	force_upper    bool // for `field Type` in struct decl, `mod.UpperCase` types etc
 }
 
 fn (mut app App) genln(s string) {
@@ -44,7 +45,21 @@ fn (mut app App) generate_v_code(go_file GoFile) string {
 	return app.sb.str()
 }
 
-fn (mut app App) typ() {
+fn (mut app App) typ(t Type2) {
+	app.force_upper = true
+	match t {
+		Ident {
+			app.gen(go2v_type(t.name))
+		}
+		ArrayType {
+			app.array_type(t)
+			// app.gen('[]${t.elt.name}')
+		}
+		StarExpr {
+			app.star_expr(t)
+		}
+	}
+	app.force_upper = false
 }
 
 fn type_or_ident(typ TypeOrIdent) string {

@@ -3,45 +3,54 @@
 fn (mut app App) func_decl(decl Decl) {
 	method_name := decl.name.name.to_lower()
 	// println('FUNC DECL ${method_name}')
-	mut recv := ''
-	if decl.recv.list.len > 0 {
-		recv_type := type_or_ident(decl.recv.list[0].typ)
-		recv_name := decl.recv.list[0].names[0].name
-		recv = '(${recv_name} ${recv_type})'
-	}
+	// mut recv := ''
+	// if decl.recv.list.len > 0 {
+	// recv_type := type_or_ident(decl.recv.list[0].typ)
+	// recv_name := decl.recv.list[0].names[0].name
+	// recv = '(${recv_name} ${recv_type})'
+	//}
 	// params := decl.typ.params.list.map(it.names.map(it.name).join(', ') + ' ' +
 	// type_or_ident(it.typ)).join(', ')
-	results := if decl.typ.results.list.len > 0 {
-		' ${decl.typ.results.list.map(type_or_ident(it.typ)).join(', ')}'
-	} else {
-		''
-	}
-	if recv != '' {
-		app.gen('fn ${recv} ')
+	// if recv != '' {
+	if decl.recv.list.len > 0 {
+		// app.gen('fn ${recv} ')
+		recv_name := decl.recv.list[0].names[0].name
+		app.gen('fn (${recv_name} ')
+		app.typ(decl.recv.list[0].typ)
+		app.gen(') ')
 	} else {
 		app.gen('fn ')
 	}
 	app.gen(method_name)
 	app.func_params(decl.typ.params)
-	app.genln(results)
+	// app.genln(results)
+	// Return types
+	for i, res in decl.typ.results.list {
+		app.typ(res.typ)
+		if i < decl.typ.results.list.len - 1 {
+			app.gen(',')
+		}
+		//' ${decl.typ.results.list.map(type_or_ident(it.typ)).join(', ')}'
+	}
 	app.block_stmt(decl.body)
 }
 
 fn (mut app App) func_params(params FieldList) {
-	p := params.list.map(it.names.map(it.name).join(', ') + ' ' + type_or_ident(it.typ)).join(', ')
+	// p := params.list.map(it.names.map(it.name).join(', ') + ' ' + type_or_ident(it.typ)).join(', ')
 	app.gen('(')
-	app.gen(p)
-	app.gen(')')
-	/*
+	// app.gen(p)
 	for i, param in params.list {
-		app.gen(param.names[0].name)
-		app.gen(' ')
-		app.gen(type_or_ident(param.typ))
+		for name in param.names {
+			app.gen(name.name)
+			app.gen(' ')
+			app.typ(param.typ)
+		}
+		// app.gen(type_or_ident(param.typ))
 		if i < params.list.len - 1 {
 			app.gen(',')
 		}
 	}
-	*/
+	app.gen(')')
 }
 
 fn (mut app App) func_lit(node FuncLit) {

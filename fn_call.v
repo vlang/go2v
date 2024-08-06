@@ -33,6 +33,7 @@ fn (mut app App) call_expr(call CallExpr) {
 		// app.is_fn_call = true
 		// app.expr(fun)
 		// app.is_fn_call = false
+		// app.force_lower = true
 		if fun is SelectorExpr {
 			// Custom selector expr fn for lower case
 			app.selector_expr_fn_call(call, fun) // fun)
@@ -40,7 +41,7 @@ fn (mut app App) call_expr(call CallExpr) {
 			app.expr(fun)
 		}
 	}
-	app.gen('${fn_name}(')
+	app.gen('${fn_name}(') // fn_name is empty unless print
 	// In V println can only accept one argument, so convert multiple argumnents into a single string
 	// with concatenation:
 	// `println(a, b)` => `println('${a} ${b}')`
@@ -91,10 +92,10 @@ fn (mut app App) handle_nonexistent_module_call(mod_name string, fn_name string,
 	// println('nonexistent module "${mod_name}" node=${node}')
 	match mod_name {
 		'strings' {
-			app.handle_strings_call(go2v_ident(fn_name), node.args)
+			app.handle_strings_call(app.go2v_ident(fn_name), node.args)
 		}
 		'path' {
-			app.handle_path_call(go2v_ident(fn_name), node.args)
+			app.handle_path_call(app.go2v_ident(fn_name), node.args)
 		}
 		else {}
 	}

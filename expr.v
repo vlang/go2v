@@ -11,7 +11,7 @@ fn (mut app App) expr(expr Expr) {
 			app.binary_expr(expr)
 		}
 		Ident {
-			app.gen(go2v_ident(expr.name))
+			app.ident(expr)
 		}
 		CallExpr {
 			app.call_expr(expr)
@@ -40,6 +40,9 @@ fn (mut app App) expr(expr Expr) {
 		ArrayType {
 			app.array_type(expr)
 		}
+		StarExpr {
+			app.star_expr(expr)
+		}
 		FuncLit {
 			app.func_lit(expr)
 		}
@@ -59,9 +62,11 @@ fn (mut app App) basic_lit(l BasicLit) {
 }
 
 fn (mut app App) selector_expr(s SelectorExpr) {
+	force_upper := app.force_upper // save force upper for `mod.ForceUpper`
 	app.expr(s.x)
 	app.gen('.')
-	app.gen(go2v_ident(s.sel.name))
+	app.force_upper = force_upper
+	app.gen(app.go2v_ident(s.sel.name))
 }
 
 fn (mut app App) index_expr(s IndexExpr) {
@@ -106,5 +111,21 @@ fn (mut app App) key_value_expr(expr KeyValueExpr) {
 }
 
 fn (mut app App) array_type(node ArrayType) {
-	app.gen('array type TODO')
+	if node.elt is Ident {
+		app.gen('[]${node.elt.name}')
+	} else if node.elt is StarExpr {
+		app.gen('[]')
+		app.star_expr(node.elt)
+		// app.gen('[]&${node.elt.name}')
+	}
+}
+
+fn (mut app App) star_expr(node StarExpr) {
+	app.gen('&')
+	app.expr(node.x)
+}
+
+fn (mut app App) ident(node Ident) {
+	// app.gen('f=${app.force_upper}')
+	app.gen(app.go2v_ident(node.name))
 }

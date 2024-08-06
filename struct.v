@@ -18,7 +18,7 @@ fn (mut app App) gen_decl(decl Decl) {
 }
 
 fn (mut app App) import_spec(spec Spec) {
-	name := spec.path.value.replace('"', '')
+	name := spec.path.value.replace('"', '').replace('/', '.')
 	// Skip modules that don't exist in V (fmt, strings etc)
 	if name in unexisting_modules {
 		return
@@ -33,9 +33,19 @@ fn (mut app App) struct_decl(spec Spec) {
 		app.genln('pub mut:')
 	}
 	for field in spec.typ.fields.list {
-		type_name := type_or_ident(field.typ)
+		// type_name := type_or_ident(field.typ)
 		for n in field.names {
-			app.genln('\t${go2v_ident(n.name)} ${go2v_type(type_name)}')
+			// app.genln('\t${go2v_ident(n.name)} ${go2v_type(type_name)}')
+			app.gen('\t')
+			// app.force_upper = true
+			app.gen(app.go2v_ident(n.name))
+			app.gen(' ')
+			app.force_upper = true
+			app.typ(field.typ)
+			if field.typ is StarExpr {
+				app.gen(' = unsafe { nil }')
+			}
+			app.genln('')
 		}
 	}
 	app.genln('}\n')

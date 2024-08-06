@@ -15,6 +15,7 @@ type Expr = ArrayType
 	| KeyValueExpr
 	| ParenExpr
 	| SelectorExpr
+	| StarExpr
 	| TypeOrIdent
 	| UnaryExpr
 
@@ -146,9 +147,10 @@ struct FieldList {
 }
 
 struct Field {
-	node_type_str string      @[json: '_type']
-	names         []Ident     @[json: 'Names']
-	typ           TypeOrIdent @[json: 'Type']
+	node_type_str string  @[json: '_type']
+	names         []Ident @[json: 'Names']
+	// typ           TypeOrIdent @[json: 'Type']
+	typ Type2 @[json: 'Type']
 }
 
 struct Ident {
