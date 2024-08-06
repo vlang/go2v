@@ -51,7 +51,7 @@
                 "Lhs": [
                   {
                     "_type": "Ident",
-                    "Name": "i"
+                    "Name": "j"
                   }
                 ],
                 "Tok": ":=",

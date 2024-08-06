@@ -17,9 +17,9 @@ fn (mut app App) stmt(stmt Stmt) {
 			app.assign_stmt(stmt, false) // no_mut:false
 		}
 		// have to keep track of variable names which match outer scope, so they can be renamed in inner...
-		// BlockStmt {
-		// 	app.block_stmt(stmt)
-		// }
+		BlockStmt {
+			app.block_stmt(stmt)
+		}
 		ExprStmt {
 			// app.genln('expr stmt')
 			app.expr_stmt(stmt)
