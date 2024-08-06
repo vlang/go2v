@@ -1,3 +1,0 @@
-module main
-
-pub fn abc(a int, b []string, c rune) string {}

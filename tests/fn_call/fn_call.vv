@@ -15,6 +15,6 @@ pub mut:
 struct Test2 {
 }
 
-fn (t Test2) test() {
+pub fn (t Test2) test() {
 	println('Test')
 }
