@@ -1,7 +1,7 @@
 module main
 
 struct Struct1 {
-mut:
+pub mut:
 	a int
 	b []string
 }
