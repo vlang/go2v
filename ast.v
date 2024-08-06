@@ -21,6 +21,7 @@ type Expr = ArrayType
 
 type Stmt = AssignStmt
 	| BlockStmt
+	| BranchStmt
 	| CaseClause
 	| DeclStmt
 	| DeferStmt
@@ -260,6 +261,11 @@ struct DeferStmt {
 struct ReturnStmt {
 	node_type_str string @[json: '_type']
 	results       []Expr @[json: 'Results']
+}
+
+struct BranchStmt {
+	node_type_str string @[json: '_type']
+	tok           string @[json: 'Tok']
 }
 
 struct FuncLit {

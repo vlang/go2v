@@ -20,6 +20,9 @@ fn (mut app App) stmt(stmt Stmt) {
 		BlockStmt {
 			app.block_stmt(stmt)
 		}
+		BranchStmt {
+			app.branch_stmt(stmt)
+		}
 		ExprStmt {
 			// app.genln('expr stmt')
 			app.expr_stmt(stmt)
@@ -92,6 +95,10 @@ fn (mut app App) if_stmt(node IfStmt) {
 
 fn (mut app App) for_stmt(f ForStmt) {
 	app.gen('for ')
+	if f.init.node_type_str == '' { // == unsafe { nil } {
+		app.block_stmt(f.body)
+		return
+	}
 	app.assign_stmt(f.init, true)
 	app.gen('; ')
 	app.expr(f.cond)
@@ -167,4 +174,9 @@ fn (mut app App) return_stmt(node ReturnStmt) {
 			app.gen(',')
 		}
 	}
+}
+
+// continue break etc
+fn (mut app App) branch_stmt(node BranchStmt) {
+	app.genln(node.tok)
 }
