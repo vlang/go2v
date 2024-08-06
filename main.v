@@ -165,13 +165,14 @@ fn create_json_if_needed(subdir string, test_name string) {
 fn main() {
 	mut subdir := 'tests'
 
-	go_file_name := if os.args.len > 1 { os.args[1] } else { '' }
+	mut go_file_name := if os.args.len > 1 { os.args[1] } else { '' }
 
 	mut app := &App{
 		sb: strings.new_builder(1000)
 	}
 
 	if go_file_name != '' {
+		go_file_name = go_file_name.trim_right('/')
 		subdir = os.dir(go_file_name)
 		test_name := os.base(go_file_name)
 
