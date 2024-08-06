@@ -52,6 +52,8 @@ struct Decl {
 struct Spec {
 	node_type_str string   @[json: '_type']
 	name          Ident    @[json: 'Name']
+	names         []Ident  @[json: 'Names']
+	values        []Expr   @[json: 'Values']
 	typ           Type     @[json: 'Type']
 	args          []Expr   @[json: 'Args']
 	path          BasicLit @[json: 'Path']

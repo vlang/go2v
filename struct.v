@@ -13,7 +13,19 @@ fn (mut app App) gen_decl(decl Decl) {
 			app.struct_decl(spec)
 		} else if spec.node_type_str == 'ImportSpec' && spec.path.value != '' {
 			app.import_spec(spec)
+		} else if spec.node_type_str == 'ValueSpec' {
+			app.const_decl(spec)
 		}
+	}
+}
+
+fn (mut app App) const_decl(spec Spec) {
+	// app.genln('// const')
+	for i, name in spec.names {
+		n := app.go2v_ident(name.name)
+		app.gen('const ${n} = ')
+		app.expr(spec.values[i])
+		app.genln('')
 	}
 }
 
