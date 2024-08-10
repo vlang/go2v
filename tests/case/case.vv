@@ -1,9 +1,9 @@
 module main
 
-const uppercase_with_underscores = 0
+pub const uppercase_with_underscores = 0
 const lowercase_with_underscores = 0
 const camel_case = 0
-const upper_camel_case = 0
+pub const upper_camel_case = 0
 const uppercase = 0
 const lowercase = 0
 
