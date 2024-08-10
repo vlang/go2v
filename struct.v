@@ -22,6 +22,9 @@ fn (mut app App) gen_decl(decl Decl) {
 fn (mut app App) const_decl(spec Spec) {
 	// app.genln('// const')
 	for i, name in spec.names {
+		if name.name.starts_with_capital() {
+			app.gen('pub ')
+		}
 		n := app.go2v_ident(name.name)
 		app.gen('const ${n} = ')
 		app.expr(spec.values[i])
