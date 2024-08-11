@@ -29,6 +29,16 @@ fn (mut app App) call_expr(call CallExpr) {
 			}
 		}
 	}
+
+	if fun is Ident && fun.name == 'delete' {
+		arg0 := call.args[0]
+		arg1 := call.args[1]
+		if arg0 is Ident && arg1 is BasicLit {
+			app.gen('${arg0.name}.${fun.name}(${arg1.value})')
+		}
+		return
+	}
+
 	if !is_println {
 		// app.is_fn_call = true
 		// app.expr(fun)
@@ -41,8 +51,10 @@ fn (mut app App) call_expr(call CallExpr) {
 			app.expr(fun)
 		}
 	}
+
 	app.gen('${fn_name}(') // fn_name is empty unless print
-	// In V println can only accept one argument, so convert multiple argumnents into a single string
+
+	// In V println can only accept one argument, so convert multiple arguments into a single string
 	// with concatenation:
 	// `println(a, b)` => `println('${a} ${b}')`
 	if is_println && call.args.len > 1 {
