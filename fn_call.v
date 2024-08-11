@@ -30,7 +30,7 @@ fn (mut app App) call_expr(call CallExpr) {
 		}
 	}
 
-	if fun is Ident && fun.name == 'delete'{
+	if fun is Ident && fun.name == 'delete' {
 		arg0 := call.args[0]
 		arg1 := call.args[1]
 		if arg0 is Ident && arg1 is BasicLit {
