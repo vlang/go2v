@@ -62,6 +62,19 @@
                       "Kind": "FLOAT",
                       "Value": "3.14"
                     }
+                  },
+                  {
+                    "_type": "KeyValueExpr",
+                    "Key": {
+                      "_type": "BasicLit",
+                      "Kind": "STRING",
+                      "Value": "\"f\""
+                    },
+                    "Value": {
+                      "_type": "BasicLit",
+                      "Kind": "FLOAT",
+                      "Value": "1.0"
+                    }
                   }
                 ],
                 "Incomplete": false
@@ -88,6 +101,43 @@
                 }
               ]
             }
+          },
+          {
+            "_type": "AssignStmt",
+            "Lhs": [
+              {
+                "_type": "Ident",
+                "Name": "key"
+              }
+            ],
+            "Tok": ":=",
+            "Rhs": [
+              {
+                "_type": "BasicLit",
+                "Kind": "STRING",
+                "Value": "\"f\""
+              }
+            ]
+          },
+          {
+            "_type": "ExprStmt",
+            "X": {
+              "_type": "CallExpr",
+              "Fun": {
+                "_type": "Ident",
+                "Name": "delete"
+              },
+              "Args": [
+                {
+                  "_type": "Ident",
+                  "Name": "m"
+                },
+                {
+                  "_type": "Ident",
+                  "Name": "key"
+                }
+              ]
+            }
           }
         ]
       }
@@ -97,12 +147,12 @@
   "Unresolved": null,
   "Comments": null,
   "FileSet": {
-    "Base": 92,
+    "Base": 134,
     "Files": [
       {
         "Name": "tests/delete/delete.go",
         "Base": 1,
-        "Size": 90,
+        "Size": 132,
         "Lines": [
           0,
           13,
@@ -110,8 +160,12 @@
           28,
           54,
           68,
-          71,
-          88
+          81,
+          84,
+          101,
+          102,
+          114,
+          130
         ],
         "Infos": null
       }
