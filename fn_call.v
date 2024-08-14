@@ -32,11 +32,20 @@ fn (mut app App) call_expr(call CallExpr) {
 
 	if fun is Ident && fun.name == 'delete' {
 		arg0 := call.args[0]
-		if arg0 is Ident {
-			app.gen('${arg0.name}.${fun.name}(')
-			app.expr(call.args[1])
-			app.genln(')')
+		match arg0 {
+			Ident {
+				app.gen('${arg0.name}')
+			}
+			SelectorExpr {
+				app.expr(arg0)
+			}
+			else {
+				app.gen('// UNHANDLED delete type')
+			}
 		}
+		app.gen('.${fun.name}(')
+		app.expr(call.args[1])
+		app.genln(')')
 		return
 	}
 

@@ -1,0 +1,23 @@
+module main
+
+struct MyStruct {
+pub mut:
+	msm map[string]int
+}
+
+fn main() {
+	mut m := {
+		'pi': 3.14
+		'f':  1.0
+	}
+	m.delete('pi')
+	mut key := 'f'
+	m.delete(key)
+
+	mut ms := MyStruct{
+		msm: {
+			'1': 1
+		}
+	}
+	ms.msm.delete('1')
+}
