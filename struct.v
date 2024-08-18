@@ -8,9 +8,19 @@ fn (mut app App) gen_decl_stmt(stmt Stmt) {
 }
 
 fn (mut app App) gen_decl(decl Decl) {
+	if decl.tok == 'const' {
+		// app.genln('//constb')
+		app.const_block(decl)
+		return
+	}
+	// is_enum_decl := decl.specs[0].node_type_str == 'TypeSpec' && decl.
 	for spec in decl.specs {
-		if spec.node_type_str == 'TypeSpec' && spec.typ.node_type_str == 'StructType' {
-			app.struct_decl(spec)
+		if spec.node_type_str == 'TypeSpec' {
+			if spec.typ.node_type_str == 'StructType' {
+				app.struct_decl(spec)
+			} else {
+				app.type_decl(spec)
+			}
 		} else if spec.node_type_str == 'ImportSpec' && spec.path.value != '' {
 			app.import_spec(spec)
 		} else if spec.node_type_str == 'ValueSpec' {
@@ -19,15 +29,55 @@ fn (mut app App) gen_decl(decl Decl) {
 	}
 }
 
+fn (mut app App) type_decl(spec Spec) {
+	// Remember the type name for the upcoming const (enum) handler
+	app.type_decl_name = spec.name.name
+}
+
+fn (mut app App) const_block(decl Decl) {
+	for spec in decl.specs {
+		app.const_decl(spec)
+	}
+	if decl.specs.len > 1 {
+		app.genln('}')
+	}
+}
+
 fn (mut app App) const_decl(spec Spec) {
+	// Handle iota (V enuma)
+	if spec.values.len > 0 {
+		first_val := spec.values[0]
+		if first_val is Ident {
+			if first_val.name == 'iota' {
+				//}
+				// if spec.values[0].name == 'iota' {
+				app.is_enum_decl = true
+				app.genln('enum ${app.type_decl_name} {')
+				// for i, name in spec.names {
+				// app.genln(app.go2v_ident(name.name))
+				//}
+				// app.genln('}')
+				// return
+			}
+		}
+	}
 	// app.genln('// const')
 	for i, name in spec.names {
 		if name.name.starts_with_capital() {
 			app.gen('pub ')
 		}
 		n := app.go2v_ident(name.name)
-		app.gen('const ${n} = ')
-		app.expr(spec.values[i])
+		if app.is_enum_decl {
+			if n != 'iota' {
+				app.genln(n)
+				continue
+			}
+		} else {
+			app.gen('const ${n} = ')
+		}
+		if i < spec.values.len && !app.is_enum_decl {
+			app.expr(spec.values[i])
+		}
 		app.genln('')
 	}
 }

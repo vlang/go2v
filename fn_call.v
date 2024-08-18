@@ -13,8 +13,20 @@ fn (mut app App) call_expr(call CallExpr) {
 			if fun.x.name == 'fmt' && fun.sel.name in ['Println', 'Print'] {
 				fn_name = fun.sel.name.to_lower()
 				is_println = true
+			} else if fun.sel.name == 'len' {
+				app.genln('LEN')
 			}
 		}
+	} else if fun is Ident {
+		if fun.name in ['len', 'cap'] {
+			// app.expr(first_rhs.args[0])
+			app.expr(call.args[0])
+			app.gen('.')
+			app.gen(fun.name)
+			return
+		}
+		// println('FUN')
+		// println(fun)
 	}
 
 	// []byte(str) => str.bytes()
@@ -70,9 +82,17 @@ fn (mut app App) call_expr(call CallExpr) {
 	if is_println && call.args.len > 1 {
 		app.gen("'")
 		for i, arg in call.args {
-			app.gen('\${')
-			app.expr(arg)
-			app.gen('}')
+			is_string_lit := arg is BasicLit && arg.kind == 'STRING'
+			// println('arg=${arg}')
+			if is_string_lit {
+				// 'foo=${bar}` instead of '${"foo"}=${bar}'
+				lit := arg as BasicLit
+				app.gen(lit.value[1..lit.value.len - 1])
+			} else {
+				app.gen('\${')
+				app.expr(arg)
+				app.gen('}')
+			}
 			if i < call.args.len - 1 {
 				app.gen(' ')
 			}

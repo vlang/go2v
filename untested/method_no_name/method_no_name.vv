@@ -1,5 +1,0 @@
-module main
-
-struct Foo {}
-
-fn (mut _ Foo) foo() {}

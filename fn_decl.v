@@ -20,8 +20,15 @@ fn (mut app App) func_decl(decl Decl) {
 	// if recv != '' {
 	if decl.recv.list.len > 0 {
 		// app.gen('fn ${recv} ')
-		recv_name := decl.recv.list[0].names[0].name
-		app.gen('fn (${recv_name} ')
+		app.gen('fn (')
+		if decl.recv.list[0].names.len == 0 {
+			app.is_mut_recv = true
+			app.gen('mut _ ')
+		} else {
+			recv_name := decl.recv.list[0].names[0].name
+
+			app.gen(recv_name + ' ')
+		}
 		app.typ(decl.recv.list[0].typ)
 		app.gen(') ')
 	} else {

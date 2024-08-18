@@ -55,10 +55,29 @@ fn (mut app App) expr(expr Expr) {
 
 fn (mut app App) basic_lit(l BasicLit) {
 	if l.kind == 'CHAR' {
-		app.gen(l.value.replace("'", '`'))
+		// app.gen(l.value.replace("'", '`'))
+		// app.gen(quoted_lit(l.value), "'", '`')
+		app.gen(quoted_lit(l.value, '`'))
+	} else if l.kind == 'STRING' {
+		// app.gen(quoted_lit(l.value), '`', "'")
+		app.gen(quoted_lit(l.value, "'"))
+		// app.gen(l.value.replace('`', "'"))
 	} else {
 		app.gen(l.value)
 	}
+}
+
+// fn quoted_lit(s string, quote1 string, quote2 string) string {
+fn quoted_lit(s string, quote string) string {
+	mut quote2 := quote
+	mut no_quotes := s[1..s.len - 1]
+	// Use "" quotes if the string literal contains '
+	if quote2 == "'" && no_quotes.contains("'") && !no_quotes.contains('"') {
+		// no_quotes = no_quotes.replace(
+		quote2 = '"'
+	}
+
+	return '${quote2}${no_quotes}${quote2}'
 }
 
 fn (mut app App) selector_expr(s SelectorExpr) {

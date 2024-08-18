@@ -95,10 +95,22 @@ fn (mut app App) if_stmt(node IfStmt) {
 
 fn (mut app App) for_stmt(f ForStmt) {
 	app.gen('for ')
-	if f.init.node_type_str == '' { // == unsafe { nil } {
+	// println(f)
+	// for {}
+	// if f.cond == unsafe { nil } {
+	//}
+	if f.init.node_type_str == '' && f.cond.node_type_str == '' {
 		app.block_stmt(f.body)
 		return
 	}
+	// for cond {
+	if f.init.node_type_str == '' && f.cond.node_type_str != '' {
+		app.expr(f.cond)
+		app.block_stmt(f.body)
+
+		return
+	}
+	// for a;b;c {
 	app.assign_stmt(f.init, true)
 	app.gen('; ')
 	app.expr(f.cond)

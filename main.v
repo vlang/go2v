@@ -11,6 +11,9 @@ mut:
 	tests_ok       bool = true
 	skip_first_arg bool // for `strings.Replace(s...)` => `s.replace(...)`
 	force_upper    bool // for `field Type` in struct decl, `mod.UpperCase` types etc
+	type_decl_name string
+	is_enum_decl   bool
+	is_mut_recv    bool // so that `mut f Foo` is generated instead of `mut f &Foo`
 }
 
 fn (mut app App) genln(s string) {
@@ -56,7 +59,13 @@ fn (mut app App) typ(t Type2) {
 			// app.gen('[]${t.elt.name}')
 		}
 		StarExpr {
-			app.star_expr(t)
+			// Skip & if receiver is mut
+			if app.is_mut_recv {
+				app.expr(t.x)
+				app.is_mut_recv = false
+			} else {
+				app.star_expr(t)
+			}
 		}
 	}
 	app.force_upper = false
@@ -83,7 +92,7 @@ fn (mut app App) run_test(subdir string, test_name string) ! {
 	os.write_file(v_path, generated_v_code) or { panic(err) }
 	res := os.execute('v fmt -w ${v_path}')
 	if res.exit_code != 0 {
-		// println(res)
+		println(res)
 	}
 
 	mut formatted_v_code := os.read_file(v_path) or { panic(err) }
@@ -198,17 +207,25 @@ fn main() {
 	mut test_names := os.ls('tests') or { return }
 	test_names.sort()
 
+	mut tests_ok := true
+
 	for test_name in test_names {
 		create_json(subdir, test_name)
 
 		println('===========================================')
 
-		app.run_test(subdir, test_name) or {
+		// A separate instance for each test
+		mut app2 := &App{
+			sb: strings.new_builder(1000)
+		}
+		app2.run_test(subdir, test_name) or {
 			eprintln('Error running test ${test_name}: ${err}')
 			break
 		}
+		tests_ok &&= app.tests_ok
 	}
-	if !app.tests_ok {
+	// if !app.tests_ok {
+	if tests_ok {
 		exit(1)
 	}
 }

@@ -48,6 +48,7 @@ struct Decl {
 	typ           FuncType  @[json: 'Type']
 	recv          FieldList @[json: 'Recv']
 	body          BlockStmt @[json: 'Body']
+	tok           string    @[json: 'Tok']
 }
 
 struct Spec {
@@ -181,15 +182,17 @@ struct CallExpr {
 }
 
 struct SelectorExpr {
-	sel Ident @[json: 'Sel']
-	x   Expr  @[json: 'X']
+	node_type_str string @[json: '_type']
+	sel           Ident  @[json: 'Sel']
+	x             Expr   @[json: 'X']
 }
 
 // Foo{bar:baz}
 // []bool{}
 struct CompositeLit {
-	typ  TypeOrIdent @[json: 'Type']
-	elts []Expr      @[json: 'Elts']
+	node_type_str string      @[json: '_type']
+	typ           TypeOrIdent @[json: 'Type']
+	elts          []Expr      @[json: 'Elts']
 }
 
 /*
@@ -203,14 +206,16 @@ struct Elt {
 */
 
 struct BinaryExpr {
-	x  Expr   @[json: 'X']
-	op string @[json: 'Op']
-	y  Expr   @[json: 'Y']
+	node_type_str string @[json: '_type']
+	x             Expr   @[json: 'X']
+	op            string @[json: 'Op']
+	y             Expr   @[json: 'Y']
 }
 
 struct UnaryExpr {
-	x  Expr   @[json: 'X']
-	op string @[json: 'Op']
+	node_type_str string @[json: '_type']
+	x             Expr   @[json: 'X']
+	op            string @[json: 'Op']
 }
 
 struct KeyValueExpr {
