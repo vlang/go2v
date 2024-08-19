@@ -79,23 +79,10 @@ fn generate_ast_for_go_file(go_file_path string) string {
 	tmpdir := os.temp_dir()
 	output_file := tmpdir + '/go.json'
 
-	// Check if asty is installed
-	asty_installed := os.system('go list -m -json github.com/asty-org/asty@latest > /dev/null 2>&1') == 0
-
-	if !asty_installed {
-		println('asty not found, installing...')
-		install_result := os.system('go install github.com/asty-org/asty@latest')
-		if install_result != 0 {
-			eprintln('Failed to install asty')
-			return ''
-		}
-	}
-
 	println('generating ast for ${go_file_path}')
 	run_result := os.system('asty go2json -indent 2 -input ${go_file_path} -output ${output_file}')
 	if run_result != 0 {
-		eprintln('Failed to run asty')
-		dump(os.system('go env'))
+		eprintln('Failed to run asty. Please install it with: `go install github.com/asty-org/asty@latest`.')
 		return ''
 	}
 
@@ -203,10 +190,39 @@ fn create_json(subdir string, test_name string) {
 	generate_ast_for_go_file(input_file)
 }
 
-fn main() {
-	// Ensure that $GOPATH/bin is in PATH, so invokin `asty` works:
+fn ensure_asty_is_installed() ! {
+	asty_executable_name := if os.user_os() == 'windows' { 'asty.exe' } else { 'asty' }
+	if _ := os.find_abs_path_of_executable(asty_executable_name) {
+		return
+	}
+	// Ensure that $GOPATH/bin is in PATH, and that asty is present, so invokin `asty` works:
+	gopath_res := os.execute('go env GOPATH')
+	if gopath_res.exit_code != 0 {
+		return error('Failed to find Go. Visit https://go.dev/dl/ to see instructions, on how to install it.')
+	}
+	gopath_bin := os.join_path(gopath_res.output.trim_space(), '/bin')
 	os.setenv('PATH', os.getenv('PATH') + if os.user_os() == 'windows' { ';' } else { ':' } +
-		os.join_path(os.home_dir(), 'go/bin'), true)
+		gopath_bin, true)
+
+	// Check if asty is installed:
+	asty_installed := os.system('go list -m -json github.com/asty-org/asty@latest > /dev/null 2>&1') == 0
+	if !asty_installed {
+		println('asty not found, installing...')
+		install_result := os.system('go install github.com/asty-org/asty@latest')
+		if install_result != 0 {
+			return error('Failed to install asty. Please run: `go install github.com/asty-org/asty@latest` manually, and then make sure, that ${gopath_bin} is in your \$PATH.')
+		}
+		println('asty is now installed, and should be present in ${gopath_bin}.')
+		gopath_executables := os.ls(gopath_bin)!
+		if asty_executable_name !in gopath_executables {
+			return error('Failed to find `asty` in ${gopath_bin}.')
+		}
+	}
+	os.find_abs_path_of_executable(asty_executable_name)!
+}
+
+fn main() {
+	ensure_asty_is_installed()!
 
 	mut subdir := 'tests'
 	mut go_file_name := if os.args.len > 1 { os.args[1] } else { '' }
