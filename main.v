@@ -201,9 +201,14 @@ fn ensure_asty_is_installed() ! {
 		return error('Failed to find Go. Visit https://go.dev/dl/ to see instructions, on how to install it.')
 	}
 	gopath_bin := os.join_path(gopath_res.output.trim_space(), '/bin')
-	os.setenv('PATH', os.getenv('PATH') + if os.user_os() == 'windows' { ';' } else { ':' } +
-		gopath_bin, true)
-
+	os.setenv('GOBIN', gopath_bin, true)
+	os.setenv('PATH', os.getenv('PATH') + os.path_delimiter + gopath_bin, true)
+	if !os.exists(gopath_bin) {
+		os.mkdir_all(gopath_bin)!
+	}
+	if _ := os.find_abs_path_of_executable(asty_executable_name) {
+		return
+	}
 	// Check if asty is installed:
 	asty_installed := os.system('go list -m -json github.com/asty-org/asty@latest > /dev/null 2>&1') == 0
 	if !asty_installed {
