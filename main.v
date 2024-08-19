@@ -95,6 +95,7 @@ fn generate_ast_for_go_file(go_file_path string) string {
 	run_result := os.system('asty go2json -indent 2 -input ${go_file_path} -output ${output_file}')
 	if run_result != 0 {
 		eprintln('Failed to run asty')
+		dump(os.system('go env'))
 		return ''
 	}
 
