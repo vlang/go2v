@@ -34,7 +34,7 @@ jobs:
           v fmt -verify .
 
       - name: Build go2v
-        run: v -prod .
+        run: v .
 
       - name: Run tests
-        run: v run .
+        run: v -g run .
