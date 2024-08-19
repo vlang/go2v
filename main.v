@@ -210,15 +210,16 @@ fn ensure_asty_is_installed() ! {
 		return
 	}
 	// Check if asty is installed:
-	if os.execute('go list -m github.com/asty-org/asty@latest').exit_code != 0 {
-		println('asty not found, installing...')
+	full_path_to_asty := os.join_path(gopath_bin, asty_executable_name)
+	if !os.exists(full_path_to_asty) {
+		println('asty not found in ${full_path_to_asty}, installing...')
 		if os.system('go install github.com/asty-org/asty@latest') != 0 {
 			return error('Failed to install asty. Please run: `go install github.com/asty-org/asty@latest` manually, and then make sure, that ${gopath_bin} is in your \$PATH.')
 		}
-		println('asty is now installed, and should be present in ${gopath_bin}.')
 	}
 	os.find_abs_path_of_executable(asty_executable_name) or {
-		return error('asty is still not installed ... Please run `go install github.com/asty-org/asty@latest`.')
+		os.system('ls -la ${gopath_bin}')
+		return error('asty is still not installed in ${gopath_bin} ... Please run `go install github.com/asty-org/asty@latest`.')
 	}
 }
 
