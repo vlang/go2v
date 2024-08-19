@@ -76,8 +76,7 @@ fn type_or_ident(typ TypeOrIdent) string {
 }
 
 fn generate_ast_for_go_file(go_file_path string) string {
-	tmpdir := os.temp_dir()
-	output_file := tmpdir + '/go.json'
+	output_file := go_file_path + '.json'
 
 	asty_cmd := '${full_path_to_asty} go2json -indent 2 -input ${go_file_path} -output ${output_file}'
 	println('generating ast for ${go_file_path}, using: `${asty_cmd}`...')
@@ -122,9 +121,7 @@ fn (mut app App) run_test(subdir string, test_name string) ! {
 		eprintln('Failed to parse Go AST 2: ${err}')
 		return
 	}
-
 	tmpdir := os.temp_dir()
-
 	generated_v_code := app.generate_v_code(go_file)
 
 	v_path := '${tmpdir}/${test_name}.v'
