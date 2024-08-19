@@ -4,11 +4,6 @@ import os
 import term
 import strings
 
-const gopath_res = os.execute('go env GOPATH')
-const gopath_bin = os.join_path(gopath_res.output.trim_space(), '/bin')
-const asty_executable_name = if os.user_os() == 'windows' { 'asty.exe' } else { 'asty' }
-const full_path_to_asty = os.join_path(gopath_bin, asty_executable_name)
-
 struct App {
 mut:
 	sb             strings.Builder
@@ -111,7 +106,7 @@ fn (mut app App) translate_file(go_file_path string) {
 	println('Translating a single Go file ${go_file_path}...')
 	ast_file := generate_ast_for_go_file(go_file_path)
 	go_file := parse_go_ast(ast_file) or {
-		eprintln('Failed to parse Go AST: ${err}')
+		eprintln('Failed to parse Go AST 1: ${err}')
 		return
 	}
 	generated_v_code := app.generate_v_code(go_file)
@@ -124,7 +119,7 @@ fn (mut app App) run_test(subdir string, test_name string) ! {
 	expected_v_code_path := '${subdir}/${test_name}/${test_name}.vv'
 
 	go_file := parse_go_ast(go_file_path) or {
-		eprintln('Failed to parse Go AST: ${err}')
+		eprintln('Failed to parse Go AST 2: ${err}')
 		return
 	}
 
@@ -213,9 +208,7 @@ fn main() {
 		go_file_name = go_file_name.trim_right('/')
 		subdir = os.dir(go_file_name)
 		test_name := os.base(go_file_name)
-
 		create_json(subdir, test_name)
-
 		app.run_test(subdir, test_name)!
 		return
 	}
@@ -224,8 +217,8 @@ fn main() {
 	test_names.sort()
 	mut tests_ok := true
 	for test_name in test_names {
-		create_json(subdir, test_name)
 		println('===========================================')
+		create_json(subdir, test_name)
 		// A separate instance for each test
 		mut app2 := &App{
 			sb: strings.new_builder(1000)
@@ -234,7 +227,7 @@ fn main() {
 			eprintln('Error running test ${test_name}: ${err}')
 			break
 		}
-		tests_ok &&= app.tests_ok
+		tests_ok &&= app2.tests_ok
 	}
 	// if !app.tests_ok {
 	if tests_ok {
