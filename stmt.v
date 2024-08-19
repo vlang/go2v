@@ -99,12 +99,17 @@ fn (mut app App) for_stmt(f ForStmt) {
 	// for {}
 	// if f.cond == unsafe { nil } {
 	//}
-	if f.init.node_type_str == '' && f.cond.node_type_str == '' {
+
+	init_empty := f.init.node_type_str == ''
+
+	cond_empty := f.cond.node_type_str == ''
+
+	if init_empty && cond_empty {
 		app.block_stmt(f.body)
 		return
 	}
 	// for cond {
-	if f.init.node_type_str == '' && f.cond.node_type_str != '' {
+	if init_empty && !cond_empty {
 		app.expr(f.cond)
 		app.block_stmt(f.body)
 
