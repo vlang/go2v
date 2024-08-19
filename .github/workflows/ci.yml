@@ -28,6 +28,9 @@ jobs:
       - name: Get go2v
         uses: actions/checkout@v2
 
+      - name: Check GO env variables
+        run: go env
+
       - name: Check code formatting
         run: |
           v fmt -diff .
