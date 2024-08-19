@@ -203,6 +203,10 @@ fn create_json(subdir string, test_name string) {
 }
 
 fn main() {
+	// Ensure that $GOPATH/bin is in PATH, so invokin `asty` works:
+	os.setenv('PATH', os.getenv('PATH') + if os.user_os() == 'windows' { ';' } else { ':' } +
+		os.join_path(os.home_dir(), 'go/bin'), true)
+
 	mut subdir := 'tests'
 	mut go_file_name := if os.args.len > 1 { os.args[1] } else { '' }
 	mut app := &App{
