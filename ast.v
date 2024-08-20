@@ -283,3 +283,24 @@ fn parse_go_ast(file_path string) !GoFile {
 	data := os.read_file(file_path)!
 	return json.decode(GoFile, data)!
 }
+
+fn (e Expr) node_type() string {
+	match e {
+		ArrayType { return e.node_type_str }
+		BasicLit { return e.node_type_str }
+		BinaryExpr { return e.node_type_str }
+		CallExpr { return e.node_type_str }
+		CompositeLit { return e.node_type_str }
+		Ellipsis { return e.node_type_str }
+		FuncLit { return e.node_type_str }
+		Ident { return e.node_type_str }
+		IndexExpr { return e.node_type_str }
+		KeyValueExpr { return e.node_type_str }
+		ParenExpr { return e.node_type_str }
+		SelectorExpr { return e.node_type_str }
+		StarExpr { return e.node_type_str }
+		TypeOrIdent { return e.node_type_str }
+		UnaryExpr { return e.node_type_str }
+	}
+	return 'unknown node type'
+}

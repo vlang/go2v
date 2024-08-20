@@ -101,8 +101,7 @@ fn (mut app App) for_stmt(f ForStmt) {
 	//}
 
 	init_empty := f.init.node_type_str == ''
-
-	cond_empty := f.cond.node_type_str == ''
+	cond_empty := f.cond.node_type() == ''
 
 	if init_empty && cond_empty {
 		app.block_stmt(f.body)
