@@ -38,8 +38,9 @@ fn (mut app App) const_block(decl Decl) {
 	for spec in decl.specs {
 		app.const_decl(spec)
 	}
-	if decl.specs.len > 1 {
+	if decl.specs.len > 1 && app.is_enum_decl {
 		app.genln('}')
+		app.is_enum_decl = false
 	}
 }
 
@@ -63,7 +64,7 @@ fn (mut app App) const_decl(spec Spec) {
 	}
 	// app.genln('// const')
 	for i, name in spec.names {
-		if name.name.starts_with_capital() {
+		if !app.is_enum_decl && name.name.starts_with_capital() {
 			app.gen('pub ')
 		}
 		n := app.go2v_ident(name.name)
