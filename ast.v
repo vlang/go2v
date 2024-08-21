@@ -40,6 +40,12 @@ struct GoFile {
 	decls []Decl @[json: 'Decls']
 }
 
+struct Doc {
+	list []struct {
+		text string @[json: 'Text']
+	} @[json: 'List']
+}
+
 struct Decl {
 	node_type_str string    @[json: '_type']
 	specs         []Spec    @[json: 'Specs']
@@ -49,6 +55,7 @@ struct Decl {
 	recv          FieldList @[json: 'Recv']
 	body          BlockStmt @[json: 'Body']
 	tok           string    @[json: 'Tok']
+	doc           Doc       @[json: 'Doc']
 }
 
 struct Spec {
