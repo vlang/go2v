@@ -4,6 +4,9 @@ module main
 
 fn (mut app App) expr(expr Expr) {
 	match expr {
+		InvalidExpr {
+			eprintln('> invalid expression encountered')
+		}
 		BasicLit {
 			app.basic_lit(expr)
 		}

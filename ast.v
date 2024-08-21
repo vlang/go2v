@@ -3,7 +3,8 @@
 import json
 import os
 
-type Expr = ArrayType
+type Expr = InvalidExpr
+	| ArrayType
 	| BasicLit
 	| BinaryExpr
 	| CallExpr
@@ -32,6 +33,8 @@ type Stmt = AssignStmt
 	| RangeStmt
 	| ReturnStmt
 	| SwitchStmt
+
+struct InvalidExpr {}
 
 type Type2 = ArrayType | Ident | StarExpr
 
@@ -293,6 +296,7 @@ fn parse_go_ast(file_path string) !GoFile {
 
 fn (e Expr) node_type() string {
 	match e {
+		InvalidExpr { return 'InvalidExpr' }
 		ArrayType { return e.node_type_str }
 		BasicLit { return e.node_type_str }
 		BinaryExpr { return e.node_type_str }

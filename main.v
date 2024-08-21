@@ -3,6 +3,7 @@
 import os
 import term
 import strings
+import v.util.diff
 
 struct App {
 mut:
@@ -159,6 +160,9 @@ fn (mut app App) run_test(subdir string, test_name string) ! {
 		println(expected_v_code)
 		if res.exit_code == 0 {
 			print_diff_line(formatted_v_code, expected_v_code)
+			if diff_ := diff.compare_text(expected_v_code, formatted_v_code) {
+				println(diff_)
+			}
 		}
 		println('=======================\nGo code:')
 		go_code := os.read_file(expected_v_code_path.replace('.vv', '.go')) or { panic(err) }
@@ -174,8 +178,9 @@ fn print_diff_line(formatted_v_code string, expected_v_code string) {
 			return
 		}
 		if lines0[i].trim_space() != lines1[i].trim_space() {
-			println('!!!!!!!!!!!!')
+			println('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 			println(lines0[i])
+			println('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
 			return
 		}
 	}
