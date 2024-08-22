@@ -193,7 +193,10 @@ fn create_json(subdir string, test_name string) {
 }
 
 fn main() {
-	ensure_asty_is_installed()!
+	ensure_asty_is_installed() or {
+		eprintln(err)
+		exit(1)
+	}
 
 	mut subdir := 'tests'
 	mut go_file_name := if os.args.len > 1 { os.args[1] } else { '' }
