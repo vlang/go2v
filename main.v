@@ -49,7 +49,7 @@ fn (mut app App) generate_v_code(go_file GoFile) string {
 	return app.sb.str()
 }
 
-fn (mut app App) typ(t Type2) {
+fn (mut app App) typ(t Type) {
 	app.force_upper = true
 	match t {
 		Ident {

@@ -36,7 +36,7 @@ type Stmt = AssignStmt
 
 struct InvalidExpr {}
 
-type Type2 = StructType | ArrayType | Ident | StarExpr | SelectorExpr
+type Type = StructType | ArrayType | Ident | StarExpr | SelectorExpr
 
 struct GoFile {
 	name  Ident  @[json: 'Name']
@@ -67,7 +67,7 @@ struct Spec {
 	names         []Ident @[json: 'Names']
 	values        []Expr  @[json: 'Values']
 	// typ           Type     @[json: 'Type']
-	typ  Type2    @[json: 'Type']
+	typ  Type     @[json: 'Type']
 	args []Expr   @[json: 'Args']
 	path BasicLit @[json: 'Path']
 }
@@ -152,11 +152,6 @@ struct AssignStmt {
 	tok string @[json: 'Tok']
 }
 
-struct Type {
-	node_type_str string    @[json: '_type']
-	fields        FieldList @[json: 'Fields']
-}
-
 struct StructType {
 	node_type_str string    @[json: '_type']
 	fields        FieldList @[json: 'Fields']
@@ -170,7 +165,7 @@ struct Field {
 	node_type_str string  @[json: '_type']
 	names         []Ident @[json: 'Names']
 	// typ           TypeOrIdent @[json: 'Type']
-	typ Type2 @[json: 'Type']
+	typ Type @[json: 'Type']
 }
 
 struct Ident {
