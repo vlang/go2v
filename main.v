@@ -71,6 +71,9 @@ fn (mut app App) typ(t Type2) {
 		SelectorExpr {
 			app.selector_expr(t)
 		}
+		StructType {
+			app.gen('STRUCT TYPE')
+		}
 	}
 	app.force_upper = false
 }

@@ -97,10 +97,11 @@ fn (mut app App) import_spec(spec Spec) {
 fn (mut app App) struct_decl(spec Spec) {
 	struct_name := spec.name.name
 	app.genln('struct ${struct_name} {')
-	if spec.typ.fields.list.len > 0 {
+	struct_type := spec.typ as StructType
+	if struct_type.fields.list.len > 0 {
 		app.genln('pub mut:')
 	}
-	for field in spec.typ.fields.list {
+	for field in struct_type.fields.list {
 		// type_name := type_or_ident(field.typ)
 		for n in field.names {
 			// app.genln('\t${go2v_ident(n.name)} ${go2v_type(type_name)}')
