@@ -172,6 +172,7 @@ struct Field {
 	names         []Ident @[json: 'Names']
 	// typ           TypeOrIdent @[json: 'Type']
 	typ Type @[json: 'Type']
+	doc Doc  @[json: 'Doc']
 }
 
 struct Ident {

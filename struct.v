@@ -135,12 +135,12 @@ fn (mut app App) interface_decl(spec Spec) {
 	// println('TTT ${i_type}')
 	for field in i_type.methods.list {
 		// type_name := type_or_ident(field.typ)
+		app.comments(field.doc)
 		for n in field.names {
 			// app.genln('\t${go2v_ident(n.name)} ${go2v_type(type_name)}')
 			app.gen('\t')
 			// app.force_upper = true
 			app.gen(app.go2v_ident(n.name))
-			app.gen('() ')
 			app.force_upper = true
 			app.typ(field.typ)
 			app.genln('')

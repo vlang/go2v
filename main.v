@@ -79,7 +79,6 @@ fn (mut app App) typ(t Type) {
 		}
 		FuncType {
 			app.func_type(t)
-			// app.gen('FUNC TYPE')
 		}
 	}
 	app.force_upper = false
