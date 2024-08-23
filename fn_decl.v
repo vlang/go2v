@@ -37,9 +37,19 @@ fn (mut app App) func_decl(decl Decl) {
 	}
 	app.gen(method_name)
 	app.func_params(decl.typ.params)
+	app.func_return_type(decl.typ.results)
+	app.block_stmt(decl.body)
+}
+
+fn (mut app App) func_type(t FuncType) {
+	app.func_params(t.params)
+	app.func_return_type(t.results)
+}
+
+fn (mut app App) func_return_type(results FieldList) {
 	// app.genln(results)
 	// Return types
-	return_types := decl.typ.results.list
+	return_types := results.list
 	if return_types.len > 1 {
 		app.gen('(')
 	}
@@ -53,7 +63,6 @@ fn (mut app App) func_decl(decl Decl) {
 	if return_types.len > 1 {
 		app.gen(')')
 	}
-	app.block_stmt(decl.body)
 }
 
 fn (mut app App) func_params(params FieldList) {

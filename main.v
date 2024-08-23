@@ -78,7 +78,8 @@ fn (mut app App) typ(t Type) {
 			app.gen('INTERFACE TYPE')
 		}
 		FuncType {
-			app.gen('FUNC TYPE')
+			app.func_type(t)
+			// app.gen('FUNC TYPE')
 		}
 	}
 	app.force_upper = false
