@@ -18,6 +18,8 @@ fn (mut app App) gen_decl(decl Decl) {
 		if spec.node_type_str == 'TypeSpec' {
 			if spec.typ.node_type_str == 'StructType' {
 				app.struct_decl(spec)
+			} else if spec.typ.node_type_str == 'InterfaceType' {
+				app.interface_decl(spec)
 			} else {
 				app.type_decl(spec)
 			}
@@ -115,6 +117,9 @@ fn (mut app App) struct_decl(spec Spec) {
 		}
 	}
 	app.genln('}\n')
+}
+
+fn (mut app App) interface_decl(spec Spec) {
 }
 
 fn (mut app App) composite_lit(c CompositeLit) {

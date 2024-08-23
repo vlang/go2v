@@ -36,7 +36,7 @@ type Stmt = AssignStmt
 
 struct InvalidExpr {}
 
-type Type2 = ArrayType | Ident | StarExpr
+type Type2 = ArrayType | Ident | StarExpr | SelectorExpr
 
 struct GoFile {
 	name  Ident  @[json: 'Name']

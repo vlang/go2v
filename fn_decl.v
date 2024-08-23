@@ -62,6 +62,7 @@ fn (mut app App) func_params(params FieldList) {
 	// p := params.list.map(it.names.map(it.name).join(', ') + ' ' + type_or_ident(it.typ)).join(', ')
 	app.gen('(')
 	// app.gen(p)
+	// println(app.sb.str())
 	for i, param in params.list {
 		for j, name in param.names {
 			app.gen(name.name)

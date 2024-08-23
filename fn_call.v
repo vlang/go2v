@@ -24,6 +24,12 @@ fn (mut app App) call_expr(call CallExpr) {
 			app.gen('.')
 			app.gen(fun.name)
 			return
+		} else if fun.name == 'new' {
+			// new(Foo) => &Foo{}
+			app.gen('&')
+			app.expr(call.args[0])
+			app.gen('{}')
+			return
 		}
 		// println('FUN')
 		// println(fun)

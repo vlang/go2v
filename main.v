@@ -68,6 +68,9 @@ fn (mut app App) typ(t Type2) {
 				app.star_expr(t)
 			}
 		}
+		SelectorExpr {
+			app.selector_expr(t)
+		}
 	}
 	app.force_upper = false
 }
