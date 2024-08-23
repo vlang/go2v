@@ -8,6 +8,7 @@ fn (mut app App) gen_decl_stmt(stmt Stmt) {
 }
 
 fn (mut app App) gen_decl(decl Decl) {
+	app.comments(decl.doc)
 	if decl.tok == 'const' {
 		// app.genln('//constb')
 		app.const_block(decl)
@@ -16,12 +17,19 @@ fn (mut app App) gen_decl(decl Decl) {
 	// is_enum_decl := decl.specs[0].node_type_str == 'TypeSpec' && decl.
 	for spec in decl.specs {
 		if spec.node_type_str == 'TypeSpec' {
-			if spec.typ.node_type_str == 'StructType' {
-				app.struct_decl(spec)
-			} else if spec.typ.node_type_str == 'InterfaceType' {
-				app.interface_decl(spec)
-			} else {
-				app.type_decl(spec)
+			// println('TYPE NAME=${spec.name.name}')
+			// println(spec.typ)
+			// println(spec.typ.node_type_str)
+			match spec.typ {
+				InterfaceType {
+					app.interface_decl(spec)
+				}
+				StructType {
+					app.struct_decl(spec)
+				}
+				else {
+					app.type_decl(spec)
+				}
 			}
 		} else if spec.node_type_str == 'ImportSpec' && spec.path.value != '' {
 			app.import_spec(spec)
@@ -121,6 +129,24 @@ fn (mut app App) struct_decl(spec Spec) {
 }
 
 fn (mut app App) interface_decl(spec Spec) {
+	name := spec.name.name
+	app.genln('interface ${name} {')
+	i_type := spec.typ as InterfaceType
+	// println('TTT ${i_type}')
+	for field in i_type.methods.list {
+		// type_name := type_or_ident(field.typ)
+		for n in field.names {
+			// app.genln('\t${go2v_ident(n.name)} ${go2v_type(type_name)}')
+			app.gen('\t')
+			// app.force_upper = true
+			app.gen(app.go2v_ident(n.name))
+			app.gen('() ')
+			app.force_upper = true
+			app.typ(field.typ)
+			app.genln('')
+		}
+	}
+	app.genln('}\n')
 }
 
 fn (mut app App) composite_lit(c CompositeLit) {

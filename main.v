@@ -74,6 +74,12 @@ fn (mut app App) typ(t Type) {
 		StructType {
 			app.gen('STRUCT TYPE')
 		}
+		InterfaceType {
+			app.gen('INTERFACE TYPE')
+		}
+		FuncType {
+			app.gen('FUNC TYPE')
+		}
 	}
 	app.force_upper = false
 }
