@@ -34,7 +34,11 @@ fn (mut app App) gen_decl(decl Decl) {
 		} else if spec.node_type_str == 'ImportSpec' && spec.path.value != '' {
 			app.import_spec(spec)
 		} else if spec.node_type_str == 'ValueSpec' {
-			app.const_decl(spec)
+			if decl.tok == 'var' {
+				app.global_decl(spec)
+			} else {
+				app.const_decl(spec)
+			}
 		}
 	}
 }
@@ -51,6 +55,14 @@ fn (mut app App) const_block(decl Decl) {
 	if decl.specs.len > 1 && app.is_enum_decl {
 		app.genln('}')
 		app.is_enum_decl = false
+	}
+}
+
+fn (mut app App) global_decl(spec Spec) {
+	for name in spec.names {
+		app.gen('__global ${name.name} ')
+		app.typ(spec.typ)
+		app.genln('')
 	}
 }
 
