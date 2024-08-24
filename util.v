@@ -3,9 +3,12 @@
 module main
 
 fn go2v_type(typ string) string {
-	match typ {
+	match typ.to_lower() {
 		'byte' {
 			return 'u8'
+		}
+		'int' {
+			return 'isize'
 		}
 		'int8' {
 			return 'i8'
@@ -20,7 +23,7 @@ fn go2v_type(typ string) string {
 			return 'i64'
 		}
 		'uint' {
-			return 'u32'
+			return 'usize'
 		}
 		'uint8' {
 			return 'u8'

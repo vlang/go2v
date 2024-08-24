@@ -1,4 +1,4 @@
 module main
 
-pub fn abc(a int, b []string, c rune) string {
+pub fn abc(a isize, b []string, c rune) string {
 }

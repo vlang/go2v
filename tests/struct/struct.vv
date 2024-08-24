@@ -2,6 +2,6 @@ module main
 
 struct Struct1 {
 pub mut:
-	a int
+	a isize
 	b []string
 }

@@ -2,8 +2,8 @@ module main
 
 struct Abc {
 pub mut:
-	a int
+	a isize
 }
 
-fn (a Abc) ok(d int, b []string, c rune) string {
+fn (a Abc) ok(d isize, b []string, c rune) string {
 }

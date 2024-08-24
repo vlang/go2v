@@ -1,10 +1,10 @@
 module main
 
 fn main() {
-	mut s := []int{}
+	mut s := []isize{}
 	s << 1
-	s << [2, 3, 4]
-	mut a := [4, 5, 6]
-	mut b := [1, 2, 3]
+	s << [isize(2), 3, 4]
+	mut a := [isize(4), 5, 6]
+	mut b := [isize(1), 2, 3]
 	b << a
 }
