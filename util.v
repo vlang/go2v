@@ -7,6 +7,36 @@ fn go2v_type(typ string) string {
 		'byte' {
 			return 'u8'
 		}
+		'int8' {
+			return 'i8'
+		}
+		'int16' {
+			return 'i16'
+		}
+		'int32' {
+			return 'i32'
+		}
+		'int64' {
+			return 'i64'
+		}
+		'uint' {
+			return 'u32'
+		}
+		'uint8' {
+			return 'u8'
+		}
+		'uint16' {
+			return 'u16'
+		}
+		'uint32' {
+			return 'u32'
+		}
+		'uint64' {
+			return 'u64'
+		}
+		'float32' {
+			return 'f32'
+		}
 		'float64' {
 			return 'f64'
 		}

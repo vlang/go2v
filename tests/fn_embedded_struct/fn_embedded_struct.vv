@@ -1,9 +1,10 @@
 module main
 
+fn abc(a int, b []string, c Ok) {
+}
+
 struct Ok {
-mut:
+pub mut:
 	a int
 	b []string
 }
-
-fn abc(a int, b []string, c Ok) {}

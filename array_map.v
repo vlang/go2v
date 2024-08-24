@@ -23,9 +23,10 @@ fn (mut app App) array_init(c CompositeLit) {
 	} else {
 		// [1,2,3]
 		app.gen('[')
+		elt_name := go2v_type(c.typ.elt.name)
 		for i, elt in c.elts {
-			elt_name := go2v_type(c.typ.elt.name)
-			if i == 0 && is_fixed && elt_name != '' && elt_name != 'string' && elt_name != 'int' {
+			if i == 0 && elt_name != '' && elt_name != 'string' && elt_name != 'int'
+				&& !elt_name.starts_with_capital() {
 				// specify type in the first element
 				// [u8(1), 2, 3]
 				app.gen('${elt_name}(')
@@ -39,7 +40,6 @@ fn (mut app App) array_init(c CompositeLit) {
 			}
 		}
 		if have_len {
-			elt_name := go2v_type(c.typ.elt.name)
 			diff := len_val.int() - c.elts.len
 			if diff > 0 {
 				for _ in 0 .. diff {

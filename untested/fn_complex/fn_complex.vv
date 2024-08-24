@@ -1,25 +1,25 @@
 module main
 
-struct Bcd {
-mut:
-	b int
-}
-
-struct Abc {
-mut:
-	a int
-}
-
-struct Efg {
-mut:
-	e int
-}
-
 // func (t Test) Ouuu(abc string, ofk []int, c Test) (int, string) {
-// 	fmt.Println(\"hey\")
+// 	fmt.Println("hey")
 // }
 pub fn (mut a Abc) ok(d int, b []Bcd, c rune) (int, []Efg, rune) {
 	mut e := 0
 	mut f := []Efg{}
 	mut h := `\x00`
+}
+
+struct Abc {
+pub mut:
+	a int
+}
+
+struct Bcd {
+pub mut:
+	b int
+}
+
+struct Efg {
+pub mut:
+	e int
 }

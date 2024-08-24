@@ -1,7 +1,8 @@
 module main
 
-pub fn custom() {}
-
 fn main() {
 	custom()
+}
+
+pub fn custom() {
 }

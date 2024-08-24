@@ -1,5 +1,0 @@
-module html
-
-fn abc() {
-	mut actual := a.token.string()
-}
