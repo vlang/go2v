@@ -12,8 +12,8 @@ fn main() {
 	for _ in strings {
 		println('hello')
 	}
-	for i, _ in [2]int{} {
-		for j, _ in [2]int{} {
+	for i, _ in [2]isize{} {
+		for j, _ in [2]isize{} {
 			println('hello2')
 		}
 	}

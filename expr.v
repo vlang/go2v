@@ -134,7 +134,7 @@ fn (mut app App) key_value_expr(expr KeyValueExpr) {
 
 fn (mut app App) array_type(node ArrayType) {
 	if node.elt is Ident {
-		app.gen('[]${node.elt.name}')
+		app.gen('[]${go2v_type(node.elt.name)}')
 	} else if node.elt is StarExpr {
 		app.gen('[]')
 		app.star_expr(node.elt)
