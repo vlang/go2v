@@ -1,6 +1,7 @@
 module main
 
-struct Ok {}
+struct Ok {
+}
 
 fn main() {
 	mut a := [u8(1), 2, 3]
