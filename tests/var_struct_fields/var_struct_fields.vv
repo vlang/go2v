@@ -1,14 +1,15 @@
 module main
 
 struct Ok {
-mut:
-	a int
+pub mut:
+	a isize
 	b string
 }
 
 fn main() {
 	mut long := Ok{
 		a: 1
+
 		b: 'hello'
 	}
 	mut short := Ok{3, 'hello'}

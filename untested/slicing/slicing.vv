@@ -1,7 +1,7 @@
 module main
 
 fn main() {
-	mut a := [0, 1, 2, 3]
+	mut a := [isize(0), 1, 2, 3]
 	mut s := a[1..3]
 	s = a[..2]
 	s = a[2..]

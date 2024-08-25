@@ -2,6 +2,6 @@ module main
 
 struct Struct {
 mut:
-	a int
-	b int
+	a isize
+	b isize
 }

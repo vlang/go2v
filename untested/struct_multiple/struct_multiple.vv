@@ -2,10 +2,10 @@ module main
 
 struct Struct1 {
 mut:
-	a int
+	a isize
 }
 
 struct Struct2 {
 mut:
-	b int
+	b isize
 }

@@ -2,7 +2,7 @@ module main
 
 import encoding.utf8
 
-fn go2v_utf8_encode_rune(mut p []u8, r rune) int {
+fn go2v_utf8_encode_rune(mut p []u8, r rune) isize {
 	mut bytes := r.bytes()
 	p << bytes
 	return bytes.len
@@ -11,7 +11,7 @@ fn go2v_utf8_encode_rune(mut p []u8, r rune) int {
 fn main() {
 	mut b := 'Hello, 世界'.bytes()
 	mut x := `a`
-	mut a := 1 + go2v_utf8_encode_rune(mut b, x)
+	mut a := isize(1) + go2v_utf8_encode_rune(mut b, x)
 	println(b)
 	println(a)
 	println(`世`.length_in_bytes())

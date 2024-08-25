@@ -2,7 +2,7 @@ module main
 
 struct MyStruct {
 pub mut:
-	msm map[string]int
+	msm map[string]isize
 }
 
 fn main() {
