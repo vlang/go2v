@@ -1,0 +1,14 @@
+module main
+
+fn main() {
+	mut ok := Test1{}
+	ok.a = Test2{}
+}
+
+struct Test1 {
+pub mut:
+	a Test2
+}
+
+struct Test2 {
+}

@@ -4,18 +4,18 @@ type Type3 = []Struct1
 
 struct Struct1 {
 mut:
-	a int
+	a isize
 	b string
 }
 
 struct Struct3 {
 mut:
-	f int
+	f isize
 }
 
 struct Struct2 {
 mut:
-	c []int
+	c []isize
 	d []Struct1
 	e Struct3
 }

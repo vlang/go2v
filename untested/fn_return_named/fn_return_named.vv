@@ -1,6 +1,6 @@
 module main
 
-fn foo() int {
-	im := 123
+fn foo() isize {
+	im := isize(123)
 	return im
 }

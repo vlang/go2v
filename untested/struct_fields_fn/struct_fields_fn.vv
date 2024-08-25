@@ -4,6 +4,6 @@ struct Ok {
 mut:
 	aaa string
 	bbb fn ()
-	ccc fn (int)
+	ccc fn (isize)
 	ddd fn (Ok) u16
 }

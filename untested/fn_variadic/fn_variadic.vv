@@ -1,7 +1,7 @@
 module main
 
-pub fn sum(nums ...int) int {
-	mut res := 0
+pub fn sum(nums ...isize) isize {
+	mut res := isize(0)
 	for _, n in nums {
 		res += n
 	}
@@ -9,6 +9,6 @@ pub fn sum(nums ...int) int {
 }
 
 fn main() {
-	mut primes := [2, 3, 5, 7]
+	mut primes := [isize(2), 3, 5, 7]
 	println(sum(...primes))
 }

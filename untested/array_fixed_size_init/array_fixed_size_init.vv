@@ -1,7 +1,7 @@
 module main
 
 fn main() {
-	mut arr1 := [1 << 9]int{init: match it {
+	mut arr1 := [1 << 9]isize{init: match it {
 		0x1 {
 			0xe60a
 		}
@@ -15,5 +15,5 @@ fn main() {
 			0
 		}
 	}}
-	mut arr2 := [3]int{init: [1, 2, 3][it] or { 0 }}
+	mut arr2 := [3]isize{init: [1, 2, 3][it] or { 0 }}
 }

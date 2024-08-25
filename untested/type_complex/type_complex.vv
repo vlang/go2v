@@ -21,7 +21,7 @@ mut:
 
 struct Foo {
 mut:
-	abc [3]int
+	abc [3]isize
 	def [][2]string
 }
 

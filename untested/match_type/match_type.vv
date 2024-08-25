@@ -2,7 +2,7 @@ module main
 
 fn abc[T](s T) {
 	match s.type_name() {
-		'int' {
+		'isize' {
 			println('a')
 		}
 		'string' {

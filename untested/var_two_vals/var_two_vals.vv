@@ -1,6 +1,6 @@
 module main
 
-fn two_fn() (int, int) {
+fn two_fn() (isize, isize) {
 	return 1, 2
 }
 

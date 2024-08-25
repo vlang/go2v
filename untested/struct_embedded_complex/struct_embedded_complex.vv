@@ -2,14 +2,14 @@ module main
 
 struct AA {
 mut:
-	aa int
+	aa isize
 }
 
 struct BB {
 	AA
 mut:
-	a  int
-	bb int
+	a  isize
+	bb isize
 }
 
 fn main() {

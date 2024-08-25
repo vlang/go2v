@@ -1,0 +1,23 @@
+module main
+
+/* func (t Test) Ouuu(abc string, ofk []int, c Test) (int, string) {
+	fmt.Println("hey")
+}
+*/
+pub fn (a Abc) ok(d isize, b []Bcd, c rune) (isize, []Efg, rune) {
+}
+
+struct Abc {
+pub mut:
+	a isize
+}
+
+struct Bcd {
+pub mut:
+	b isize
+}
+
+struct Efg {
+pub mut:
+	e isize
+}

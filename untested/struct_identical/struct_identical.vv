@@ -2,7 +2,9 @@ module main
 
 struct Struct1 {}
 
+struct Struct2 {}
+
 fn main() {
 	mut a := Struct1{}
-	mut b := Struct1{}
+	mut b := Struct2{}
 }
