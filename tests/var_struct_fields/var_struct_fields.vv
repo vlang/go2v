@@ -4,13 +4,12 @@ struct Ok {
 pub mut:
 	a isize
 	b string
-	m map[string]int
+	m map[string]isize
 }
 
 fn main() {
 	mut long := Ok{
 		a: 1
-
 		b: 'hello'
 	}
 	mut short := Ok{3, 'hello'}
