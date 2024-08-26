@@ -3,7 +3,7 @@
 module main
 
 fn go2v_type(typ string) string {
-	match typ.to_lower() {
+	match typ {
 		'byte' {
 			return 'u8'
 		}

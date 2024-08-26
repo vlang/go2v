@@ -129,7 +129,6 @@ fn (mut app App) key_value_expr(expr KeyValueExpr) {
 		app.gen(': ')
 	}
 	app.expr(expr.value)
-	app.genln('')
 }
 
 fn (mut app App) array_type(node ArrayType) {
@@ -156,5 +155,5 @@ fn (mut app App) star_expr(node StarExpr) {
 
 fn (mut app App) ident(node Ident) {
 	// app.gen('f=${app.force_upper}')
-	app.gen(app.go2v_ident(node.name))
+	app.gen(go2v_type(app.go2v_ident(node.name)))
 }

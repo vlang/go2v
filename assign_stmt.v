@@ -47,20 +47,37 @@ fn (mut app App) gen_append(args []Expr) {
 
 	for i := 1; i < args.len; i++ {
 		arg_i := args[i]
-		if i == 1 {
-			app.gen('[')
-			if arg_i is BasicLit {
-				app.gen('${go2v_type(arg_i.kind)}(')
+		match arg_i {
+			BasicLit {
+				v_kind := go2v_type(arg_i.kind.to_lower())
+				needs_cast := v_kind != 'int'
+				if i == 1 {
+					app.gen('[')
+					if needs_cast {
+						app.gen('${go2v_type(v_kind)}(')
+					}
+				}
+				app.expr(arg_i)
+				if i == 1 && needs_cast {
+					app.gen(')')
+				}
+				if i < args.len - 1 {
+					app.gen(',')
+				} else if i == args.len - 1 {
+					app.gen(']')
+				}
 			}
-		}
-		app.expr(arg_i)
-		if i == 1 && arg_i is BasicLit {
-			app.gen(')')
-		}
-		if i < args.len - 1 {
-			app.gen(',')
-		} else if i == args.len - 1 {
-			app.gen(']')
+			else {
+				if i == 1 {
+					app.gen('[')
+				}
+				app.expr(arg_i)
+				if i < args.len - 1 {
+					app.gen(',')
+				} else if i == args.len - 1 {
+					app.gen(']')
+				}
+			}
 		}
 	}
 	app.genln('')
