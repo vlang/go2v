@@ -59,6 +59,10 @@ fn (mut app App) typ(t Type) {
 			app.array_type(t)
 			// app.gen('[]${t.elt.name}')
 		}
+		MapType {
+			app.map_type(t)
+			// app.gen('[]${t.elt.name}')
+		}
 		StarExpr {
 			// Skip & if receiver is mut
 			if app.is_mut_recv {

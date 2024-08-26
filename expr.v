@@ -142,6 +142,13 @@ fn (mut app App) array_type(node ArrayType) {
 	}
 }
 
+fn (mut app App) map_type(node MapType) {
+	app.gen('map[')
+	app.expr(node.key)
+	app.gen(']')
+	app.expr(node.val)
+}
+
 fn (mut app App) star_expr(node StarExpr) {
 	app.gen('&')
 	app.expr(node.x)

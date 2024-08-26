@@ -4,6 +4,7 @@ struct Ok {
 pub mut:
 	a isize
 	b string
+	m map[string]int
 }
 
 fn main() {

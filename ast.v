@@ -36,7 +36,14 @@ type Stmt = AssignStmt
 
 struct InvalidExpr {}
 
-type Type = StructType | ArrayType | FuncType | InterfaceType | Ident | StarExpr | SelectorExpr
+type Type = StructType
+	| ArrayType
+	| MapType
+	| FuncType
+	| InterfaceType
+	| Ident
+	| StarExpr
+	| SelectorExpr
 
 struct GoFile {
 	name  Ident  @[json: 'Name']
@@ -76,6 +83,12 @@ struct ArrayType {
 	node_type_str string @[json: '_type']
 	// elt           Ident  @[json: 'Elt']
 	elt Expr @[json: 'Elt']
+}
+
+struct MapType {
+	node_type_str string @[json: '_type']
+	key           Expr   @[json: 'Key']
+	val           Expr   @[json: 'Value']
 }
 
 struct Ellipsis {

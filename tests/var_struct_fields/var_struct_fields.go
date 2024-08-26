@@ -3,6 +3,7 @@ package main
 type Ok struct {
 	a int
 	b string
+	m map[string]int
 }
 
 func main() {
