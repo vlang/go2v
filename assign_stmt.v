@@ -1,12 +1,21 @@
 fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
 	// app.genln('//assign_stmt')
-	if !no_mut {
-		if assign.tok == ':=' {
-			app.gen('mut ')
+	for i, lhs_expr in assign.lhs {
+		if i == 0 {
+			match lhs_expr {
+				Ident {
+					if lhs_expr.name != '_' {
+						if !no_mut {
+							if assign.tok == ':=' {
+								app.gen('mut ')
+							}
+						}
+					}
+				}
+				else {}
+			}
 		}
-	}
-	for i, expr in assign.lhs {
-		app.expr(expr)
+		app.expr(lhs_expr)
 		if i < assign.lhs.len - 1 {
 			app.gen(', ')
 		}
@@ -17,8 +26,8 @@ fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
 	}
 	//
 	app.gen(assign.tok)
-	for expr in assign.rhs {
-		app.expr(expr)
+	for rhs_expr in assign.rhs {
+		app.expr(rhs_expr)
 	}
 	app.genln('')
 }
