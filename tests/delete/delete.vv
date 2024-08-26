@@ -13,7 +13,6 @@ fn main() {
 	m.delete('pi')
 	mut key := 'f'
 	m.delete(key)
-
 	mut ms := MyStruct{
 		msm: {
 			'1': 1
