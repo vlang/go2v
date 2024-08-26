@@ -14,12 +14,12 @@ fn (mut app App) gen_decl(decl Decl) {
 		app.const_block(decl)
 		return
 	}
-	// is_enum_decl := decl.specs[0].node_type_str == 'TypeSpec' && decl.
+	// is_enum_decl := decl.specs[0].node_type == 'TypeSpec' && decl.
 	for spec in decl.specs {
-		if spec.node_type_str == 'TypeSpec' {
+		if spec.node_type == 'TypeSpec' {
 			// println('TYPE NAME=${spec.name.name}')
 			// println(spec.typ)
-			// println(spec.typ.node_type_str)
+			// println(spec.typ.node_type)
 			match spec.typ {
 				InterfaceType {
 					app.interface_decl(spec)
@@ -31,9 +31,9 @@ fn (mut app App) gen_decl(decl Decl) {
 					app.type_decl(spec)
 				}
 			}
-		} else if spec.node_type_str == 'ImportSpec' && spec.path.value != '' {
+		} else if spec.node_type == 'ImportSpec' && spec.path.value != '' {
 			app.import_spec(spec)
-		} else if spec.node_type_str == 'ValueSpec' {
+		} else if spec.node_type == 'ValueSpec' {
 			if decl.tok == 'var' {
 				app.global_decl(spec)
 			} else {
@@ -166,7 +166,7 @@ fn (mut app App) composite_lit(c CompositeLit) {
 		app.struct_init(c)
 		return
 	}
-	match c.typ.node_type_str {
+	match c.typ.node_type {
 		'ArrayType' {
 			app.array_init(c)
 		}

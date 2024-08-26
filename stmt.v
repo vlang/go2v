@@ -55,7 +55,7 @@ fn (mut app App) stmt(stmt Stmt) {
 			app.genln('\t// unhandled in stmt: ${stmt}')
 		} // Add additional handlers as needed
 	}
-	if stmt.node_type_str == 'GenDecl' { //.gen_decl {
+	if stmt.node_type == 'GenDecl' { //.gen_decl {
 		app.gen_decl_stmt(stmt)
 		return
 	}
@@ -100,7 +100,7 @@ fn (mut app App) for_stmt(f ForStmt) {
 	// if f.cond == unsafe { nil } {
 	//}
 
-	init_empty := f.init.node_type_str == ''
+	init_empty := f.init.node_type == ''
 	cond_empty := f.cond.node_type() == ''
 
 	if init_empty && cond_empty {
