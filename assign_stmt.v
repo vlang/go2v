@@ -1,7 +1,7 @@
 fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
 	// app.genln('//assign_stmt')
-	for i, lhs_expr in assign.lhs {
-		if i == 0 {
+	for l_idx, lhs_expr in assign.lhs {
+		if l_idx == 0 {
 			match lhs_expr {
 				Ident {
 					if lhs_expr.name != '_' {
@@ -14,11 +14,10 @@ fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
 				}
 				else {}
 			}
-		}
-		app.expr(lhs_expr)
-		if i < assign.lhs.len - 1 {
+		} else {
 			app.gen(', ')
 		}
+		app.expr(lhs_expr)
 	}
 	// Special case for 'append()' => '<<'
 	if app.check_and_handle_append(assign) {
@@ -26,7 +25,10 @@ fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
 	}
 	//
 	app.gen(assign.tok)
-	for rhs_expr in assign.rhs {
+	for r_idx, rhs_expr in assign.rhs {
+		if r_idx > 0 {
+			app.gen(', ')
+		}
 		app.expr(rhs_expr)
 	}
 	app.genln('')
