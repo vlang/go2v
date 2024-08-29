@@ -1,6 +1,6 @@
 module main
 
 fn main() {
-	_ := `a`
-	_ := `b`
+	_ := u8(`a`)
+	_ := u8(`b`)
 }

@@ -9,7 +9,7 @@ const lowercase = 0
 
 fn ok() {
 	mut er_fd_fs324 := ['a', 'b', 'c', 'd']
-	mut id_weird := 0
+	mut id_weird := isize(0)
 	println(er_fd_fs324[id_weird])
 	println(er_fd_fs324)
 }

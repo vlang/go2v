@@ -2,7 +2,7 @@ module main
 
 fn main() {
 	print("You're")
-	mut age := 27
+	mut age := isize(27)
 	match age {
 		18 {
 			println(' of age')

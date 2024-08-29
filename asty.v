@@ -1,3 +1,5 @@
+// Copyright (c) 2024 Alexander Medvednikov. All rights reserved.
+// Use of this source code is governed by a GPL license that can be found in the LICENSE file.
 import os
 
 const gopath_res = os.execute('go env GOPATH')
@@ -9,7 +11,7 @@ fn ensure_asty_is_installed() ! {
 	if _ := os.find_abs_path_of_executable(asty_executable_name) {
 		return
 	}
-	// Ensure that $GOPATH/bin is in PATH, and that asty is present, so invokin `asty` works:	
+	// Ensure that $GOPATH/bin is in PATH, and that asty is present, so invokin `asty` works:
 	if gopath_res.exit_code != 0 {
 		return error('Failed to find Go. Visit https://go.dev/dl/ to see instructions, on how to install it.')
 	}
