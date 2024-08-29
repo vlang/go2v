@@ -1,11 +1,11 @@
 module main
 
 fn main() {
-	mut z := 123
+	mut z := isize(123)
 	if z == 0 {
 		println('ok')
 	} else {
-		mut x := 456
+		mut x := isize(456)
 		if x == 0 {
 			println(x)
 		}

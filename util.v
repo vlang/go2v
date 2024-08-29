@@ -1,11 +1,19 @@
 // Copyright (c) 2024 Alexander Medvednikov. All rights reserved.
 // Use of this source code is governed by a GPL license that can be found in the LICENSE file.
-module main
 
 fn go2v_type(typ string) string {
 	match typ {
 		'byte' {
 			return 'u8'
+		}
+		'char' {
+			return 'u8'
+		}
+		'float32' {
+			return 'f32'
+		}
+		'float64' {
+			return 'f64'
 		}
 		'int' {
 			return 'isize'
@@ -36,12 +44,6 @@ fn go2v_type(typ string) string {
 		}
 		'uint64' {
 			return 'u64'
-		}
-		'float32' {
-			return 'f32'
-		}
-		'float64' {
-			return 'f64'
 		}
 		else {}
 	}

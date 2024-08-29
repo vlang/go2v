@@ -7,7 +7,7 @@ pub mut:
 
 fn main() {
 	mut ok := Ok{}
-	mut sum := 0
-	sum += 1
-	ok.a /= 2
+	mut sum := isize(0)
+	sum += isize(1)
+	ok.a /= isize(2)
 }

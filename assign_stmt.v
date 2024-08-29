@@ -1,5 +1,7 @@
+// Copyright (c) 2024 Alexander Medvednikov. All rights reserved.
+// Use of this source code is governed by a GPL license that can be found in the LICENSE file.
+
 fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
-	// app.genln('//assign_stmt')
 	for l_idx, lhs_expr in assign.lhs {
 		if l_idx == 0 {
 			match lhs_expr {
@@ -26,10 +28,29 @@ fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
 	//
 	app.gen(assign.tok)
 	for r_idx, rhs_expr in assign.rhs {
+		mut needs_close_paren := false
+		if r_idx == 0 {
+			rhs := rhs_expr
+			match rhs {
+				BasicLit {
+					if rhs.kind.is_upper() {
+						v_kind := go2v_type(rhs.kind.to_lower())
+						if v_kind != 'int' && v_kind != 'string' {
+							app.gen('${v_kind}(')
+							needs_close_paren = true
+						}
+					}
+				}
+				else {}
+			}
+		}
 		if r_idx > 0 {
 			app.gen(', ')
 		}
 		app.expr(rhs_expr)
+		if needs_close_paren {
+			app.gen(')')
+		}
 	}
 	app.genln('')
 }

@@ -3,6 +3,8 @@
 import json
 import os
 
+type Decls = FuncDecl | GenDecl
+
 type Expr = InvalidExpr
 	| ArrayType
 	| BasicLit
@@ -14,10 +16,10 @@ type Expr = InvalidExpr
 	| Ident
 	| IndexExpr
 	| KeyValueExpr
+	| MapType
 	| ParenExpr
 	| SelectorExpr
 	| StarExpr
-	| TypeOrIdent
 	| UnaryExpr
 
 type Stmt = AssignStmt
@@ -36,6 +38,8 @@ type Stmt = AssignStmt
 
 struct InvalidExpr {}
 
+type Specs = ImportSpec | TypeSpec | ValueSpec
+
 type Type = StructType
 	| ArrayType
 	| MapType
@@ -46,8 +50,8 @@ type Type = StructType
 	| SelectorExpr
 
 struct GoFile {
-	name  Ident  @[json: 'Name']
-	decls []Decl @[json: 'Decls']
+	package_name Ident   @[json: 'Name']
+	decls        []Decls @[json: 'Decls']
 }
 
 struct Doc {
@@ -56,33 +60,39 @@ struct Doc {
 	} @[json: 'List']
 }
 
-struct Decl {
+struct FuncDecl {
 	node_type string    @[json: '_type']
-	specs     []Spec    @[json: 'Specs']
-	decls     []Decl    @[json: 'Decls']
+	doc       Doc       @[json: 'Doc']
+	recv      FieldList @[json: 'Recv']
 	name      Ident     @[json: 'Name']
 	typ       FuncType  @[json: 'Type']
-	recv      FieldList @[json: 'Recv']
 	body      BlockStmt @[json: 'Body']
-	tok       string    @[json: 'Tok']
-	doc       Doc       @[json: 'Doc']
 }
 
-struct Spec {
+struct GenDecl {
 	node_type string  @[json: '_type']
-	name      Ident   @[json: 'Name']
-	names     []Ident @[json: 'Names']
-	values    []Expr  @[json: 'Values']
-	// typ           Type     @[json: 'Type']
-	typ  Type     @[json: 'Type']
-	args []Expr   @[json: 'Args']
-	path BasicLit @[json: 'Path']
+	doc       Doc     @[json: 'Doc']
+	tok       string  @[json: 'Tok']
+	specs     []Specs @[json: 'Specs']
+}
+
+struct ImportSpec {
+	node_type string   @[json: '_type']
+	name      Ident    @[json: 'Name']
+	path      BasicLit @[json: 'Path']
+}
+
+struct TypeSpec {
+	node_type string    @[json: '_type']
+	name      Ident     @[json: 'Name']
+	params    FieldList @[json: 'TypeParams']
+	typ       Type      @[json: 'Type']
 }
 
 struct ArrayType {
 	node_type string @[json: '_type']
-	// elt           Ident  @[json: 'Elt']
-	elt Expr @[json: 'Elt']
+	len       Expr   @[json: 'Len']
+	elt       Expr   @[json: 'Elt']
 }
 
 struct MapType {
@@ -103,19 +113,15 @@ struct FuncType {
 }
 
 struct ValueSpec {
-	node_type string @[json: '_type']
-
-	names  []Ident     @[json: 'Names']
-	typ    TypeOrIdent @[json: 'Type']
-	values []Expr      @[json: 'Values']
+	node_type string  @[json: '_type']
+	names     []Ident @[json: 'Names']
+	typ       Type    @[json: 'Type']
+	values    []Expr  @[json: 'Values']
 }
 
 struct DeclStmt {
-	node_type string        @[json: '_type']
-	decl      struct {
-		tok   string      @[json: 'Tok']
-		specs []ValueSpec @[json: 'Specs']
-	} @[json: 'Decl']
+	node_type string @[json: '_type']
+	decl      Decls  @[json: 'Decl']
 }
 
 struct BlockStmt {
@@ -149,8 +155,7 @@ struct ForStmt {
 	init      AssignStmt @[json: 'Init']
 	cond      Expr       @[json: 'Cond']
 	post      Stmt       @[json: 'Post']
-
-	body BlockStmt @[json: 'Body']
+	body      BlockStmt  @[json: 'Body']
 }
 
 struct ExprStmt {
@@ -161,14 +166,14 @@ struct ExprStmt {
 struct AssignStmt {
 	node_type string @[json: '_type']
 	lhs       []Expr @[json: 'Lhs']
-
-	rhs []Expr @[json: 'Rhs']
-	tok string @[json: 'Tok']
+	rhs       []Expr @[json: 'Rhs']
+	tok       string @[json: 'Tok']
 }
 
 struct StructType {
-	node_type string    @[json: '_type']
-	fields    FieldList @[json: 'Fields']
+	node_type  string    @[json: '_type']
+	fields     FieldList @[json: 'Fields']
+	incomplete bool      @[json: 'Incomplete']
 }
 
 struct InterfaceType {
@@ -183,21 +188,13 @@ struct FieldList {
 struct Field {
 	node_type string  @[json: '_type']
 	names     []Ident @[json: 'Names']
-	// typ           TypeOrIdent @[json: 'Type']
-	typ Type @[json: 'Type']
-	doc Doc  @[json: 'Doc']
+	typ       Type    @[json: 'Type']
+	doc       Doc     @[json: 'Doc']
 }
 
 struct Ident {
 	node_type string @[json: '_type']
 	name      string @[json: 'Name']
-}
-
-struct TypeOrIdent {
-	node_type string @[json: '_type']
-	name      string @[json: 'Name']
-	len       Expr   @[json: 'Len']
-	elt       Ident  @[json: 'Elt']
 }
 
 struct BasicLit {
@@ -218,23 +215,11 @@ struct SelectorExpr {
 	x         Expr   @[json: 'X']
 }
 
-// Foo{bar:baz}
-// []bool{}
 struct CompositeLit {
-	node_type string      @[json: '_type']
-	typ       TypeOrIdent @[json: 'Type']
-	elts      []Expr      @[json: 'Elts']
+	node_type string @[json: '_type']
+	typ       Expr   @[json: 'Type']
+	elts      []Expr @[json: 'Elts']
 }
-
-/*
-struct Elt {
-	key struct {
-		name string @[json: 'Name']
-	} @[json: 'Key']
-
-	value Expr @[json: 'Value']
-}
-*/
 
 struct BinaryExpr {
 	node_type string @[json: '_type']
@@ -250,7 +235,6 @@ struct UnaryExpr {
 }
 
 struct KeyValueExpr {
-	// key           Ident  @[json: 'Key']
 	key       Expr   @[json: 'Key']
 	value     Expr   @[json: 'Value']
 	node_type string @[json: '_type']
@@ -263,10 +247,9 @@ struct IncDecStmt {
 }
 
 struct IndexExpr {
-	x     Expr @[json: 'X']
-	index Expr @[json: 'Index']
-
 	node_type string @[json: '_type']
+	x         Expr   @[json: 'X']
+	index     Expr   @[json: 'Index']
 }
 
 // `for ... := range` loop
@@ -328,10 +311,10 @@ fn (e Expr) node_type() string {
 		Ident { return e.node_type }
 		IndexExpr { return e.node_type }
 		KeyValueExpr { return e.node_type }
+		MapType { return e.node_type }
 		ParenExpr { return e.node_type }
 		SelectorExpr { return e.node_type }
 		StarExpr { return e.node_type }
-		TypeOrIdent { return e.node_type }
 		UnaryExpr { return e.node_type }
 	}
 	return 'unknown node type'

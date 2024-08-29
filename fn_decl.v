@@ -1,6 +1,7 @@
 // Copyright (c) 2024 Alexander Medvednikov. All rights reserved.
 // Use of this source code is governed by a GPL license that can be found in the LICENSE file.
-fn (mut app App) func_decl(decl Decl) {
+
+fn (mut app App) func_decl(decl FuncDecl) {
 	app.comments(decl.doc)
 	method_name := decl.name.name.to_lower()
 	// Capital? Then it's public in Go

@@ -55,10 +55,6 @@ fn (mut app App) stmt(stmt Stmt) {
 			app.genln('\t// unhandled in stmt: ${stmt}')
 		} // Add additional handlers as needed
 	}
-	if stmt.node_type == 'GenDecl' { //.gen_decl {
-		app.gen_decl_stmt(stmt)
-		return
-	}
 }
 
 fn (mut app App) expr_stmt(stmt ExprStmt) {
@@ -149,19 +145,40 @@ fn (mut app App) inc_dec_stmt(i IncDecStmt) {
 }
 
 fn (mut app App) decl_stmt(d DeclStmt) {
-	// app.gen(d.str())
-	if d.decl.tok == 'var' {
-		app.gen('mut ')
-		app.gen(d.decl.specs[0].names[0].name)
-		app.gen(' := ')
-		typ_name := go2v_type(d.decl.specs[0].typ.name)
-		if typ_name != '' {
-			app.gen(typ_name)
-			app.gen('(')
+	match d.decl {
+		GenDecl {
+			if d.decl.tok == 'var' {
+				for spec in d.decl.specs {
+					match spec {
+						ValueSpec {
+							app.gen('mut ')
+							app.gen(spec.names[0].name)
+							app.gen(' := ')
+							mut kind := 'int'
+							value := spec.values[0]
+							match value {
+								BasicLit {
+									kind = go2v_type(value.kind.to_lower())
+									if kind != 'int' {
+										app.gen('${kind}(')
+									}
+								}
+								else {}
+							}
+							app.expr(spec.values[0])
+							if kind != 'int' {
+								app.gen(')')
+							}
+						}
+						else {
+							app.gen('// UNHANDLED DeclStmt-GenDecl spec')
+						}
+					}
+				}
+			}
 		}
-		app.expr(d.decl.specs[0].values[0])
-		if typ_name != '' {
-			app.gen(')')
+		else {
+			app.gen('// UNHANDLED DeclStmt')
 		}
 	}
 	app.genln('')

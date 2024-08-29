@@ -1,8 +1,8 @@
 module main
 
 fn main() {
-	mut n := 1
+	mut n := isize(1)
 	for n < 5 {
-		n *= 2
+		n *= isize(2)
 	}
 }

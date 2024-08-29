@@ -10,5 +10,5 @@ fn main() {
 	mut foo := Struct1{
 		a: 5
 	}
-	foo.a = 7
+	foo.a = isize(7)
 }

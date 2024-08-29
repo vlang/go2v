@@ -26,23 +26,15 @@ fn (mut app App) gen(s string) {
 }
 
 fn (mut app App) generate_v_code(go_file GoFile) string {
-	app.genln('module ${go_file.name.name}\n')
+	app.genln('module ${go_file.package_name.name}\n')
 
 	for decl in go_file.decls {
-		match decl.node_type {
-			// match decl {
-			//.gen_decl {
-			// GenDecl {
-			'GenDecl' {
-				app.gen_decl(decl)
-			}
-			// FuncDecl {
-			'FuncDecl' {
-				//.func_decl {
+		match decl {
+			FuncDecl {
 				app.func_decl(decl)
 			}
-			else {
-				app.genln('// UNHANDLED decl ${decl}')
+			GenDecl {
+				app.gen_decl(decl)
 			}
 		}
 	}
@@ -86,10 +78,6 @@ fn (mut app App) typ(t Type) {
 		}
 	}
 	app.force_upper = false
-}
-
-fn type_or_ident(typ TypeOrIdent) string {
-	return if typ.elt.name != '' { '[]${typ.elt.name}' } else { typ.name }
 }
 
 fn generate_ast_for_go_file(go_file_path string) string {

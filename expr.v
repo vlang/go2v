@@ -1,6 +1,5 @@
 // Copyright (c) 2024 Alexander Medvednikov. All rights reserved.
 // Use of this source code is governed by a GPL license that can be found in the LICENSE file.
-module main
 
 fn (mut app App) expr(expr Expr) {
 	match expr {
@@ -22,9 +21,6 @@ fn (mut app App) expr(expr Expr) {
 		SelectorExpr {
 			app.selector_expr(expr)
 		}
-		TypeOrIdent {
-			type_or_ident(expr)
-		}
 		CompositeLit {
 			app.composite_lit(expr)
 		}
@@ -33,6 +29,9 @@ fn (mut app App) expr(expr Expr) {
 		}
 		IndexExpr {
 			app.index_expr(expr)
+		}
+		MapType {
+			app.map_type(expr)
 		}
 		ParenExpr {
 			app.paren_expr(expr)
@@ -50,21 +49,14 @@ fn (mut app App) expr(expr Expr) {
 			app.func_lit(expr)
 		}
 		Ellipsis {}
-		// else {
-		// app.gen('/* UNHANDLED EXPR ${expr.node_type} */')
-		//}
 	}
 }
 
 fn (mut app App) basic_lit(l BasicLit) {
 	if l.kind == 'CHAR' {
-		// app.gen(l.value.replace("'", '`'))
-		// app.gen(quoted_lit(l.value), "'", '`')
 		app.gen(quoted_lit(l.value, '`'))
 	} else if l.kind == 'STRING' {
-		// app.gen(quoted_lit(l.value), '`', "'")
 		app.gen(quoted_lit(l.value, "'"))
-		// app.gen(l.value.replace('`', "'"))
 	} else {
 		app.gen(l.value)
 	}
