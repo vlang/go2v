@@ -2,7 +2,6 @@
 // Use of this source code is governed by a GPL license that can be found in the LICENSE file.
 
 fn (mut app App) call_expr(call CallExpr) {
-	// app.genln('// cal_expr')
 	mut fn_name := ''
 	mut is_println := false
 
@@ -19,7 +18,6 @@ fn (mut app App) call_expr(call CallExpr) {
 		}
 	} else if fun is Ident {
 		if fun.name in ['len', 'cap'] {
-			// app.expr(first_rhs.args[0])
 			app.expr(call.args[0])
 			app.gen('.')
 			app.gen(fun.name)
@@ -30,9 +28,28 @@ fn (mut app App) call_expr(call CallExpr) {
 			app.expr(call.args[0])
 			app.gen('{}')
 			return
+		} else if fun.name == 'delete' {
+			arg0 := call.args[0]
+			match arg0 {
+				Ident {
+					app.gen('${arg0.name}')
+				}
+				SelectorExpr {
+					app.expr(arg0)
+				}
+				else {
+					app.gen('// UNHANDLED delete type')
+				}
+			}
+			app.gen('.${fun.name}(')
+			app.expr(call.args[1])
+			app.genln(')')
+			return
+		} else if fun.name == 'string' {
+			app.expr(call.args[0])
+			app.genln('.str()')
+			return
 		}
-		// println('FUN')
-		// println(fun)
 	}
 
 	// []byte(str) => str.bytes()
@@ -48,30 +65,7 @@ fn (mut app App) call_expr(call CallExpr) {
 		}
 	}
 
-	if fun is Ident && fun.name == 'delete' {
-		arg0 := call.args[0]
-		match arg0 {
-			Ident {
-				app.gen('${arg0.name}')
-			}
-			SelectorExpr {
-				app.expr(arg0)
-			}
-			else {
-				app.gen('// UNHANDLED delete type')
-			}
-		}
-		app.gen('.${fun.name}(')
-		app.expr(call.args[1])
-		app.genln(')')
-		return
-	}
-
 	if !is_println {
-		// app.is_fn_call = true
-		// app.expr(fun)
-		// app.is_fn_call = false
-		// app.force_lower = true
 		if fun is SelectorExpr {
 			// Custom selector expr fn for lower case
 			app.selector_expr_fn_call(call, fun) // fun)
@@ -118,26 +112,30 @@ fn (mut app App) call_expr(call CallExpr) {
 			app.gen(', ')
 		}
 	}
-	app.genln(')')
+
+	app.gen(')')
 }
 
-const unexisting_modules = ['fmt', 'path', 'strings']
+const nonexistent_modules = ['fmt', 'path', 'strings']
 
 fn (mut app App) selector_expr_fn_call(call CallExpr, sel SelectorExpr) {
 	// app.genln('///selector_expr_fn_call')
 	if sel.x is Ident {
-		if sel.x.name in unexisting_modules {
+		if sel.x.name in nonexistent_modules {
 			app.handle_nonexistent_module_call(sel.x.name, sel.sel.name, call)
 			return
 		}
 	}
 	app.expr(sel.x)
 	app.gen('.')
-	app.gen(sel.sel.name.to_lower())
+	mut sel_name := sel.sel.name.to_lower()
+	if sel_name == 'string' {
+		sel_name = 'str'
+	}
+	app.gen(sel_name)
 }
 
 fn (mut app App) handle_nonexistent_module_call(mod_name string, fn_name string, node CallExpr) {
-	// println('nonexistent module "${mod_name}" node=${node}')
 	match mod_name {
 		'strings' {
 			app.handle_strings_call(app.go2v_ident(fn_name), node.args)
@@ -149,7 +147,7 @@ fn (mut app App) handle_nonexistent_module_call(mod_name string, fn_name string,
 	}
 }
 
-// strings functions are defined as string methods in V
+// handle_strings_call maps Go strings functions to string methods in V
 fn (mut app App) handle_strings_call(fn_name string, args []Expr) {
 	app.expr(args[0])
 	app.gen('.')
@@ -157,8 +155,7 @@ fn (mut app App) handle_strings_call(fn_name string, args []Expr) {
 	app.skip_first_arg = true
 }
 
-fn (mut app App) handle_path_call(fn_name string, args []Expr) {
-	// path.Base => os.base
+fn (mut app App) handle_path_call(fn_name string, _ []Expr) {
 	if fn_name == 'base' {
 		app.gen('os.base')
 	}

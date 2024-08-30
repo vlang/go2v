@@ -1,6 +1,5 @@
 module html
 
 fn abc() {
-	mut actual := a.token()
-		.string()
+	mut actual := a.token().str()
 }
