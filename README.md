@@ -9,8 +9,9 @@ Go v1.23.0
 
 Make sure `go/bin` is in your path.
 
-github.com/asty-org/asty@latest - but the code will install it for you
-the first time you run `go2v`, _if_ it can find `go` in your path.
+The latest version of [asty](https://github.com/asty-org/asty), but
+the code will install it for you the first time you run `go2v`, _if_
+it can find `go` in your path.
 
 ## Testing
 
