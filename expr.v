@@ -62,7 +62,7 @@ fn (mut app App) basic_lit(l BasicLit) {
 	}
 }
 
-// fn quoted_lit(s string, quote1 string, quote2 string) string {
+// quoted_lit(s string, quote1 string, quote2 string) string {
 fn quoted_lit(s string, quote string) string {
 	mut quote2 := quote
 	mut no_quotes := s[1..s.len - 1]
@@ -146,6 +146,5 @@ fn (mut app App) star_expr(node StarExpr) {
 }
 
 fn (mut app App) ident(node Ident) {
-	// app.gen('f=${app.force_upper}')
 	app.gen(go2v_type(app.go2v_ident(node.name)))
 }

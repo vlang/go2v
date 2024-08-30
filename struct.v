@@ -89,7 +89,7 @@ fn (mut app App) const_decl(spec ValueSpec) {
 fn (mut app App) import_spec(spec ImportSpec) {
 	name := spec.path.value.replace('"', '').replace('/', '.')
 	// Skip modules that don't exist in V (fmt, strings etc)
-	if name in unexisting_modules {
+	if name in nonexistent_modules {
 		return
 	}
 	app.genln('import ${name}')
