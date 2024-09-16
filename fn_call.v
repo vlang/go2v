@@ -49,6 +49,9 @@ fn (mut app App) call_expr(call CallExpr) {
 			app.expr(call.args[0])
 			app.genln('.str()')
 			return
+		} else if fun.name == 'make' {
+			app.expr(call.args[0])
+			return
 		}
 	}
 

@@ -62,7 +62,6 @@ fn (mut app App) basic_lit(l BasicLit) {
 	}
 }
 
-// quoted_lit(s string, quote1 string, quote2 string) string {
 fn quoted_lit(s string, quote string) string {
 	mut quote2 := quote
 	mut no_quotes := s[1..s.len - 1]
