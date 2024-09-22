@@ -40,4 +40,4 @@ jobs:
         run: v .
 
       - name: Run tests
-        run: v -g run .
+        run: v -g test .

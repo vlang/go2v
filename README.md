@@ -13,7 +13,7 @@ it can find `go` in your path.
 
 ## Testing
 
-To run the existing tests, do `v run .`
+To run the existing tests, do `v test .`
 
 To attempt a new test, specify the path to the directory as well as
 the name of the test:

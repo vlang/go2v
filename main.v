@@ -1,5 +1,7 @@
 // Copyright (c) 2024 Alexander Medvednikov. All rights reserved.
 // Use of this source code is governed by a GPL license that can be found in the LICENSE file.
+module main
+
 import os
 import term
 import strings
@@ -201,17 +203,23 @@ fn main() {
 		eprintln(err)
 		exit(1)
 	}
-
-	mut subdir := 'tests'
 	mut go_file_name := if os.args.len > 1 { os.args[1] } else { '' }
+	/*
+	if !go_file_name.ends_with('.go') {
+		eprintln("usage: go2v file.go")
+		return
+	}
+	*/
 	mut app := &App{
 		sb: strings.new_builder(1000)
 	}
-	// Not a test
 	if go_file_name.ends_with('.go') {
 		app.translate_file(go_file_name)
 		return
 	}
+
+	mut subdir := 'tests'
+
 	// A single test
 	if go_file_name != '' {
 		go_file_name = go_file_name.trim_right('/')
@@ -221,25 +229,5 @@ fn main() {
 		app.run_test(subdir, test_name)!
 		return
 	}
-	// All tests
-	mut test_names := os.ls('tests') or { return }
-	test_names.sort()
-	mut tests_ok := true
-	for test_name in test_names {
-		println('===========================================')
-		create_json(subdir, test_name)
-		// A separate instance for each test
-		mut app2 := &App{
-			sb: strings.new_builder(1000)
-		}
-		app2.run_test(subdir, test_name) or {
-			eprintln('Error running test ${test_name}: ${err}')
-			break
-		}
-		tests_ok &&= app2.tests_ok
-	}
-	// if !app.tests_ok {
-	if !tests_ok {
-		exit(1)
-	}
+	eprintln('usage: go2v file.go or go2v tests/test')
 }
