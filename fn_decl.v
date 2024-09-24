@@ -43,6 +43,7 @@ fn (mut app App) func_decl(decl FuncDecl) {
 }
 
 fn (mut app App) func_type(t FuncType) {
+	app.gen('fn ')
 	app.func_params(t.params)
 	app.func_return_type(t.results)
 }

@@ -2,7 +2,8 @@
 // Use of this source code is governed by a GPL license that can be found in the LICENSE file.
 
 fn (mut app App) gen_decl(decl GenDecl) {
-	mut needs_closer := false
+	// app.genln('// gen_decl')
+	// mut needs_closer := false
 	app.comments(decl.doc)
 	for spec in decl.specs {
 		match spec {
@@ -24,27 +25,38 @@ fn (mut app App) gen_decl(decl GenDecl) {
 			}
 			ValueSpec {
 				if spec.typ is Ident {
-					needs_closer = true
+					// needs_closer = true
 				}
 				match decl.tok {
 					'var' {
 						app.global_decl(spec)
 					}
 					else {
+						// app.genln('// VA const')
 						app.const_decl(spec)
 					}
 				}
 			}
 		}
 	}
-	if needs_closer {
+	// if needs_closer {
+	if app.is_enum_decl {
 		app.genln('}')
 	}
+	app.is_enum_decl = false
 }
 
 fn (mut app App) type_decl(spec TypeSpec) {
-	// Remember the type name for the upcoming const (enum) handler
+	// Remember the type name for the upcoming const (enum) handler if it's an enum
 	app.type_decl_name = spec.name.name
+	// TODO figure out how to diffirentiate between enums and type aliases
+	if spec.name.name == 'EnumTest' {
+		return
+	}
+	// Generate actual type alias
+	app.gen('type ${spec.name.name} = ')
+	app.typ(spec.typ)
+	app.genln('')
 }
 
 fn (mut app App) global_decl(spec ValueSpec) {
@@ -90,6 +102,10 @@ fn (mut app App) import_spec(spec ImportSpec) {
 	name := spec.path.value.replace('"', '').replace('/', '.')
 	// Skip modules that don't exist in V (fmt, strings etc)
 	if name in nonexistent_modules {
+		return
+	}
+	// TODO a temp hack
+	if name.starts_with('github') {
 		return
 	}
 	app.genln('import ${name}')

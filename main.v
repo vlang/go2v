@@ -73,7 +73,7 @@ fn (mut app App) typ(t Type) {
 			app.gen('STRUCT TYPE')
 		}
 		InterfaceType {
-			app.gen('INTERFACE TYPE')
+			app.interface_type(t)
 		}
 		FuncType {
 			app.func_type(t)
@@ -118,6 +118,8 @@ fn (mut app App) translate_file(go_file_path string) {
 	generated_v_code := app.generate_v_code(go_file)
 	v_path := go_file_path.replace('.go', '.v')
 	os.write_file(v_path, generated_v_code) or { panic(err) }
+	println('${v_path} has been successfully generated')
+	os.system('v fmt -w ${v_path}')
 }
 
 fn (mut app App) run_test(subdir string, test_name string) ! {
