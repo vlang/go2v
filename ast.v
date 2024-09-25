@@ -19,6 +19,7 @@ type Expr = InvalidExpr
 	| MapType
 	| ParenExpr
 	| SelectorExpr
+	| SliceExpr
 	| StarExpr
 	| UnaryExpr
 
@@ -267,6 +268,13 @@ struct ParenExpr {
 	x         Expr   @[json: 'X']
 }
 
+struct SliceExpr {
+	node_type string @[json: '_type']
+	x         Expr   @[json: 'X']
+	low       Expr   @[json: 'Low']
+	high      Expr   @[json: 'High']
+}
+
 struct StarExpr {
 	node_type string @[json: '_type']
 	x         Expr   @[json: 'X']
@@ -315,6 +323,7 @@ fn (e Expr) node_type() string {
 		ParenExpr { return e.node_type }
 		SelectorExpr { return e.node_type }
 		StarExpr { return e.node_type }
+		SliceExpr { return e.node_type }
 		UnaryExpr { return e.node_type }
 	}
 	return 'unknown node type'

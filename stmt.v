@@ -136,6 +136,7 @@ fn (mut app App) range_stmt(node RangeStmt) {
 	}
 	app.gen(' in ')
 	app.expr(node.x)
+	app.gen(' ')
 	app.block_stmt(node.body)
 }
 
@@ -155,6 +156,10 @@ fn (mut app App) decl_stmt(d DeclStmt) {
 							app.gen(spec.names[0].name)
 							app.gen(' := ')
 							mut kind := 'int'
+							if spec.values.len == 0 {
+								app.genln('NO SPEC VALUES')
+								continue
+							}
 							value := spec.values[0]
 							match value {
 								BasicLit {
@@ -190,8 +195,12 @@ fn (mut app App) defer_stmt(node DeferStmt) {
 	// `defer fn() { ... } ()
 	// empty function, just generate `defer { ... }` in V
 	if node.call is CallExpr && node.call.args.len == 0 {
-		func_lit := node.call.fun as FuncLit
-		app.block_stmt(func_lit.body)
+		if node.call.fun is FuncLit {
+			func_lit := node.call.fun as FuncLit
+			app.block_stmt(func_lit.body)
+		} else {
+			app.genln('// UNKNOWN node.call.fun ${typeof(node.call.fun).name}')
+		}
 	} else {
 		app.genln('{')
 		app.expr(node.call)

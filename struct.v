@@ -48,13 +48,14 @@ fn (mut app App) gen_decl(decl GenDecl) {
 
 fn (mut app App) type_decl(spec TypeSpec) {
 	// Remember the type name for the upcoming const (enum) handler if it's an enum
-	app.type_decl_name = spec.name.name
+	name := spec.name.name
+	app.type_decl_name = name
 	// TODO figure out how to diffirentiate between enums and type aliases
-	if spec.name.name == 'EnumTest' {
+	if name == 'EnumTest' {
 		return
 	}
 	// Generate actual type alias
-	app.gen('type ${spec.name.name} = ')
+	app.gen('type ${name} = ')
 	app.typ(spec.typ)
 	app.genln('')
 }
@@ -98,10 +99,17 @@ fn (mut app App) const_decl(spec ValueSpec) {
 	}
 }
 
+const master_module_path = 'github.com.evanw.esbuild.internal' // TODO hardcoded
+
 fn (mut app App) import_spec(spec ImportSpec) {
 	name := spec.path.value.replace('"', '').replace('/', '.')
 	// Skip modules that don't exist in V (fmt, strings etc)
 	if name in nonexistent_modules {
+		return
+	}
+	if name.starts_with(master_module_path) {
+		n := name.replace(master_module_path, '')
+		app.genln('import ${n[1..]} // local module')
 		return
 	}
 	// TODO a temp hack
@@ -123,7 +131,7 @@ fn (mut app App) struct_decl(struct_name string, spec StructType) {
 			app.gen(' ')
 			app.force_upper = true
 			app.typ(field.typ)
-			if field.typ is StarExpr {
+			if field.typ in [StarExpr, FuncType] {
 				app.gen(' = unsafe { nil }')
 			}
 			app.genln('')
@@ -147,6 +155,10 @@ fn (mut app App) interface_decl(interface_name string, spec InterfaceType) {
 	app.genln('}\n')
 }
 
+// Foo{bar:baz}
+// config.Foo{bar:baz}
+// []int{1,2,3}
+// map[string]int{"foo":1}
 fn (mut app App) composite_lit(c CompositeLit) {
 	// if c.typ.name != '' {
 	// 	app.struct_init(c)
@@ -162,8 +174,15 @@ fn (mut app App) composite_lit(c CompositeLit) {
 		MapType {
 			app.map_init(c)
 		}
+		SelectorExpr {
+			app.force_upper = true
+			app.selector_expr(c.typ)
+			app.force_upper = false
+			app.map_init(c) // loops thru each key_value_expr TODO method needs renaming
+		}
 		else {
-			app.gen('// UNHANDLED CompositeLit type')
+			// app.gen('// UNHANDLED CompositeLit type ${typeof(c.typ).name}')
+			app.genln('// UNHANDLED CompositeLit type  ${c.typ.type_name()} strtyp="${c.typ}"')
 		}
 	}
 }

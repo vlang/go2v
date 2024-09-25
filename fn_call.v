@@ -14,6 +14,8 @@ fn (mut app App) call_expr(call CallExpr) {
 				is_println = true
 			} else if fun.sel.name == 'len' {
 				app.genln('LEN')
+			} else {
+				// mod.fn_call() is handled lower
 			}
 		}
 	} else if fun is Ident {
@@ -50,7 +52,7 @@ fn (mut app App) call_expr(call CallExpr) {
 			app.genln('.str()')
 			return
 		} else if fun.name == 'make' {
-			app.expr(call.args[0])
+			app.make_call(call)
 			return
 		}
 	}
@@ -138,6 +140,19 @@ fn (mut app App) selector_expr_fn_call(call CallExpr, sel SelectorExpr) {
 	app.gen(sel_name)
 }
 
+fn (mut app App) make_call(call CallExpr) {
+	// app.genln('//make ${call.fun.type_name()} ar0=${call.args[0].type_name()}')
+	app.expr(call.args[0])
+	// cap + len
+	if call.args.len == 3 {
+		app.gen('{ len: ')
+		app.expr(call.args[1])
+		app.gen(', cap: ')
+		app.expr(call.args[2])
+		app.gen(' }')
+	}
+}
+
 fn (mut app App) handle_nonexistent_module_call(mod_name string, fn_name string, node CallExpr) {
 	match mod_name {
 		'strings' {
@@ -145,6 +160,9 @@ fn (mut app App) handle_nonexistent_module_call(mod_name string, fn_name string,
 		}
 		'path' {
 			app.handle_path_call(app.go2v_ident(fn_name), node.args)
+		}
+		'fmt' {
+			app.handle_fmt_call(app.go2v_ident(fn_name), node.args)
 		}
 		else {}
 	}
@@ -161,5 +179,15 @@ fn (mut app App) handle_strings_call(fn_name string, args []Expr) {
 fn (mut app App) handle_path_call(fn_name string, _ []Expr) {
 	if fn_name == 'base' {
 		app.gen('os.base')
+	}
+}
+
+fn (mut app App) handle_fmt_call(fn_name string, _ []Expr) {
+	// app.genln('//fmt_call fn_name=${fn_name}')
+	match fn_name {
+		'sprintf' {
+			app.gen('strconv.v_sprintf')
+		}
+		else {}
 	}
 }

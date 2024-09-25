@@ -28,6 +28,7 @@ fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
 	//
 	app.gen(assign.tok)
 	for r_idx, rhs_expr in assign.rhs {
+		// app.gen('ridx=${r_idx}')
 		mut needs_close_paren := false
 		if r_idx == 0 {
 			rhs := rhs_expr

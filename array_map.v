@@ -86,6 +86,7 @@ fn (mut app App) map_init(node CompositeLit) {
 	for elt in node.elts {
 		kv := elt as KeyValueExpr
 		app.key_value_expr(kv)
+		app.genln('')
 	}
 	app.gen('}')
 }

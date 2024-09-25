@@ -49,6 +49,9 @@ fn (mut app App) expr(expr Expr) {
 			app.func_lit(expr)
 		}
 		Ellipsis {}
+		SliceExpr {
+			app.slice_expr(expr)
+		}
 	}
 }
 
@@ -68,6 +71,9 @@ fn quoted_lit(s string, quote string) string {
 	// Use "" quotes if the string literal contains '
 	if quote2 == "'" && no_quotes.contains("'") && !no_quotes.contains('"') {
 		// no_quotes = no_quotes.replace(
+		quote2 = '"'
+	}
+	if s.contains('\\"') {
 		quote2 = '"'
 	}
 
@@ -123,25 +129,55 @@ fn (mut app App) key_value_expr(expr KeyValueExpr) {
 }
 
 fn (mut app App) array_type(node ArrayType) {
-	if node.elt is Ident {
-		app.gen('[]${go2v_type(node.elt.name)}')
-	} else if node.elt is StarExpr {
-		app.gen('[]')
-		app.star_expr(node.elt)
-		// app.gen('[]&${node.elt.name}')
+	match node.elt {
+		Ident {
+			app.gen('[]${go2v_type(node.elt.name)}')
+		}
+		StarExpr {
+			app.gen('[]')
+			app.star_expr(node.elt)
+			// app.gen('[]&${node.elt.name}')
+		}
+		SelectorExpr {
+			app.gen('[]')
+			app.force_upper = true
+			app.selector_expr(node.elt)
+			app.force_upper = false
+		}
+		else {
+			app.gen('UNKNOWN ELT ${node.elt.type_name()}')
+		}
 	}
 }
 
 fn (mut app App) map_type(node MapType) {
+	app.force_upper = true
 	app.gen('map[')
 	app.expr(node.key)
 	app.gen(']')
+	app.force_upper = true
 	app.expr(node.val)
+	app.force_upper = false
 }
 
 fn (mut app App) star_expr(node StarExpr) {
 	app.gen('&')
 	app.expr(node.x)
+}
+
+fn (mut app App) slice_expr(node SliceExpr) {
+	app.expr(node.x)
+	app.gen('[')
+	if node.low is InvalidExpr {
+	} else {
+		app.expr(node.low)
+	}
+	app.gen('..')
+	if node.high is InvalidExpr {
+	} else {
+		app.expr(node.high)
+	}
+	app.gen(']')
 }
 
 fn (mut app App) ident(node Ident) {
