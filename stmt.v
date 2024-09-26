@@ -157,7 +157,9 @@ fn (mut app App) decl_stmt(d DeclStmt) {
 							app.gen(' := ')
 							mut kind := 'int'
 							if spec.values.len == 0 {
-								app.genln('NO SPEC VALUES')
+								// app.genln('NO SPEC VALUES')
+								// `var x int` declaration without initialization
+								app.gen_zero_value(spec.typ)
 								continue
 							}
 							value := spec.values[0]
@@ -191,15 +193,19 @@ fn (mut app App) decl_stmt(d DeclStmt) {
 
 fn (mut app App) defer_stmt(node DeferStmt) {
 	// print_backtrace()
-	app.gen('defer')
+	app.gen('defer ')
 	// `defer fn() { ... } ()
 	// empty function, just generate `defer { ... }` in V
+
 	if node.call is CallExpr && node.call.args.len == 0 {
 		if node.call.fun is FuncLit {
 			func_lit := node.call.fun as FuncLit
 			app.block_stmt(func_lit.body)
 		} else {
-			app.genln('// UNKNOWN node.call.fun ${typeof(node.call.fun).name}')
+			app.genln('{')
+			app.expr(node.call.fun) // TODO broken no () after foo.bar
+			app.genln('}')
+			// app.genln('// UNKNOWN node.call.fun ${node.call.fun.type_name()}')
 		}
 	} else {
 		app.genln('{')
@@ -216,6 +222,7 @@ fn (mut app App) return_stmt(node ReturnStmt) {
 			app.gen(',')
 		}
 	}
+	app.genln('')
 }
 
 // continue break etc

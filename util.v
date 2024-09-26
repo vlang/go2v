@@ -67,7 +67,7 @@ fn (mut app App) go2v_ident(ident string) string {
 	*/
 }
 
-const v_keywords_which_are_not_go_keywords = ['match']
+const v_keywords_which_are_not_go_keywords = ['match', 'lock', 'fn']
 
 fn go2v_ident2(ident string) string {
 	x := ident.camel_to_snake() // to_lower()) // TODO ?

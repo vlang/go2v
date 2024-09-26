@@ -191,7 +191,10 @@ fn (mut app App) struct_init(c CompositeLit) {
 	typ := c.typ
 	match typ {
 		Ident {
-			app.genln('${typ.name}{')
+			app.gen('${typ.name}{')
+			if c.elts.len > 0 {
+				app.genln('')
+			}
 			for elt in c.elts {
 				app.expr(elt)
 				app.genln('')

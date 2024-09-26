@@ -52,6 +52,9 @@ fn (mut app App) expr(expr Expr) {
 		SliceExpr {
 			app.slice_expr(expr)
 		}
+		FuncType {
+			app.func_type(expr)
+		}
 	}
 }
 
@@ -143,6 +146,10 @@ fn (mut app App) array_type(node ArrayType) {
 			app.force_upper = true
 			app.selector_expr(node.elt)
 			app.force_upper = false
+		}
+		FuncType {
+			app.gen('[]')
+			app.func_type(node.elt)
 		}
 		else {
 			app.gen('UNKNOWN ELT ${node.elt.type_name()}')

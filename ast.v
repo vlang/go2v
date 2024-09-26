@@ -7,6 +7,7 @@ type Decls = FuncDecl | GenDecl
 
 type Expr = InvalidExpr
 	| ArrayType
+	| FuncType
 	| BasicLit
 	| BinaryExpr
 	| CallExpr
@@ -325,6 +326,7 @@ fn (e Expr) node_type() string {
 		StarExpr { return e.node_type }
 		SliceExpr { return e.node_type }
 		UnaryExpr { return e.node_type }
+		FuncType { return e.node_type }
 	}
 	return 'unknown node type'
 }

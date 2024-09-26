@@ -119,7 +119,7 @@ fn (mut app App) translate_file(go_file_path string) {
 	v_path := go_file_path.replace('.go', '.v')
 	os.write_file(v_path, generated_v_code) or { panic(err) }
 	println('${v_path} has been successfully generated')
-	os.system('v fmt -w ${v_path}')
+	os.system('v -translated-go fmt -w ${v_path}')
 }
 
 fn (mut app App) run_test(subdir string, test_name string) ! {

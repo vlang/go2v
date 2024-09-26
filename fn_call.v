@@ -150,6 +150,8 @@ fn (mut app App) make_call(call CallExpr) {
 		app.gen(', cap: ')
 		app.expr(call.args[2])
 		app.gen(' }')
+	} else {
+		app.gen('{}')
 	}
 }
 
@@ -188,6 +190,8 @@ fn (mut app App) handle_fmt_call(fn_name string, _ []Expr) {
 		'sprintf' {
 			app.gen('strconv.v_sprintf')
 		}
-		else {}
+		else {
+			app.gen('strconv.' + fn_name)
+		}
 	}
 }
