@@ -4,7 +4,7 @@
 fn (mut app App) func_decl(decl FuncDecl) {
 	app.genln('')
 	app.comments(decl.doc)
-	method_name := decl.name.name.to_lower()
+	method_name := app.go2v_ident(decl.name.name) // decl.name.name.to_lower()
 	// Capital? Then it's public in Go
 	is_pub := decl.name.name[0].is_capital()
 	if is_pub {
