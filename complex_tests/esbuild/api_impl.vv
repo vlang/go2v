@@ -1,0 +1,2273 @@
+module api
+
+import bytes
+import encoding.base64
+import encoding.binary
+import errors
+import io.ioutil
+import math
+import os
+import regexp
+import sort
+import strconv
+import sync
+import time
+import unicode.utf8
+import api_helpers // local module
+import ast // local module
+import bundler // local module
+import cache // local module
+import compat // local module
+import config // local module
+import css_ast // local module
+import fs // local module
+import graph // local module
+import helpers // local module
+import js_ast // local module
+import js_parser // local module
+import linker // local module
+import logger // local module
+import resolver // local module
+import xxhash // local module
+
+fn validate_path_template(template string) []config.PathTemplate {
+	if template == '' {
+		return nil
+	}
+	template = './' + template.replace_all('\\', '/')
+	mut parts := []config.PathTemplate{len: 0, cap: 4}
+	mut search := isize(0)
+	for search < template.len {
+		mut found := template[search..].index_byte(`[`)
+		if found == -1 {
+			break
+		} else {
+			search += found
+		}
+		mut head, tail := template[..search], template[search..]
+		mut placeholder := config.no_placeholder
+		if tail.has_prefix('[dir]') {
+			placeholder = config.dir_placeholder
+			search += '[dir]'.len
+		} else if tail.has_prefix('[name]') {
+			placeholder = config.name_placeholder
+			search += '[name]'.len
+		} else if tail.has_prefix('[hash]') {
+			placeholder = config.hash_placeholder
+			search += '[hash]'.len
+		} else if tail.has_prefix('[ext]') {
+			placeholder = config.ext_placeholder
+			search += '[ext]'.len
+		} else {
+			search++
+			continue
+		}
+		parts << config.PathTemplate{
+			Data:        head
+			Placeholder: placeholder
+		}
+		template = template[search..]
+		search = isize(0)
+	}
+	if search < template.len {
+		parts << config.PathTemplate{
+			Data:        template
+			Placeholder: config.no_placeholder
+		}
+	}
+	return parts
+}
+
+fn validate_platform(value Platform) config.Platform {
+	match value {
+		platform_default {
+			return config.platform_browser
+		}
+		platform_browser {
+			return config.platform_browser
+		}
+		platform_node {
+			return config.platform_node
+		}
+		platform_neutral {
+			return config.platform_neutral
+		}
+		else {
+			panic('Invalid platform')
+		}
+	}
+}
+
+fn validate_format(value Format) config.Format {
+	match value {
+		format_default {
+			return config.format_preserve
+		}
+		format_iife {
+			return config.format_iife
+		}
+		format_common_js {
+			return config.format_common_js
+		}
+		format_esm_odule {
+			return config.format_esm_odule
+		}
+		else {
+			panic('Invalid format')
+		}
+	}
+}
+
+fn validate_source_map(value SourceMap) config.SourceMap {
+	match value {
+		source_map_none {
+			return config.source_map_none
+		}
+		source_map_linked {
+			return config.source_map_linked_with_comment
+		}
+		source_map_inline {
+			return config.source_map_inline
+		}
+		source_map_external {
+			return config.source_map_external_without_comment
+		}
+		source_map_inline_and_external {
+			return config.source_map_inline_and_external
+		}
+		else {
+			panic('Invalid source map')
+		}
+	}
+}
+
+fn validate_legal_comments(value LegalComments, bundle bool) config.LegalComments {
+	match value {
+		legal_comments_default {
+			if bundle {
+				return config.legal_comments_end_of_file
+			} else {
+				return config.legal_comments_inline
+			}
+		}
+		legal_comments_none {
+			return config.legal_comments_none
+		}
+		legal_comments_inline {
+			return config.legal_comments_inline
+		}
+		legal_comments_end_of_file {
+			return config.legal_comments_end_of_file
+		}
+		legal_comments_linked {
+			return config.legal_comments_linked_with_comment
+		}
+		legal_comments_external {
+			return config.legal_comments_external_without_comment
+		}
+		else {
+			panic('Invalid source map')
+		}
+	}
+}
+
+fn validate_color(value StderrColor) logger.UseColor {
+	match value {
+		color_if_terminal {
+			return logger.color_if_terminal
+		}
+		color_never {
+			return logger.color_never
+		}
+		color_always {
+			return logger.color_always
+		}
+		else {
+			panic('Invalid color')
+		}
+	}
+}
+
+fn validate_log_level(value LogLevel) logger.LogLevel {
+	match value {
+		log_level_verbose {
+			return logger.level_verbose
+		}
+		log_level_debug {
+			return logger.level_debug
+		}
+		log_level_info {
+			return logger.level_info
+		}
+		log_level_warning {
+			return logger.level_warning
+		}
+		log_level_error {
+			return logger.level_error
+		}
+		log_level_silent {
+			return logger.level_silent
+		}
+		else {
+			panic('Invalid log level')
+		}
+	}
+}
+
+fn validate_asciio_nly(value Charset) bool {
+	match value {
+		charset_default, charset_ascii {
+			return true
+		}
+		charset_utf_8 {
+			return false
+		}
+		else {
+			panic('Invalid charset')
+		}
+	}
+}
+
+fn validate_external_packages(value Packages) bool {
+	match value {
+		packages_default, packages_bundle {
+			return false
+		}
+		packages_external {
+			return true
+		}
+		else {
+			panic('Invalid packages')
+		}
+	}
+}
+
+fn validate_tree_shaking(value TreeShaking, bundle bool, format Format) bool {
+	match value {
+		tree_shaking_default {
+			return bundle || format == format_iife
+		}
+		tree_shaking_false {
+			return false
+		}
+		tree_shaking_true {
+			return true
+		}
+		else {
+			panic('Invalid tree shaking')
+		}
+	}
+}
+
+fn validate_loader(value Loader) config.Loader {
+	match value {
+		loader_base64 {
+			return config.loader_base64
+		}
+		loader_binary {
+			return config.loader_binary
+		}
+		loader_copy {
+			return config.loader_copy
+		}
+		loader_css {
+			return config.loader_css
+		}
+		loader_data_url {
+			return config.loader_data_url
+		}
+		loader_default {
+			return config.loader_default
+		}
+		loader_empty {
+			return config.loader_empty
+		}
+		loader_file {
+			return config.loader_file
+		}
+		loader_global_css {
+			return config.loader_global_css
+		}
+		loader_js {
+			return config.loader_js
+		}
+		loader_json {
+			return config.loader_json
+		}
+		loader_jsx {
+			return config.loader_jsx
+		}
+		loader_local_css {
+			return config.loader_local_css
+		}
+		loader_none {
+			return config.loader_none
+		}
+		loader_text {
+			return config.loader_text
+		}
+		loader_ts {
+			return config.loader_ts
+		}
+		loader_tsx {
+			return config.loader_tsx
+		}
+		else {
+			panic('Invalid loader')
+		}
+	}
+}
+
+__global versionRegex STRUCT
+TYPE
+
+fn validate_features(log logger.Log, target Target, engines []Engine) (compat.JSFeature, compat.CSSFeature, map[css_ast.D]compat.CSSPrefix, string) {
+	if target == default_target && engines.len == 0 {
+		return 0, 0, nil, ''
+	}
+	mut constraints := map[compat.Engine]compat.Semver{}
+	mut targets := []string{len: 0, cap: 1 + engines.len}
+	match target {
+		es_5 {
+			constraints[compat.es] = compat.Semver{
+				Parts: [isize(5)]
+			}
+		}
+		es_2015 {
+			constraints[compat.es] = compat.Semver{
+				Parts: [isize(2015)]
+			}
+		}
+		es_2016 {
+			constraints[compat.es] = compat.Semver{
+				Parts: [isize(2016)]
+			}
+		}
+		es_2017 {
+			constraints[compat.es] = compat.Semver{
+				Parts: [isize(2017)]
+			}
+		}
+		es_2018 {
+			constraints[compat.es] = compat.Semver{
+				Parts: [isize(2018)]
+			}
+		}
+		es_2019 {
+			constraints[compat.es] = compat.Semver{
+				Parts: [isize(2019)]
+			}
+		}
+		es_2020 {
+			constraints[compat.es] = compat.Semver{
+				Parts: [isize(2020)]
+			}
+		}
+		es_2021 {
+			constraints[compat.es] = compat.Semver{
+				Parts: [isize(2021)]
+			}
+		}
+		es_2022 {
+			constraints[compat.es] = compat.Semver{
+				Parts: [isize(2022)]
+			}
+		}
+		es_2023 {
+			constraints[compat.es] = compat.Semver{
+				Parts: [isize(2023)]
+			}
+		}
+		es_2024 {
+			constraints[compat.es] = compat.Semver{
+				Parts: [isize(2024)]
+			}
+		}
+		esn_ext, default_target {}
+		else {
+			panic('Invalid target')
+		}
+	}
+	for _, engine in engines {
+		mut match_ := version_regex.findstringsubmatch(engine.version)
+		if match_ != nil {
+			mut major, err := strconv.atoi(match_[1])
+			if err == nil {
+				mut parts := [isize(major)]
+				mut minor, err := strconv.atoi(match_[2])
+				if err == nil {
+					parts << minor
+					mut patch, err := strconv.atoi(match_[3])
+					if err == nil {
+						parts << patch
+					}
+				}
+				constraints[convert_engine_name(engine.name)] = compat.Semver{
+					Parts:      parts
+					PreRelease: match_[4]
+				}
+				continue
+			}
+		}
+		mut text := 'All version numbers passed to esbuild must be in the format "X", "X.Y", or "X.Y.Z" where X, Y, and Z are non-negative integers.'
+		log.adderrorwithnotes(nil, logger.Range{}, strconv.v_sprintf('Invalid version: %q',
+			engine.version), [logger.MsgData{
+			Text: text
+		}])
+	}
+	for engine, version in constraints {
+		targets << engine.str() + version.str()
+	}
+	if target == esn_ext {
+		targets << 'esnext'
+	}
+	sort.strings(targets)
+	mut target_env := helpers.stringarraytoquotedcommaseparatedstring(targets)
+	return compat.unsupportedjsfeatures(constraints), compat.unsupportedcssfeatures(constraints), compat.cssprefixdata(constraints), target_env
+}
+
+fn validate_supported(log logger.Log, supported map[string]bool) (compat.JSFeature, compat.JSFeature, compat.CSSFeature, compat.CSSFeature) {
+	for k, v in supported {
+		mut js, ok := compat.string_to_jsf_eature[k]
+		if ok {
+			js_mask |= js
+			if !v {
+				js_feature |= js
+			}
+		} else {
+			mut css, ok := compat.string_to_cssf_eature[k]
+			if ok {
+				css_mask |= css
+				if !v {
+					css_feature |= css
+				}
+			} else {
+				log.adderror(nil, logger.Range{}, strconv.v_sprintf('%q is not a valid feature name for the "supported" setting',
+					k))
+			}
+		}
+	}
+	return
+}
+
+fn validate_global_name(log logger.Log, text string) []string {
+	if text != '' {
+		mut source := logger.Source{
+			KeyPath:    logger.Path{
+				Text: '(global path)'
+			}
+			PrettyPath: '(global name)'
+			Contents:   text
+		}
+		mut result, ok := js_parser.parseglobalname(log, source)
+		if ok {
+			return result
+		}
+	}
+	return nil
+}
+
+fn validate_regex(log logger.Log, what string, value string) &regexp.Regexp {
+	if value == '' {
+		return nil
+	}
+	mut regex, err := regexp.compile(value)
+	if err != nil {
+		log.adderror(nil, logger.Range{}, strconv.v_sprintf('The %q setting is not a valid Go regular expression: %s',
+			what, value))
+		return nil
+	}
+	return regex
+}
+
+fn validate_externals(log logger.Log, fs fs.FS, paths []string) config.ExternalSettings {
+	mut result := config.ExternalSettings{
+		PreResolve:  config.ExternalMatchers{
+			Exact: map[string]bool{}
+		}
+		PostResolve: config.ExternalMatchers{
+			Exact: map[string]bool{}
+		}
+	}
+	for _, path in paths {
+		mut index := path.index_byte(`*`)
+		if index != -1 {
+			if path[index + 1..].contains_rune(`*`) {
+				log.adderror(nil, logger.Range{}, strconv.v_sprintf('External path %q cannot have more than one "*" wildcard',
+					path))
+			} else {
+				result.pre_resolve.patterns << config.WildcardPattern{
+					Prefix: path[..index]
+					Suffix: path[index + 1..]
+				}
+				if !resolver.ispackagepath(path) {
+					mut abs_path := validate_path(log, fs, path, 'external path')
+					if abs_path != '' {
+						mut abs_index := abs_path.index_byte(`*`)
+						if abs_index != -1 && !abs_path[abs_index + 1..].contains_rune(`*`) {
+							result.post_resolve.patterns << config.WildcardPattern{
+								Prefix: abs_path[..abs_index]
+								Suffix: abs_path[abs_index + 1..]
+							}
+						}
+					}
+				}
+			}
+		} else {
+			result.pre_resolve.exact[path] = true
+			if resolver.ispackagepath(path) {
+				result.pre_resolve.patterns << config.WildcardPattern{
+					Prefix: path + '/'
+				}
+			} else {
+				mut abs_path := validate_path(log, fs, path, 'external path')
+				if abs_path != '' {
+					result.post_resolve.exact[abs_path] = true
+				}
+			}
+		}
+	}
+	return result
+}
+
+fn validate_alias(log logger.Log, fs fs.FS, alias map[string]string) map[string]string {
+	mut valid := map[string]string{}
+	for old, new in alias {
+		if new == '' {
+			log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid alias substitution: %q',
+				new))
+			continue
+		}
+		if !old.has_prefix('.') && !old.has_prefix('/') && !fs.isabs(old)
+			&& (old.replace_all('\\', '/')) == old {
+			valid[old] = new
+			continue
+		}
+		log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid alias name: %q',
+			old))
+	}
+	return valid
+}
+
+fn is_valid_extension(ext string) bool {
+	return ext.len >= 2 && ext[0] == `.` && ext[ext.len - 1] != `.`
+}
+
+fn validate_resolve_extensions(log logger.Log, order []string) []string {
+	if order == nil {
+		return ['.tsx', '.ts', '.jsx', '.js', '.css', '.json']
+	}
+	for _, ext in order {
+		if !is_valid_extension(ext) {
+			log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid file extension: %q',
+				ext))
+		}
+	}
+	return order
+}
+
+fn validate_loaders(log logger.Log, loaders map[string]Loader) map[string]config.Loader {
+	mut result := bundler.defaultextensiontoloadermap()
+	for ext, loader in loaders {
+		if ext != '' && !is_valid_extension(ext) {
+			log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid file extension: %q',
+				ext))
+		}
+		result[ext] = validate_loader(loader)
+	}
+	return result
+}
+
+fn validate_jsxe_xpr(log logger.Log, text string, name string) config.DefineExpr {
+	if text != '' {
+		mut expr, _ := js_parser.parsedefineexprorjson(text)
+		if expr.parts.len > 0 || name == 'fragment' && expr.constant != nil {
+			return expr
+		}
+		log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid JSX %s: %q', name,
+			text))
+	}
+	return config.DefineExpr{}
+}
+
+fn validate_defines(log logger.Log, defines map[string]string, pureFns []string, platform config.Platform, isBuildAPI bool, minify bool, drop Drop) (&config.ProcessedDefines, []config.InjectedDefine) {
+	mut raw_defines := map[string]config.DefineData{}
+	mut valueToInject := map[string]config.InjectedDefine{}
+	mut definesToInject := []string{}
+	for key, value in defines {
+		for _, part in key.split('.') {
+			if !js_ast.isidentifier(part) {
+				if part == key {
+					log.adderror(nil, logger.Range{}, strconv.v_sprintf('The define key %q must be a valid identifier',
+						key))
+				} else {
+					log.adderror(nil, logger.Range{}, strconv.v_sprintf('The define key %q contains invalid identifier %q',
+						key, part))
+				}
+				continue
+			}
+		}
+		mut define_expr, inject_expr := js_parser.parsedefineexprorjson(value)
+		if define_expr.constant != nil || define_expr.parts.len > 0 {
+			raw_defines[key] = config.DefineData{
+				DefineExpr: &define_expr
+			}
+			if define_expr.parts.len == 1 && key == 'process.env.NODE_ENV' {
+				mut data := logger.MsgData{
+					Text: strconv.v_sprintf('%q is defined as an identifier instead of a string (surround %q with quotes to get a string)',
+						key, value)
+				}
+				mut part := define_expr.parts[0]
+				match logger.api {
+					logger.cliapi {
+						data.location = &logger.MsgLocation{
+							File:       '<cli>'
+							Line:       1
+							Column:     30
+							Length:     part.len
+							LineText:   strconv.v_sprintf('--define:process.env.NODE_ENV=%s',
+								part)
+							Suggestion: strconv.v_sprintf('\\"%s\\"', part)
+						}
+					}
+					logger.jsapi {
+						data.location = &logger.MsgLocation{
+							File:       '<js>'
+							Line:       1
+							Column:     34
+							Length:     part.len + 2
+							LineText:   strconv.v_sprintf("define: { 'process.env.NODE_ENV': '%s' }",
+								part)
+							Suggestion: strconv.v_sprintf('\'"%s"\'', part)
+						}
+					}
+					logger.go_api {
+						data.location = &logger.MsgLocation{
+							File:       '<go>'
+							Line:       1
+							Column:     50
+							Length:     part.len + 2
+							LineText:   strconv.v_sprintf('Define: map[string]string{"process.env.NODE_ENV": "%s"}',
+								part)
+							Suggestion: strconv.v_sprintf('"\\"%s\\""', part)
+						}
+					}
+				}
+				log.addmsgid(logger.msg_id_js_suspicious_define, logger.Msg{
+					Kind: logger.warning
+					Data: data
+				})
+			}
+			continue
+		}
+		if inject_expr != nil {
+			defines_to_inject << key
+			if value_to_inject == nil {
+				value_to_inject = map[string]config.InjectedDefine{}
+			}
+			value_to_inject[key] = config.InjectedDefine{
+				Source: logger.Source{
+					Contents: value
+				}
+				Data:   inject_expr
+				Name:   key
+			}
+			continue
+		}
+		log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid define value (must be an entity name or valid JSON syntax): %s',
+			value))
+	}
+	mut injectedDefines := []config.InjectedDefine{}
+	if defines_to_inject.len > 0 {
+		injected_defines = []config.InjectedDefine{}
+		sort.strings(defines_to_inject)
+		for i, key in defines_to_inject {
+			injected_defines[i] = value_to_inject[key]
+			raw_defines[key] = config.DefineData{
+				DefineExpr: &config.DefineExpr{
+					InjectedDefineIndex: ast.makeindex32(u32(i))
+				}
+			}
+		}
+	}
+	if is_build_api && platform == config.platform_browser {
+		_, process := raw_defines['process']
+		if !process {
+			_, process_env := raw_defines['process.env']
+			if !process_env {
+				_, process_env_node_env := raw_defines['process.env.NODE_ENV']
+				if !process_env_node_env {
+					mut value := []u16{}
+					if minify {
+						value = helpers.stringtoutf16('production')
+					} else {
+						value = helpers.stringtoutf16('development')
+					}
+					raw_defines['process.env.NODE_ENV'] = config.DefineData{
+						DefineExpr: &config.DefineExpr{
+							Constant: &js_ast.EString{
+								Value: value
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	if (drop & drop_console) != 0 {
+		mut define := raw_defines['console']
+		define.flags |= config.method_calls_must_be_replaced_with_undefined
+		raw_defines['console'] = define
+	}
+	for _, key in pure_fns {
+		for _, part in key.split('.') {
+			if !js_ast.isidentifier(part) {
+				log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid pure function: %q',
+					key))
+				continue
+			}
+		}
+		mut define := raw_defines[key]
+		define.flags |= config.call_can_be_unwrapped_if_unused
+		raw_defines[key] = define
+	}
+	mut processed := config.processdefines(raw_defines)
+	return &processed, injected_defines
+}
+
+fn validate_log_overrides(input map[string]LogLevel) map[logger.MsgID]logger.LogLevel {
+	output = map[u8]logger.LogLevel{}
+	for k, v in input {
+		logger.stringtomsgids(k, validate_log_level(v), output)
+	}
+	return
+}
+
+fn validate_path(log logger.Log, fs fs.FS, relPath string, pathKind string) string {
+	if rel_path == '' {
+		return ''
+	}
+	mut abs_path, ok := fs.abs(rel_path)
+	if !ok {
+		log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid %s: %s', path_kind,
+			rel_path))
+	}
+	return abs_path
+}
+
+fn validate_output_extensions(log logger.Log, outExtensions map[string]string) (string, string) {
+	for key, value in out_extensions {
+		if !is_valid_extension(value) {
+			log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid output extension: %q',
+				value))
+		}
+		match key {
+			'.js' {
+				js = value
+			}
+			'.css' {
+				css = value
+			}
+			else {
+				log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid output extension: %q (valid: .css, .js)',
+					key))
+			}
+		}
+	}
+	return
+}
+
+fn validate_banner_or_footer(log logger.Log, name string, values map[string]string) (string, string) {
+	for key, value in values {
+		match key {
+			'js' {
+				js = value
+			}
+			'css' {
+				css = value
+			}
+			else {
+				log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid %s file type: %q (valid: css, js)',
+					name, key))
+			}
+		}
+	}
+	return
+}
+
+fn validate_keep_names(log logger.Log, options &config.Options) {
+	if options.keep_names && options.unsupported_jsf_eatures.has(compat.function_name_configurable) {
+		mut where := config.prettyprinttargetenvironment(options.original_target_env,
+			options.unsupported_jsf_eature_overrides_mask)
+		log.adderrorwithnotes(nil, logger.Range{}, strconv.v_sprintf('The "keep names" setting cannot be used with %s',
+			where), [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+		])
+	}
+}
+
+fn convert_location_to_public(loc &logger.MsgLocation) &Location {
+	if loc != nil {
+		return &Location{
+			File:       loc.file
+			Namespace:  loc.namespace
+			Line:       loc.line
+			Column:     loc.column
+			Length:     loc.length
+			LineText:   loc.line_text
+			Suggestion: loc.suggestion
+		}
+	}
+	return nil
+}
+
+fn convert_messages_to_public(kind logger.MsgKind, msgs []logger.Msg) []Message {
+	mut filtered := []Message{}
+	for _, msg in msgs {
+		if msg.kind == kind {
+			mut notes := []Note{}
+			for _, note in msg.notes {
+				notes << Note{
+					Text:     note.text
+					Location: convert_location_to_public(note.location)
+				}
+			}
+			filtered << Message{
+				ID:         logger.msgidtostring(msg.id)
+				PluginName: msg.plugin_name
+				Text:       msg.data.text
+				Location:   convert_location_to_public(msg.data.location)
+				Notes:      notes
+				Detail:     msg.data.user_detail
+			}
+		}
+	}
+	return filtered
+}
+
+fn convert_location_to_internal(loc &Location) &logger.MsgLocation {
+	if loc != nil {
+		mut namespace := loc.namespace
+		if namespace == '' {
+			namespace = 'file'
+		}
+		return &logger.MsgLocation{
+			File:       loc.file
+			Namespace:  namespace
+			Line:       loc.line
+			Column:     loc.column
+			Length:     loc.length
+			LineText:   loc.line_text
+			Suggestion: loc.suggestion
+		}
+	}
+	return nil
+}
+
+fn convert_messages_to_internal(msgs []logger.Msg, kind logger.MsgKind, messages []Message) []logger.Msg {
+	for _, message in messages {
+		mut notes := []logger.MsgData{}
+		for _, note in message.notes {
+			notes << logger.MsgData{
+				Text:     note.text
+				Location: convert_location_to_internal(note.location)
+			}
+		}
+		msgs << logger.Msg{
+			ID:         logger.stringtomaximummsgid(message.id)
+			PluginName: message.plugin_name
+			Kind:       kind
+			Data:       logger.MsgData{
+				Text:       message.text
+				Location:   convert_location_to_internal(message.location)
+				UserDetail: message.detail
+			}
+			Notes:      notes
+		}
+	}
+	return msgs
+}
+
+fn convert_errors_and_warnings_to_internal(errors []Message, warnings []Message) []logger.Msg {
+	if errors.len + warnings.len > 0 {
+		mut msgs := logger.sortable_msgs{
+			len: 0
+			cap: errors.len + warnings.len
+		}
+		msgs = convert_messages_to_internal(msgs, logger.error, errors)
+		msgs = convert_messages_to_internal(msgs, logger.warning, warnings)
+		sort.stable(msgs)
+		return msgs
+	}
+	return nil
+}
+
+fn clone_mangle_cache(log logger.Log, mangleCache map[string]string) map[string]string {
+	if mangle_cache == nil {
+		return nil
+	}
+	mut clone := map[string]string{}
+	for k, v in mangle_cache {
+		if v == '__proto__' {
+			log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid identifier name %q in mangle cache',
+				k))
+		} else {
+			clone[k] = v
+		}
+	}
+	return clone
+}
+
+fn context_impl(buildOpts BuildOptions) (&internalContext, []Message) {
+	mut log_options := logger.OutputOptions{
+		IncludeSource: true
+		MessageLimit:  build_opts.log_limit
+		Color:         validate_color(build_opts.color)
+		LogLevel:      validate_log_level(build_opts.log_level)
+		Overrides:     validate_log_overrides(build_opts.log_override)
+	}
+	mut abs_working_dir := build_opts.abs_working_dir
+	mut real_fs, err := fs.realfs(fs.RealFSOptions{
+		AbsWorkingDir: abs_working_dir
+		DoNotCache:    true
+	})
+	if err != nil {
+		mut log := logger.newstderrlog(log_options)
+		log.adderror(nil, logger.Range{}, err.error())
+		return nil, convert_messages_to_public(logger.error, log.done())
+	}
+	mut caches := cache.makecacheset()
+	mut log := logger.newdeferlog(logger.defer_log_no_verbose_or_debug, log_options.overrides)
+	mut on_end_callbacks, on_dispose_callbacks, finalize_build_options := load_plugins(&build_opts,
+		real_fs, log, caches)
+	mut options, entry_points := validate_build_options(build_opts, log, real_fs)
+	finalize_build_options(&options)
+	if build_opts.abs_working_dir != abs_working_dir {
+		panic('Mutating "AbsWorkingDir" is not allowed')
+	}
+	mut msgs := log.done()
+	if log.haserrors() {
+		if log_options.log_level < logger.level_silent {
+			mut stderr := logger.newstderrlog(log_options)
+			for _, msg in msgs {
+				stderr.addmsg(msg)
+			}
+			stderr.done()
+		}
+		return nil, convert_messages_to_public(logger.error, msgs)
+	}
+	mut args := rebuildArgs{
+		caches:             caches
+		onEndCallbacks:     on_end_callbacks
+		onDisposeCallbacks: on_dispose_callbacks
+		logOptions:         log_options
+		logWarnings:        msgs
+		entryPoints:        entry_points
+		options:            options
+		mangleCache:        build_opts.mangle_cache
+		absWorkingDir:      abs_working_dir
+		write:              build_opts.write
+	}
+	return &internalContext{
+		args:          args
+		realFS:        real_fs
+		absWorkingDir: abs_working_dir
+	}, nil
+}
+
+struct buildInProgress {
+pub mut:
+	state      rebuildState
+	wait_group sync.WaitGroup
+	cancel     config.CancelFlag
+}
+
+struct internalContext {
+pub mut:
+	mutex           sync.Mutex
+	args            rebuildArgs
+	active_build    &buildInProgress = unsafe { nil }
+	recent_build    &BuildResult     = unsafe { nil }
+	real_fs         fs.FS
+	abs_working_dir string
+	watcher         &watcher    = unsafe { nil }
+	handler         &apiHandler = unsafe { nil }
+	did_dispose     bool
+	latest_hashes   map[string]string
+}
+
+fn (ctx &internalContext) rebuild() rebuildState {
+	if ctx.did_dispose {
+		ctx.mutex.unlock()
+		return rebuildState{}
+	}
+	mut build0 := ctx.active_build
+	if build0 != nil {
+		ctx.mutex.unlock()
+		build0.wait_group.wait()
+		return build0.state
+	}
+	mut build := &buildInProgress{}
+	build.wait_group.add(1)
+	ctx.active_build = build
+	mut args := ctx.args
+	mut watcher := ctx.watcher
+	mut handler := ctx.handler
+	mut old_hashes := ctx.latest_hashes
+	args.options.cancel_flag = &build.cancel
+	ctx.mutex.unlock()
+	mut newHashes := map[string]string{}
+	build.state, new_hashes = rebuild_impl(args, old_hashes)
+	if handler != nil {
+		handler.broadcastbuildresult(build.state.result, new_hashes)
+	}
+	if watcher != nil {
+		watcher.setwatchdata(build.state.watch_data)
+	}
+	mut recent_build := &build.state.result
+	ctx.active_build = nil
+	ctx.recent_build = recent_build
+	ctx.latest_hashes = new_hashes
+	ctx.mutex.unlock()
+	ctx.mutex.unlock()
+	build.wait_group.done()
+	return build.state
+}
+
+// This is used by the dev server. The dev server does a rebuild on each
+// incoming request since a) we want incoming requests to always be up to
+// date and b) we don't necessarily know what output paths to even serve
+// without running another build (e.g. the hashes may have changed).
+//
+// However, there is a small period of time where we reuse old build results
+// instead of generating new ones. This is because page loads likely involve
+// multiple requests, and don't want to rebuild separately for each of those
+// requests.
+fn (ctx &internalContext) active_build_or_recent_build_or_rebuild() BuildResult {
+	mut build0 := ctx.active_build
+	if build0 != nil {
+		ctx.mutex.unlock()
+		build0.wait_group.wait()
+		return build0.state.result
+	}
+	mut build := ctx.recent_build
+	if build != nil {
+		ctx.mutex.unlock()
+		return &build
+	}
+	ctx.mutex.unlock()
+	return ctx.rebuild()
+}
+
+pub fn (ctx &internalContext) rebuild2() BuildResult {
+	return ctx.rebuild().result
+}
+
+pub fn (ctx &internalContext) watch(options WatchOptions) error {
+	defer {
+		ctx.mutex.unlock
+	}
+	if ctx.did_dispose {
+		return errors.new('Cannot watch a disposed context')
+	}
+	if ctx.watcher != nil {
+		return errors.new('Watch mode has already been enabled')
+	}
+	mut log_level := ctx.args.log_options.log_level
+	ctx.watcher = &watcher{
+		fs:        ctx.real_fs
+		shouldLog: log_level == logger.level_info || log_level == logger.level_debug
+			|| log_level == logger.level_verbose
+		useColor:  ctx.args.log_options.color
+		rebuild:   fn () {
+			return ctx.rebuild().watch_data
+		}
+	}
+	ctx.args.options.watch_mode = true
+	ctx.watcher.start()
+	ctx.watcher.start()
+	return nil
+}
+
+pub fn (ctx &internalContext) cancel() {
+	if ctx.did_dispose {
+		ctx.mutex.unlock()
+		return
+	}
+	mut build := ctx.active_build
+	ctx.mutex.unlock()
+	if build != nil {
+		build.cancel.cancel()
+		build.wait_group.wait()
+	}
+}
+
+pub fn (ctx &internalContext) dispose() {
+	if ctx.did_dispose {
+		ctx.mutex.unlock()
+		return
+	}
+	ctx.did_dispose = true
+	ctx.recent_build = nil
+	mut build := ctx.active_build
+	ctx.mutex.unlock()
+	if ctx.watcher != nil {
+		ctx.watcher.stop()
+	}
+	if ctx.handler != nil {
+		ctx.handler.stop()
+	}
+	if build != nil {
+		build.wait_group.wait()
+	}
+	for _, f in ctx.args.on_dispose_callbacks {
+		// unhandled in stmt: unknown sum type value
+	}
+}
+
+fn pretty_print_byte_count(n isize) string {
+	mut size := 0
+	if n < 1024 {
+		size = strconv.v_sprintf('%db ', n)
+	} else if n < 1024 * 1024 {
+		size = strconv.v_sprintf('%.1fkb', f64(n) / (1024))
+	} else if n < 1024 * 1024 * 1024 {
+		size = strconv.v_sprintf('%.1fmb', f64(n) / (1024 * 1024))
+	} else {
+		size = strconv.v_sprintf('%.1fgb', f64(n) / (1024 * 1024 * 1024))
+	}
+	return size
+}
+
+fn print_summary(color logger.UseColor, outputFiles []OutputFile, start time.Time) {
+	if output_files.len == 0 {
+		return
+	}
+	mut table := []logger.SummaryTableEntry{}
+	mut cwd, err := os.getwd()
+	if err == nil {
+		mut real_fs, err := fs.realfs(fs.RealFSOptions{
+			AbsWorkingDir: cwd
+		})
+		if err == nil {
+			for i, file in output_files {
+				mut path, ok := real_fs.rel(real_fs.cwd(), file.path)
+				if !ok {
+					path = file.path
+				}
+				mut base := real_fs.base(path)
+				mut n := file.contents.len
+				table[i] = logger.SummaryTableEntry{
+					Dir:         path[..path.len - base.len]
+					Base:        base
+					Size:        pretty_print_byte_count(n)
+					Bytes:       n
+					IsSourceMap: base.has_suffix('.map')
+				}
+			}
+		}
+	}
+	mut user_agent, ok := os.lookupenv('npm_config_user_agent')
+	if ok {
+		if user_agent.contains('yarn/1.') {
+			logger.printsummary(color, table, nil)
+			return
+		}
+	}
+	logger.printsummary(color, table, &start)
+}
+
+fn validate_build_options(buildOpts BuildOptions, log logger.Log, realFS fs.FS) (config.Options, []bundler.EntryPoint) {
+	mut js_features, css_features, css_prefix_data, target_env := validate_features(log,
+		build_opts.target, build_opts.engines)
+	mut js_overrides, js_mask, css_overrides, css_mask := validate_supported(log, build_opts.supported)
+	mut out_js, out_css := validate_output_extensions(log, build_opts.out_extension)
+	mut banner_js, banner_css := validate_banner_or_footer(log, 'banner', build_opts.banner)
+	mut footer_js, footer_css := validate_banner_or_footer(log, 'footer', build_opts.footer)
+	mut minify := build_opts.minify_whitespace && build_opts.minify_identifiers && build_opts.minify_syntax
+	mut platform := validate_platform(build_opts.platform)
+	mut defines, injected_defines := validate_defines(log, build_opts.define, build_opts.pure,
+		platform, true, minify, build_opts.drop)
+	options = config.Options{
+		CSSPrefixData:                      css_prefix_data
+		UnsupportedJSFeatures:              js_features.applyoverrides(js_overrides, js_mask)
+		UnsupportedCSSFeatures:             css_features.applyoverrides(css_overrides,
+			css_mask)
+		UnsupportedJSFeatureOverrides:      js_overrides
+		UnsupportedJSFeatureOverridesMask:  js_mask
+		UnsupportedCSSFeatureOverrides:     css_overrides
+		UnsupportedCSSFeatureOverridesMask: css_mask
+		OriginalTargetEnv:                  target_env
+		JSX:                                config.JSXOptions{
+			Preserve:         build_opts.jsx == jsxp_reserve
+			AutomaticRuntime: build_opts.jsx == jsxa_utomatic
+			Factory:          validate_jsxe_xpr(log, build_opts.jsxf_actory, 'factory')
+			Fragment:         validate_jsxe_xpr(log, build_opts.jsxf_ragment, 'fragment')
+			Development:      build_opts.jsxd_ev
+			ImportSource:     build_opts.jsxi_mport_source
+			SideEffects:      build_opts.jsxs_ide_effects
+		}
+		Defines:                            defines
+		InjectedDefines:                    injected_defines
+		Platform:                           platform
+		SourceMap:                          validate_source_map(build_opts.sourcemap)
+		LegalComments:                      validate_legal_comments(build_opts.legal_comments,
+			build_opts.bundle)
+		SourceRoot:                         build_opts.source_root
+		ExcludeSourcesContent:              build_opts.sources_content == sources_content_exclude
+		MinifySyntax:                       build_opts.minify_syntax
+		MinifyWhitespace:                   build_opts.minify_whitespace
+		MinifyIdentifiers:                  build_opts.minify_identifiers
+		LineLimit:                          build_opts.line_limit
+		MangleProps:                        validate_regex(log, 'mangle props', build_opts.mangle_props)
+		ReserveProps:                       validate_regex(log, 'reserve props', build_opts.reserve_props)
+		MangleQuoted:                       build_opts.mangle_quoted == mangle_quoted_true
+		DropLabels:                         append([]string{}, build_opts.drop_labels)
+		DropDebugger:                       (build_opts.drop & drop_debugger) != 0
+		AllowOverwrite:                     build_opts.allow_overwrite
+		ASCIIOnly:                          validate_asciio_nly(build_opts.charset)
+		IgnoreDCEAnnotations:               build_opts.ignore_annotations
+		TreeShaking:                        validate_tree_shaking(build_opts.tree_shaking,
+			build_opts.bundle, build_opts.format)
+		GlobalName:                         validate_global_name(log, build_opts.global_name)
+		CodeSplitting:                      build_opts.splitting
+		OutputFormat:                       validate_format(build_opts.format)
+		AbsOutputFile:                      validate_path(log, real_fs, build_opts.outfile,
+			'outfile path')
+		AbsOutputDir:                       validate_path(log, real_fs, build_opts.outdir,
+			'outdir path')
+		AbsOutputBase:                      validate_path(log, real_fs, build_opts.outbase,
+			'outbase path')
+		NeedsMetafile:                      build_opts.metafile
+		EntryPathTemplate:                  validate_path_template(build_opts.entry_names)
+		ChunkPathTemplate:                  validate_path_template(build_opts.chunk_names)
+		AssetPathTemplate:                  validate_path_template(build_opts.asset_names)
+		OutputExtensionJS:                  out_js
+		OutputExtensionCSS:                 out_css
+		ExtensionToLoader:                  validate_loaders(log, build_opts.loader)
+		ExtensionOrder:                     validate_resolve_extensions(log, build_opts.resolve_extensions)
+		ExternalSettings:                   validate_externals(log, real_fs, build_opts.external)
+		ExternalPackages:                   validate_external_packages(build_opts.packages)
+		PackageAliases:                     validate_alias(log, real_fs, build_opts.alias)
+		TSConfigPath:                       validate_path(log, real_fs, build_opts.tsconfig,
+			'tsconfig path')
+		TSConfigRaw:                        build_opts.tsconfig_raw
+		MainFields:                         build_opts.main_fields
+		PublicPath:                         build_opts.public_path
+		KeepNames:                          build_opts.keep_names
+		InjectPaths:                        append([]string{}, build_opts.inject)
+		AbsNodePaths:                       []string{}
+		JSBanner:                           banner_js
+		JSFooter:                           footer_js
+		CSSBanner:                          banner_css
+		CSSFooter:                          footer_css
+		PreserveSymlinks:                   build_opts.preserve_symlinks
+	}
+	validate_keep_names(log, &options)
+	if build_opts.conditions != nil {
+		options.conditions << build_opts.conditions
+	}
+	if options.main_fields != nil {
+		options.main_fields << options.main_fields
+	}
+	for i, path in build_opts.node_paths {
+		options.abs_node_paths[i] = validate_path(log, real_fs, path, 'node path')
+	}
+	entry_points = []bundler.EntryPoint{len: 0, cap: build_opts.entry_points.len +
+		build_opts.entry_points_advanced.len}
+	mut has_entry_point_with_wildcard := false
+	for _, ep in build_opts.entry_points {
+		entry_points << bundler.EntryPoint{
+			InputPath: ep
+		}
+		if ep.contains_rune(`*`) {
+			has_entry_point_with_wildcard = true
+		}
+	}
+	for _, ep in build_opts.entry_points_advanced {
+		entry_points << bundler.EntryPoint{
+			InputPath:  ep.input_path
+			OutputPath: ep.output_path
+		}
+		if ep.input_path.contains_rune(`*`) {
+			has_entry_point_with_wildcard = true
+		}
+	}
+	mut entry_point_count := entry_points.len
+	if build_opts.stdin != nil {
+		entry_point_count++
+		options.stdin = &config.StdinInfo{
+			Loader:        validate_loader(build_opts.stdin.loader)
+			Contents:      build_opts.stdin.contents
+			SourceFile:    build_opts.stdin.sourcefile
+			AbsResolveDir: validate_path(log, real_fs, build_opts.stdin.resolve_dir, 'resolve directory path')
+		}
+	}
+	if options.abs_output_dir == '' && (entry_point_count > 1 || has_entry_point_with_wildcard) {
+		log.adderror(nil, logger.Range{}, 'Must use "outdir" when there are multiple input files')
+	} else if options.abs_output_dir == '' && options.code_splitting {
+		log.adderror(nil, logger.Range{}, 'Must use "outdir" when code splitting is enabled')
+	} else if options.abs_output_file != '' && options.abs_output_dir != '' {
+		log.adderror(nil, logger.Range{}, 'Cannot use both "outfile" and "outdir"')
+	} else if options.abs_output_file != '' {
+		options.abs_output_dir = real_fs.dir(options.abs_output_file)
+	} else if options.abs_output_dir == '' {
+		options.write_to_stdout = true
+		if options.source_map != config.source_map_none && options.source_map != config.source_map_inline {
+			log.adderror(nil, logger.Range{}, 'Cannot use an external source map without an output path')
+		}
+		if options.legal_comments.hasexternalfile() {
+			log.adderror(nil, logger.Range{}, 'Cannot use linked or external legal comments without an output path')
+		}
+		for _, loader in options.extension_to_loader {
+			if loader == config.loader_file {
+				log.adderror(nil, logger.Range{}, 'Cannot use the "file" loader without an output path')
+				break
+			}
+			if loader == config.loader_copy {
+				log.adderror(nil, logger.Range{}, 'Cannot use the "copy" loader without an output path')
+				break
+			}
+		}
+		options.abs_output_dir = real_fs.cwd()
+	}
+	if !build_opts.bundle {
+		if options.external_settings.pre_resolve.hasmatchers()
+			|| options.external_settings.post_resolve.hasmatchers() {
+			log.adderror(nil, logger.Range{}, 'Cannot use "external" without "bundle"')
+		}
+		if options.package_aliases.len > 0 {
+			log.adderror(nil, logger.Range{}, 'Cannot use "alias" without "bundle"')
+		}
+	} else if options.output_format == config.format_preserve {
+		match options.platform {
+			config.platform_browser {
+				options.output_format = config.format_iife
+			}
+			config.platform_node {
+				options.output_format = config.format_common_js
+			}
+			config.platform_neutral {
+				options.output_format = config.format_esm_odule
+			}
+		}
+	}
+	if build_opts.bundle {
+		options.mode = config.mode_bundle
+	} else if options.output_format != config.format_preserve {
+		options.mode = config.mode_convert_format
+	}
+	if options.conditions == nil && options.platform != config.platform_neutral {
+		options.conditions = ['module']
+	}
+	if options.code_splitting && options.output_format != config.format_esm_odule {
+		log.adderror(nil, logger.Range{}, 'Splitting currently only works with the "esm" format')
+	}
+	if options.tsc_onfig_path != '' && options.tsc_onfig_raw != '' {
+		log.adderror(nil, logger.Range{}, 'Cannot provide "tsconfig" as both a raw string and a path')
+	}
+	if !build_opts.write {
+		options.allow_overwrite = true
+	}
+	return
+}
+
+struct onEndCallback {
+pub mut:
+	plugin_name string
+	fn_         fn () (OnEndResult, error) = unsafe { nil }
+}
+
+struct rebuildArgs {
+pub mut:
+	caches               &cache.CacheSet = unsafe { nil }
+	on_end_callbacks     []onEndCallback
+	on_dispose_callbacks []fn ()
+	log_options          logger.OutputOptions
+	log_warnings         []logger.Msg
+	entry_points         []bundler.EntryPoint
+	options              config.Options
+	mangle_cache         map[string]string
+	abs_working_dir      string
+	write                bool
+}
+
+struct rebuildState {
+pub mut:
+	result     BuildResult
+	watch_data fs.WatchData
+	options    config.Options
+}
+
+fn rebuild_impl(args rebuildArgs, oldHashes map[string]string) (rebuildState, map[string]string) {
+	mut log := logger.newstderrlog(args.log_options)
+	for _, msg in args.log_warnings {
+		log.addmsg(msg)
+	}
+	mut real_fs, err := fs.realfs(fs.RealFSOptions{
+		AbsWorkingDir: args.abs_working_dir
+		WantWatchData: args.options.watch_mode
+	})
+	if err != nil {
+		panic(err.error())
+	}
+	mut result := 0
+	mut watchData := 0
+	mut toWriteToStdout := []u8{}
+	mut timer := 0
+	if api_helpers.use_timer {
+		timer = &helpers.Timer{}
+	}
+	mut bundle := bundler.scanbundle(config.build_call, log, real_fs, args.caches, args.entry_points,
+		args.options, timer)
+	watch_data = real_fs.watchdata()
+	mut new_hashes := old_hashes
+	if !log.haserrors() {
+		result.mangle_cache = clone_mangle_cache(log, args.mangle_cache)
+		mut results, metafile := bundle.compile(log, timer, result.mangle_cache, linker.link)
+		if args.options.cancel_flag.didcancel() {
+			log.adderror(nil, logger.Range{}, 'The build was canceled')
+		}
+		if !log.haserrors() {
+			result.metafile = metafile
+			mut hashBytes := []u8{}
+			result.output_files = []OutputFile{}
+			new_hashes = map[string]string{}
+			for i, item in results {
+				if args.options.write_to_stdout {
+					item.abs_path = '<stdout>'
+				}
+				mut hasher := xxhash.new()
+				hasher.write(item.contents)
+				binary.little_endian.putuint64(hash_bytes[..], hasher.sum64())
+				mut hash := base64.raw_std_encoding.encodetostring(hash_bytes[..])
+				result.output_files[i] = OutputFile{
+					Path:     item.abs_path
+					Contents: item.contents
+					Hash:     hash
+				}
+				new_hashes[item.abs_path] = hash
+			}
+			if args.write {
+				timer.begin('Write output files')
+				if args.options.write_to_stdout {
+					if results.len != 1 {
+						log.adderror(nil, logger.Range{}, strconv.v_sprintf('Internal error: did not expect to generate %d files when writing to stdout',
+							results.len))
+					} else {
+						to_write_to_stdout = results[0].contents
+					}
+				} else {
+					mut toDelete := []string{}
+					for absPath, _ in old_hashes {
+						_, ok := new_hashes[abs_path]
+						if !ok {
+							to_delete << abs_path
+						}
+					}
+					mut wait_group := sync.WaitGroup{}
+					wait_group.add(results.len + to_delete.len)
+					for _, result2 in results {
+						// unhandled in stmt: unknown sum type value
+					}
+					for _, absPath in to_delete {
+						// unhandled in stmt: unknown sum type value
+					}
+					wait_group.wait()
+				}
+				timer.end('Write output files')
+			}
+		}
+	}
+	if log.haserrors() {
+		result.mangle_cache = nil
+	}
+	mut msgs := log.peek()
+	result.errors = convert_messages_to_public(logger.error, msgs)
+	result.warnings = convert_messages_to_public(logger.warning, msgs)
+	timer.begin('On-end callbacks')
+	for _, onEnd in args.on_end_callbacks {
+		mut from_plugin, thrown := on_end.myfn(&result)
+		for i, _ in from_plugin.errors {
+			if from_plugin.errors[i].plugin_name == '' {
+				from_plugin.errors[i].plugin_name = on_end.plugin_name
+			}
+		}
+		for i, _ in from_plugin.warnings {
+			if from_plugin.warnings[i].plugin_name == '' {
+				from_plugin.warnings[i].plugin_name = on_end.plugin_name
+			}
+		}
+		if thrown != nil {
+			from_plugin.errors << Message{
+				PluginName: on_end.plugin_name
+				Text:       thrown.error()
+			}
+		}
+		for _, msg in convert_errors_and_warnings_to_internal(from_plugin.errors, from_plugin.warnings) {
+			log.addmsg(msg)
+		}
+		result.errors << from_plugin.errors
+		result.warnings << from_plugin.warnings
+		if from_plugin.errors.len > 0 {
+			break
+		}
+	}
+	timer.end('On-end callbacks')
+	timer.log(log)
+	log.done()
+	if to_write_to_stdout != nil {
+		os.stdout.write(to_write_to_stdout)
+	}
+	return rebuildState{
+		result:    result
+		options:   args.options
+		watchData: watch_data
+	}, new_hashes
+}
+
+fn transform_impl(input string, transformOpts TransformOptions) TransformResult {
+	mut log := logger.newstderrlog(logger.OutputOptions{
+		IncludeSource: true
+		MessageLimit:  transform_opts.log_limit
+		Color:         validate_color(transform_opts.color)
+		LogLevel:      validate_log_level(transform_opts.log_level)
+		Overrides:     validate_log_overrides(transform_opts.log_override)
+	})
+	mut caches := cache.makecacheset()
+	if transform_opts.sourcefile == '' {
+		transform_opts.sourcefile = '<stdin>'
+	}
+	if transform_opts.loader == loader_none {
+		transform_opts.loader = loader_js
+	}
+	mut js_features, css_features, css_prefix_data, target_env := validate_features(log,
+		transform_opts.target, transform_opts.engines)
+	mut js_overrides, js_mask, css_overrides, css_mask := validate_supported(log, transform_opts.supported)
+	mut platform := validate_platform(transform_opts.platform)
+	mut defines, injected_defines := validate_defines(log, transform_opts.define, transform_opts.pure,
+		platform, false, false, transform_opts.drop)
+	mut mangle_cache := clone_mangle_cache(log, transform_opts.mangle_cache)
+	mut options := config.Options{
+		CSSPrefixData:                      css_prefix_data
+		UnsupportedJSFeatures:              js_features.applyoverrides(js_overrides, js_mask)
+		UnsupportedCSSFeatures:             css_features.applyoverrides(css_overrides,
+			css_mask)
+		UnsupportedJSFeatureOverrides:      js_overrides
+		UnsupportedJSFeatureOverridesMask:  js_mask
+		UnsupportedCSSFeatureOverrides:     css_overrides
+		UnsupportedCSSFeatureOverridesMask: css_mask
+		OriginalTargetEnv:                  target_env
+		TSConfigRaw:                        transform_opts.tsconfig_raw
+		JSX:                                config.JSXOptions{
+			Preserve:         transform_opts.jsx == jsxp_reserve
+			AutomaticRuntime: transform_opts.jsx == jsxa_utomatic
+			Factory:          validate_jsxe_xpr(log, transform_opts.jsxf_actory, 'factory')
+			Fragment:         validate_jsxe_xpr(log, transform_opts.jsxf_ragment, 'fragment')
+			Development:      transform_opts.jsxd_ev
+			ImportSource:     transform_opts.jsxi_mport_source
+			SideEffects:      transform_opts.jsxs_ide_effects
+		}
+		Defines:                            defines
+		InjectedDefines:                    injected_defines
+		Platform:                           platform
+		SourceMap:                          validate_source_map(transform_opts.sourcemap)
+		LegalComments:                      validate_legal_comments(transform_opts.legal_comments,
+			false)
+		SourceRoot:                         transform_opts.source_root
+		ExcludeSourcesContent:              transform_opts.sources_content == sources_content_exclude
+		OutputFormat:                       validate_format(transform_opts.format)
+		GlobalName:                         validate_global_name(log, transform_opts.global_name)
+		MinifySyntax:                       transform_opts.minify_syntax
+		MinifyWhitespace:                   transform_opts.minify_whitespace
+		MinifyIdentifiers:                  transform_opts.minify_identifiers
+		LineLimit:                          transform_opts.line_limit
+		MangleProps:                        validate_regex(log, 'mangle props', transform_opts.mangle_props)
+		ReserveProps:                       validate_regex(log, 'reserve props', transform_opts.reserve_props)
+		MangleQuoted:                       transform_opts.mangle_quoted == mangle_quoted_true
+		DropLabels:                         append([]string{}, transform_opts.drop_labels)
+		DropDebugger:                       (transform_opts.drop & drop_debugger) != 0
+		ASCIIOnly:                          validate_asciio_nly(transform_opts.charset)
+		IgnoreDCEAnnotations:               transform_opts.ignore_annotations
+		TreeShaking:                        validate_tree_shaking(transform_opts.tree_shaking,
+			false, transform_opts.format)
+		AbsOutputFile:                      transform_opts.sourcefile + '-out'
+		KeepNames:                          transform_opts.keep_names
+		Stdin:                              &config.StdinInfo{
+			Loader:     validate_loader(transform_opts.loader)
+			Contents:   input
+			SourceFile: transform_opts.sourcefile
+		}
+	}
+	validate_keep_names(log, &options)
+	if options.stdin.loader.iscss() {
+		options.cssb_anner = transform_opts.banner
+		options.cssf_ooter = transform_opts.footer
+	} else {
+		options.jsb_anner = transform_opts.banner
+		options.jsf_ooter = transform_opts.footer
+	}
+	if options.source_map == config.source_map_linked_with_comment {
+		log.adderror(nil, logger.Range{}, 'Cannot transform with linked source maps')
+	}
+	if options.source_map != config.source_map_none && options.stdin.source_file == '' {
+		log.adderror(nil, logger.Range{}, 'Must use "sourcefile" with "sourcemap" to set the original file name')
+	}
+	if logger.api == logger.cliapi {
+		if options.legal_comments.hasexternalfile() {
+			log.adderror(nil, logger.Range{}, 'Cannot transform with linked or external legal comments')
+		}
+	} else if options.legal_comments == config.legal_comments_linked_with_comment {
+		log.adderror(nil, logger.Range{}, 'Cannot transform with linked legal comments')
+	}
+	if options.output_format != config.format_preserve {
+		options.mode = config.mode_convert_format
+	}
+	mut results := []graph.OutputFile{}
+	if !log.haserrors() {
+		mut timer := 0
+		if api_helpers.use_timer {
+			timer = &helpers.Timer{}
+		}
+		mut mock_fs := fs.mockfs(map[string]string{}, fs.mock_unix, '/')
+		mut bundle := bundler.scanbundle(config.transform_call, log, mock_fs, caches,
+			nil, options, timer)
+		if !log.haserrors() {
+			results, _ = bundle.compile(log, timer, mangle_cache, linker.link)
+		}
+		timer.log(log)
+	}
+	mut code := []u8{}
+	mut sourceMap := []u8{}
+	mut legalComments := []u8{}
+	mut shortestAbsPath := 0
+	for _, result in results {
+		if shortest_abs_path == '' || result.abs_path.len < shortest_abs_path.len {
+			shortest_abs_path = result.abs_path
+		}
+	}
+	for _, result in results {
+		match result.abs_path {
+			shortest_abs_path {
+				code = result.contents
+			}
+			shortest_abs_path + '.map' {
+				source_map = result.contents
+			}
+			shortest_abs_path + '.LEGAL.txt' {
+				legal_comments = result.contents
+			}
+		}
+	}
+	if log.haserrors() {
+		mangle_cache = nil
+	}
+	mut msgs := log.done()
+	return TransformResult{
+		Errors:        convert_messages_to_public(logger.error, msgs)
+		Warnings:      convert_messages_to_public(logger.warning, msgs)
+		Code:          code
+		Map:           source_map
+		LegalComments: legal_comments
+		MangleCache:   mangle_cache
+	}
+}
+
+struct pluginImpl {
+pub mut:
+	log    logger.Log
+	fs     fs.FS
+	plugin config.Plugin
+}
+
+fn (impl &pluginImpl) on_start(callback fn () (OnStartResult, error)) {
+	impl.plugin.on_start << config.OnStart{
+		Name:     impl.plugin.name
+		Callback: fn () {
+			mut response, err := callback()
+			if err != nil {
+				result.thrown_error = err
+				return
+			}
+			result.msgs = convert_errors_and_warnings_to_internal(response.errors, response.warnings)
+			return
+		}
+	}
+}
+
+fn import_kind_to_resolve_kind(kind ast.ImportKind) ResolveKind {
+	match kind {
+		ast.import_entry_point {
+			return resolve_entry_point
+		}
+		ast.import_stmt {
+			return resolve_jsi_mport_statement
+		}
+		ast.import_require {
+			return resolve_jsr_equire_call
+		}
+		ast.import_dynamic {
+			return resolve_jsd_ynamic_import
+		}
+		ast.import_require_resolve {
+			return resolve_jsr_equire_resolve
+		}
+		ast.import_at {
+			return resolve_cssi_mport_rule
+		}
+		ast.import_composes_from {
+			return resolve_cssc_omposes_from
+		}
+		ast.import_url {
+			return resolve_cssurlt_oken
+		}
+		else {
+			panic('Internal error')
+		}
+	}
+}
+
+fn resolve_kind_to_import_kind(kind ResolveKind) ast.ImportKind {
+	match kind {
+		resolve_entry_point {
+			return ast.import_entry_point
+		}
+		resolve_jsi_mport_statement {
+			return ast.import_stmt
+		}
+		resolve_jsr_equire_call {
+			return ast.import_require
+		}
+		resolve_jsd_ynamic_import {
+			return ast.import_dynamic
+		}
+		resolve_jsr_equire_resolve {
+			return ast.import_require_resolve
+		}
+		resolve_cssi_mport_rule {
+			return ast.import_at
+		}
+		resolve_cssc_omposes_from {
+			return ast.import_composes_from
+		}
+		resolve_cssurlt_oken {
+			return ast.import_url
+		}
+		else {
+			panic('Internal error')
+		}
+	}
+}
+
+fn (impl &pluginImpl) on_resolve(options OnResolveOptions, callback fn () (OnResolveResult, error)) {
+	mut filter, err := config.compilefilterforplugin(impl.plugin.name, 'OnResolve', options.filter)
+	if filter == nil {
+		impl.log.adderror(nil, logger.Range{}, err.error())
+		return
+	}
+	impl.plugin.on_resolve << config.OnResolve{
+		Name:      impl.plugin.name
+		Filter:    filter
+		Namespace: options.namespace
+		Callback:  fn (args config.OnResolveArgs) {
+			mut response, err := callback(OnResolveArgs{
+				Path:       args.path
+				Importer:   args.importer.text
+				Namespace:  args.importer.namespace
+				ResolveDir: args.resolve_dir
+				Kind:       import_kind_to_resolve_kind(args.kind)
+				PluginData: args.plugin_data
+				With:       args.with.decodeintomap()
+			})
+			result.plugin_name = response.plugin_name
+			result.abs_watch_files = impl.validatepathsarray(response.watch_files, 'watch file')
+			result.abs_watch_dirs = impl.validatepathsarray(response.watch_dirs, 'watch directory')
+			if err == nil && response.suffix != '' && response.suffix[0] != `?` && response.suffix[0] != `#` {
+				err = strconv.errorf('Invalid path suffix %q returned from plugin (must start with "?" or "#")',
+					response.suffix)
+			}
+			if err != nil {
+				result.thrown_error = err
+				return
+			}
+			result.path = logger.Path{
+				Text:          response.path
+				Namespace:     response.namespace
+				IgnoredSuffix: response.suffix
+			}
+			result.external = response.external
+			result.is_side_effect_free = response.side_effects == side_effects_false
+			result.plugin_data = response.plugin_data
+			result.msgs = convert_errors_and_warnings_to_internal(response.errors, response.warnings)
+			if response.path == '' && !response.external {
+				mut what := 0
+				if response.namespace != '' {
+					what = 'namespace'
+				} else if response.suffix != '' {
+					what = 'suffix'
+				} else if response.plugin_data != nil {
+					what = 'pluginData'
+				} else if response.watch_files != nil {
+					what = 'watchFiles'
+				} else if response.watch_dirs != nil {
+					what = 'watchDirs'
+				}
+				if what != '' {
+					mut path := 'path'
+					if logger.api == logger.go_api {
+						what = what.title()
+						path = path.title()
+					}
+					result.msgs << logger.Msg{
+						Kind: logger.warning
+						Data: logger.MsgData{
+							Text: strconv.v_sprintf("Returning %q doesn't do anything when %q is empty",
+								what, path)
+						}
+					}
+				}
+			}
+			return
+		}
+	}
+}
+
+fn (impl &pluginImpl) on_load(options OnLoadOptions, callback fn () (OnLoadResult, error)) {
+	mut filter, err := config.compilefilterforplugin(impl.plugin.name, 'OnLoad', options.filter)
+	if filter == nil {
+		impl.log.adderror(nil, logger.Range{}, err.error())
+		return
+	}
+	impl.plugin.on_load << config.OnLoad{
+		Filter:    filter
+		Namespace: options.namespace
+		Callback:  fn (args config.OnLoadArgs) {
+			mut response, err := callback(OnLoadArgs{
+				Path:       args.path.text
+				Namespace:  args.path.namespace
+				PluginData: args.plugin_data
+				Suffix:     args.path.ignored_suffix
+				With:       args.path.import_attributes.decodeintomap()
+			})
+			result.plugin_name = response.plugin_name
+			result.abs_watch_files = impl.validatepathsarray(response.watch_files, 'watch file')
+			result.abs_watch_dirs = impl.validatepathsarray(response.watch_dirs, 'watch directory')
+			if err != nil {
+				result.thrown_error = err
+				return
+			}
+			result.contents = response.contents
+			result.loader = validate_loader(response.loader)
+			result.plugin_data = response.plugin_data
+			mut path_kind := strconv.v_sprintf('resolve directory path for plugin %q',
+				impl.plugin.name)
+			mut abs_path := validate_path(impl.log, impl.fs, response.resolve_dir, path_kind)
+			if abs_path != '' {
+				result.abs_resolve_dir = abs_path
+			}
+			result.msgs = convert_errors_and_warnings_to_internal(response.errors, response.warnings)
+			return
+		}
+	}
+}
+
+fn (impl &pluginImpl) validate_paths_array(pathsIn []string, name string) []string {
+	if paths_in.len > 0 {
+		mut path_kind := strconv.v_sprintf('%s path for plugin %q', name, impl.plugin.name)
+		for _, relPath in paths_in {
+			mut abs_path := validate_path(impl.log, impl.fs, rel_path, path_kind)
+			if abs_path != '' {
+				paths_out << abs_path
+			}
+		}
+	}
+	return
+}
+
+fn load_plugins(initialOptions &BuildOptions, fs fs.FS, log logger.Log, caches &cache.CacheSet) ([]onEndCallback, []fn (), fn ()) {
+	mut clone := []Plugin{}
+	mut optionsForResolve := 0
+	mut plugins := []config.Plugin{}
+	finalize_build_options = fn (options &config.Options) {
+		options.plugins = plugins
+		options_for_resolve = options
+	}
+
+	for i, item in clone {
+		if item.name == '' {
+			log.adderror(nil, logger.Range{}, strconv.v_sprintf('Plugin at index %d is missing a name',
+				i))
+			continue
+		}
+		mut impl := &pluginImpl{
+			fs:     fs
+			log:    log
+			plugin: config.Plugin{
+				Name: item.name
+			}
+		}
+		mut resolve := fn (path string, options ResolveOptions) {
+			if options_for_resolve == nil {
+				return ResolveResult{
+					Errors: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+					]
+				}
+			}
+			if options.kind == resolve_none {
+				return ResolveResult{
+					Errors: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+					]
+				}
+			}
+			mut log := logger.newdeferlog(logger.defer_log_no_verbose_or_debug, validate_log_overrides(initial_options.log_override))
+			mut options_clone := &options_for_resolve
+			mut resolver := resolver.newresolver(config.build_call, fs, log, caches, &options_clone)
+			mut abs_resolve_dir := validate_path(log, fs, options.resolve_dir, 'resolve directory')
+			if log.haserrors() {
+				mut msgs := log.done()
+				result.errors = convert_messages_to_public(logger.error, msgs)
+				result.warnings = convert_messages_to_public(logger.warning, msgs)
+				return
+			}
+			mut kind := resolve_kind_to_import_kind(options.kind)
+			mut resolve_result, _, _ := bundler.runonresolveplugins(plugins, resolver,
+				log, fs, &caches.fsc_ache, nil, logger.Range{}, logger.Path{
+				Text:      options.importer
+				Namespace: options.namespace
+			}, path, logger.encodeimportattributes(options.with), kind, abs_resolve_dir,
+				options.plugin_data)
+			mut msgs := log.done()
+			result.errors = convert_messages_to_public(logger.error, msgs)
+			result.warnings = convert_messages_to_public(logger.warning, msgs)
+			if resolve_result != nil {
+				result.path = resolve_result.path_pair.primary.text
+				result.external = resolve_result.path_pair.is_external
+				result.side_effects = resolve_result.primary_side_effects_data == nil
+				result.namespace = resolve_result.path_pair.primary.namespace
+				result.suffix = resolve_result.path_pair.primary.ignored_suffix
+				result.plugin_data = resolve_result.plugin_data
+			} else if result.errors.len == 0 {
+				mut plugin_name := item.name
+				if options.plugin_name != '' {
+					plugin_name = options.plugin_name
+				}
+				mut text, _, notes := bundler.resolvefailureerrortextsuggestionnotes(resolver,
+					path, kind, plugin_name, fs, abs_resolve_dir, options_for_resolve.platform,
+					'', '')
+				result.errors << convert_messages_to_public(logger.error, [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+				])
+			}
+			return
+		}
+
+		mut on_end := fn (myfn fn () (OnEndResult, error)) {
+			on_end_callbacks << onEndCallback{
+				pluginName: item.name
+				myfn:       myfn
+			}
+		}
+
+		mut on_dispose := fn (myfn fn ()) {
+			on_dispose_callbacks << myfn
+		}
+
+		item.setup(PluginBuild{
+			InitialOptions: initial_options
+			Resolve:        resolve
+			OnStart:        impl.on_start
+			OnEnd:          on_end
+			OnDispose:      on_dispose
+			OnResolve:      impl.on_resolve
+			OnLoad:         impl.on_load
+		})
+		plugins << impl.plugin
+	}
+	return
+}
+
+fn format_msgs_impl(msgs []Message, opts FormatMessagesOptions) []string {
+	mut kind := logger.error
+	if opts.kind == warning_message {
+		kind = logger.warning
+	}
+	mut log_msgs := convert_messages_to_internal(nil, kind, msgs)
+	mut strings := []string{}
+	for i, msg in log_msgs {
+		strings[i] = msg.str(logger.OutputOptions{
+			IncludeSource: true
+		}, logger.TerminalInfo{
+			UseColorEscapes: opts.color
+			Width:           opts.terminal_width
+		})
+	}
+	return strings
+}
+
+struct metafileEntry {
+pub mut:
+	name        string
+	entry_point string
+	entries     []metafileEntry
+	size        isize
+}
+
+// This type is just so we can use Go's native sort function
+type metafileArray = []metafileEntry
+
+pub fn (a metafileArray) len() isize {
+	return a.len
+}
+
+pub fn (a metafileArray) swap(i isize, j isize) {
+	a[i], a[j] = a[j], a[i]
+}
+
+pub fn (a metafileArray) less(i isize, j isize) bool {
+	mut ai := a[i]
+	mut aj := a[j]
+	return ai.size > aj.size || ai.size == aj.size && ai.name < aj.name
+}
+
+fn get_object_property(expr js_ast.Expr, key string) js_ast.Expr {
+	return js_ast.Expr{}
+}
+
+fn get_object_property_number(expr js_ast.Expr, key string) &js_ast.ENumber {
+	mut value, _ := _
+	return value
+}
+
+fn get_object_property_string(expr js_ast.Expr, key string) &js_ast.EString {
+	mut value, _ := _
+	return value
+}
+
+fn get_object_property_object(expr js_ast.Expr, key string) &js_ast.EObject {
+	mut value, _ := _
+	return value
+}
+
+fn get_object_property_array(expr js_ast.Expr, key string) &js_ast.EArray {
+	mut value, _ := _
+	return value
+}
+
+fn analyze_metafile_impl(metafile string, opts AnalyzeMetafileOptions) string {
+	mut log := logger.newdeferlog(logger.defer_log_no_verbose_or_debug, nil)
+	mut source := logger.Source{
+		Contents: metafile
+	}
+	mut result, ok := js_parser.parsejson(log, source, js_parser.JSONOptions{})
+	if ok {
+		mut outputs := get_object_property_object(result, 'outputs')
+		if outputs != nil {
+			mut entries := 0
+			mut entryPoints := []string{}
+			for _, output in outputs.properties {
+				mut key := helpers.utf16tostring(.value)
+				if !key.has_suffix('.map') {
+					mut entry_point_path := ''
+					mut entry_point := get_object_property_string(output.value_or_nil,
+						'entryPoint')
+					if entry_point != nil {
+						entry_point_path = helpers.utf16tostring(entry_point.value)
+						entry_points << entry_point_path
+					}
+					mut bytes := get_object_property_number(output.value_or_nil, 'bytes')
+					if bytes != nil {
+						mut inputs := get_object_property_object(output.value_or_nil,
+							'inputs')
+						if inputs != nil {
+							mut children := 0
+							for _, input in inputs.properties {
+								mut bytes_in_output := get_object_property_number(input.value_or_nil,
+									'bytesInOutput')
+								if bytes_in_output != nil && bytes_in_output.value > 0 {
+									children << metafileEntry{
+										name: helpers.utf16tostring(.value)
+										size: isize(bytes_in_output.value)
+									}
+								}
+							}
+							sort.sort(children)
+							entries << metafileEntry{
+								name:       key
+								size:       isize(bytes.value)
+								entries:    children
+								entryPoint: entry_point_path
+							}
+						}
+					}
+				}
+			}
+			sort.sort(entries)
+
+			mut imports_for_path := map[string]importData{}
+			mut inputs := get_object_property_object(result, 'inputs')
+			if inputs != nil {
+				for _, prop in inputs.properties {
+					mut imports := get_object_property_array(prop.value_or_nil, 'imports')
+					if imports != nil {
+						mut data := 0
+						for _, item in imports.items {
+							mut path := get_object_property_string(item, 'path')
+							if path != nil {
+								data.imports << helpers.utf16tostring(path.value)
+							}
+						}
+						imports_for_path[helpers.utf16tostring(.value)] = data
+					}
+				}
+			}
+			mut graph_for_entry_points := fn (worklist []string) {
+				if !opts.verbose {
+					return nil
+				}
+				mut graph := map[string]graphData{}
+				for _, entryPoint in worklist {
+					graph[entry_point] = graphData{}
+				}
+				for worklist.len > 0 {
+					mut top := worklist[worklist.len - 1]
+					worklist = worklist[..worklist.len - 1]
+					mut child_depth := graph[top].depth + 1
+					for _, importPath in imports_for_path[top].imports {
+						mut imported, ok := graph[import_path]
+						if !ok {
+							imported.depth = math.max_uint32
+						}
+						if imported.depth > child_depth {
+							imported.depth = child_depth
+							imported.parent = top
+							graph[import_path] = imported
+							worklist << import_path
+						}
+					}
+				}
+				return graph
+			}
+
+			mut graph_for_all_entry_points := graph_for_entry_points(entry_points)
+
+			mut table := []tableEntry{}
+			mut colors := 0
+			if opts.color {
+				colors = logger.terminal_colors
+			}
+			for _, entry in entries {
+				mut second := pretty_print_byte_count(entry.size)
+				mut third := '100.0%'
+				table << tableEntry{
+					first:      entry.name
+					firstLen:   utf8.runecountinstring(entry.name)
+					second:     second
+					secondLen:  second.len
+					third:      third
+					thirdLen:   third.len
+					isTopLevel: true
+				}
+				mut graph := graph_for_all_entry_points
+				if entry.entry_point != '' {
+					graph = graph_for_entry_points([entry.entry_point])
+				}
+				for j, child in entry.entries {
+					mut indent := ' ├ '
+					if j + 1 == entry.entries.len {
+						indent = ' └ '
+					}
+					mut percent := 100.0 * f64(child.size) / f64(entry.size)
+					mut first := indent + child.name
+					mut second2 := pretty_print_byte_count(child.size)
+					mut third2 := strconv.v_sprintf('%.1f%%', percent)
+					table << tableEntry{
+						first:     first
+						firstLen:  utf8.runecountinstring(first)
+						second:    second2
+						secondLen: second2.len
+						third:     third2
+						thirdLen:  third2.len
+					}
+					if opts.verbose {
+						indent = ' │ '
+						if j + 1 == entry.entries.len {
+							indent = '   '
+						}
+						mut data := graph[child.name]
+						mut depth := isize(0)
+						for data.depth != 0 {
+							table << tableEntry{
+								first: strconv.v_sprintf('%s%s%s └ %s%s', indent, colors.dim,
+									' '.repeat(depth), data.parent, colors.reset)
+							}
+							data = graph[data.parent]
+							depth += isize(3)
+						}
+					}
+				}
+			}
+			mut max_first_len := isize(0)
+			mut max_second_len := isize(0)
+			mut max_third_len := isize(0)
+			for _, entry in table {
+				if max_first_len < entry.first_len {
+					max_first_len = entry.first_len
+				}
+				if max_second_len < entry.second_len {
+					max_second_len = entry.second_len
+				}
+				if max_third_len < entry.third_len {
+					max_third_len = entry.third_len
+				}
+			}
+			mut sb := strings.Builder
+			{
+			}
+			for _, entry in table {
+				mut prefix := '\n'
+				mut color := colors.bold
+				if !entry.is_top_level {
+					prefix = ''
+					color = ''
+				}
+				if entry.second == '' && entry.third == '' {
+					sb.writestring(strconv.v_sprintf('%s  %s\n', prefix, entry.first))
+					continue
+				}
+				mut second := entry.second
+				mut second_trimmed := second.trim_right(' ')
+				mut line_char := ' '
+				mut extra_space := isize(0)
+				if opts.verbose {
+					line_char = '─'
+					extra_space = isize(1)
+				}
+				sb.writestring(strconv.v_sprintf('%s  %s%s%s %s%s%s %s%s%s %s%s%s %s%s%s\n',
+					prefix, color, entry.first, colors.reset, colors.dim, line_char.repeat(
+					extra_space + max_first_len - entry.first_len + max_second_len - entry.second_len),
+					colors.reset, color, second_trimmed, colors.reset, colors.dim, line_char.repeat(
+					extra_space + max_third_len - entry.third_len + second.len - second_trimmed.len),
+					colors.reset, color, entry.third, colors.reset))
+			}
+			return sb.str()
+		}
+	}
+	return ''
+}
+
+fn strip_dir_prefix(path string, prefix string, allowedSlashes string) (string, bool) {
+	if path.has_prefix(prefix) {
+		mut path_len := path.len
+		mut prefix_len := prefix.len
+		if prefix_len == 0 {
+			return path, true
+		}
+		if path_len == prefix_len {
+			return '', true
+		}
+		if allowed_slashes.index_byte(prefix[prefix_len - 1]) >= 0 {
+			return path[prefix_len..], true
+		} else if allowed_slashes.index_byte(path[prefix_len]) >= 0 {
+			return path[prefix_len + 1..], true
+		}
+	}
+	return '', false
+}
