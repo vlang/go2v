@@ -79,6 +79,9 @@ fn (mut app App) call_expr(call CallExpr) {
 		}
 	}
 
+	// Can be empty if not println
+	fn_name = app.go2v_ident(fn_name)
+
 	app.gen('${fn_name}(') // fn_name is empty unless print
 
 	// In V println can only accept one argument, so convert multiple arguments into a single string
@@ -137,7 +140,7 @@ fn (mut app App) selector_expr_fn_call(call CallExpr, sel SelectorExpr) {
 	if sel_name == 'string' {
 		sel_name = 'str'
 	}
-	app.gen(sel_name)
+	app.gen(app.go2v_ident(sel_name))
 }
 
 fn (mut app App) make_call(call CallExpr) {
