@@ -42,7 +42,8 @@ struct InvalidExpr {}
 
 type Specs = ImportSpec | TypeSpec | ValueSpec
 
-type Type = StructType
+type Type = InvalidExpr
+	| StructType
 	| ArrayType
 	| MapType
 	| FuncType

@@ -29,6 +29,7 @@ fn (mut app App) gen_decl(decl GenDecl) {
 				}
 				match decl.tok {
 					'var' {
+						// app.genln('// ValueSpec global')
 						app.global_decl(spec)
 					}
 					else {
@@ -63,8 +64,18 @@ fn (mut app App) type_decl(spec TypeSpec) {
 fn (mut app App) global_decl(spec ValueSpec) {
 	for name in spec.names {
 		app.gen('__global ${name.name} ')
-		app.typ(spec.typ)
-		app.genln('')
+		if spec.typ is InvalidExpr {
+			// No type means `var x = foo.bar()`
+			// Eval the expression
+			app.gen(' = ')
+			// TODO multiple values?
+			if spec.values.len > 0 {
+				app.expr(spec.values[0])
+			}
+		} else {
+			app.typ(spec.typ)
+			app.genln('')
+		}
 	}
 }
 

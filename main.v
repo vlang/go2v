@@ -70,7 +70,10 @@ fn (mut app App) typ(t Type) {
 			app.selector_expr(t)
 		}
 		StructType {
-			app.gen('STRUCT TYPE')
+			app.gen('STRUCT_TYPE')
+		}
+		InvalidExpr {
+			app.gen('INVALID_EXPR')
 		}
 		InterfaceType {
 			app.interface_type(t)
