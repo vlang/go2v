@@ -3,6 +3,7 @@
 module main
 
 import os
+import flag
 import term
 import strings
 import v.util.diff
@@ -204,17 +205,28 @@ fn create_json(subdir string, test_name string) {
 }
 
 fn main() {
+	mut fp := flag.new_flag_parser(os.args)
+	fp.application('c2v')
+	fp.version('0.0.1')
+	fp.description('go2v is an utility to automatically transpile Go source code into V source code')
+	fp.arguments_description('GO_FILE/TEST_FOLDER_WITH_GO_AND_VV_PAIRS')
+	fp.footer('\nNormal mode:')
+	fp.footer('   Supply the path to a single .go file, that you want translated to V.')
+	fp.footer('\nTest mode:')
+	fp.footer('   The test folder is expected to have 2 files in it - a .go file and a .vv file.')
+	fp.footer('   The .go file will be translated, and then the output will be compared to the .vv file.')
+	fp.footer('   A failure will be reported, if there are differences.')
+	fp.skip_executable()
+	mut go_file_name := fp.finalize() or {
+		eprintln(err)
+		println(fp.usage())
+		exit(1)
+	}[0]
 	ensure_asty_is_installed() or {
 		eprintln(err)
 		exit(1)
 	}
-	mut go_file_name := if os.args.len > 1 { os.args[1] } else { '' }
-	/*
-	if !go_file_name.ends_with('.go') {
-		eprintln("usage: go2v file.go")
-		return
-	}
-	*/
+
 	mut app := &App{
 		sb: strings.new_builder(1000)
 	}
@@ -224,15 +236,9 @@ fn main() {
 	}
 
 	mut subdir := 'tests'
-
-	// A single test
-	if go_file_name != '' {
-		go_file_name = go_file_name.trim_right('/')
-		subdir = os.dir(go_file_name)
-		test_name := os.base(go_file_name)
-		create_json(subdir, test_name)
-		app.run_test(subdir, test_name)!
-		return
-	}
-	eprintln('usage: go2v file.go or go2v tests/test')
+	go_file_name = go_file_name.trim_right('/')
+	subdir = os.dir(go_file_name)
+	test_name := os.base(go_file_name)
+	create_json(subdir, test_name)
+	app.run_test(subdir, test_name)!
 }
