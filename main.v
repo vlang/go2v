@@ -216,6 +216,7 @@ fn main() {
 	fp.footer('   The test folder is expected to have 2 files in it - a .go file and a .vv file.')
 	fp.footer('   The .go file will be translated, and then the output will be compared to the .vv file.')
 	fp.footer('   A failure will be reported, if there are differences.')
+	fp.limit_free_args_to_exactly(1)!
 	fp.skip_executable()
 	mut go_file_name := fp.finalize() or {
 		eprintln(err)
