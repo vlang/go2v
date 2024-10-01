@@ -232,7 +232,12 @@ fn main() {
 	mut app := &App{
 		sb: strings.new_builder(1000)
 	}
+
 	if go_file_name.ends_with('.go') {
+		if !os.exists(go_file_name) {
+			eprintln('go2v error: missing file `${go_file_name}`')
+			exit(1)
+		}
 		app.translate_file(go_file_name)
 		return
 	}
