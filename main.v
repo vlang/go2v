@@ -206,7 +206,7 @@ fn create_json(subdir string, test_name string) {
 
 fn main() {
 	mut fp := flag.new_flag_parser(os.args)
-	fp.application('c2v')
+	fp.application('go2v')
 	fp.version('0.0.1')
 	fp.description('go2v is an utility to automatically transpile Go source code into V source code')
 	fp.arguments_description('GO_FILE/TEST_FOLDER_WITH_GO_AND_VV_PAIRS')
