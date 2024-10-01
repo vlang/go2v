@@ -87,6 +87,10 @@ fn (mut app App) typ(t Type) {
 }
 
 fn generate_ast_for_go_file(go_file_path string) string {
+	if !os.exists(go_file_path) {
+		eprintln('Missing input .go file: `${go_file_path}`.')
+		return ''
+	}
 	output_file := go_file_path + '.json'
 
 	asty_cmd := '${full_path_to_asty} go2json -comments -indent 2 -input ${go_file_path} -output ${output_file}'

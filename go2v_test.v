@@ -4,7 +4,7 @@ import strings
 import os
 
 fn test_all() {
-	mut subdir := 'tests'
+	subdir := 'tests'
 	mut app := &App{
 		sb: strings.new_builder(1000)
 	}
@@ -12,9 +12,9 @@ fn test_all() {
 	// All tests
 	mut test_names := os.ls('tests') or { return }
 	test_names.sort()
-	mut tests_ok := true
+	mut tests_failures := []string{}
 	for test_name in test_names {
-		println('===========================================')
+		println('='.repeat(44))
 		create_json(subdir, test_name)
 		// A separate instance for each test
 		mut app2 := &App{
@@ -22,12 +22,18 @@ fn test_all() {
 		}
 		app2.run_test(subdir, test_name) or {
 			eprintln('Error running test ${test_name}: ${err}')
-			break
+			exit(1)
 		}
-		tests_ok &&= app2.tests_ok
+		if !app2.tests_ok {
+			tests_failures << test_name
+		}
 	}
-	// if !app.tests_ok {
-	if !tests_ok {
+	if tests_failures.len != 0 {
+		eprintln('='.repeat(80))
+		eprintln('Found ${tests_failures.len} go2v errors. Use the following commands to reproduce them in isolation:')
+		for f in tests_failures {
+			eprintln('    ./go2v ${subdir}/${f}')
+		}
 		exit(1)
 	}
 }
