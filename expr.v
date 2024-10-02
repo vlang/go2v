@@ -90,6 +90,7 @@ fn quoted_lit(s string, quote string) string {
 
 fn (mut app App) selector_expr(s SelectorExpr) {
 	force_upper := app.force_upper // save force upper for `mod.ForceUpper`
+	app.force_upper = false
 	app.expr(s.x)
 	app.gen('.')
 	app.force_upper = force_upper
@@ -156,6 +157,10 @@ fn (mut app App) array_type(node ArrayType) {
 			app.gen('[]')
 			app.func_type(node.elt)
 		}
+		ArrayType {
+			app.gen('[]')
+			app.array_type(node.elt)
+		}
 		else {
 			app.gen('UNKNOWN ELT ${node.elt.type_name()}')
 		}
@@ -165,6 +170,7 @@ fn (mut app App) array_type(node ArrayType) {
 fn (mut app App) map_type(node MapType) {
 	app.force_upper = true
 	app.gen('map[')
+	app.force_upper = true
 	app.expr(node.key)
 	app.gen(']')
 	app.force_upper = true

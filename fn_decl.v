@@ -2,6 +2,7 @@
 // Use of this source code is governed by a GPL license that can be found in the LICENSE file.
 
 fn (mut app App) func_decl(decl FuncDecl) {
+	app.cur_fn_names.clear()
 	app.genln('')
 	app.comments(decl.doc)
 	method_name := app.go2v_ident(decl.name.name) // decl.name.name.to_lower()
@@ -53,17 +54,25 @@ fn (mut app App) func_return_type(results FieldList) {
 	// app.genln(results)
 	// Return types
 	return_types := results.list
-	if return_types.len > 1 {
+	needs_pars := return_types.len > 1
+	//|| (return_types.len > 0 && return_types[0].names.len > 0	&& return_types[0].names[0].name != '')
+	if needs_pars {
 		app.gen('(')
 	}
 	for i, res in return_types {
+		/*
+		if res.names.len > 0 && res.names[0].name != '' {
+			app.gen(app.go2v_ident(res.names[0].name))
+			app.gen(' ')
+		}
+		*/
 		app.typ(res.typ)
 		if i < return_types.len - 1 {
 			app.gen(',')
 		}
 		//' ${decl.typ.results.list.map(type_or_ident(it.typ)).join(', ')}'
 	}
-	if return_types.len > 1 {
+	if needs_pars {
 		app.gen(')')
 	}
 }

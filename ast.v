@@ -37,6 +37,7 @@ type Stmt = AssignStmt
 	| RangeStmt
 	| ReturnStmt
 	| SwitchStmt
+	| GoStmt
 
 struct InvalidExpr {}
 
@@ -295,12 +296,18 @@ struct ReturnStmt {
 struct BranchStmt {
 	node_type string @[json: '_type']
 	tok       string @[json: 'Tok']
+	label     Ident  @[json: 'Label'] // only for `goto`
 }
 
 struct FuncLit {
 	node_type string    @[json: '_type']
 	typ       FuncType  @[json: 'Type']
 	body      BlockStmt @[json: 'Body']
+}
+
+struct GoStmt {
+	node_type string @[json: '_type']
+	call      Expr   @[json: 'Call']
 }
 
 fn parse_go_ast(file_path string) !GoFile {

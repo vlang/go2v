@@ -13,6 +13,9 @@ fn test_all() {
 	mut test_names := os.ls('tests') or { return }
 	test_names.sort()
 	mut tests_failures := []string{}
+	complex_names := os.ls('complex_tests/esbuild') or { return }
+	assert complex_names.len > 0
+	test_names << complex_names
 	for test_name in test_names {
 		println('='.repeat(44))
 		create_json(subdir, test_name)

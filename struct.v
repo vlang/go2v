@@ -136,6 +136,7 @@ fn (mut app App) struct_decl(struct_name string, spec StructType) {
 		app.genln('pub mut:')
 	}
 	for field in spec.fields.list {
+		app.comments(field.doc)
 		for n in field.names {
 			app.gen('\t')
 			app.gen(app.go2v_ident(n.name))
@@ -202,7 +203,9 @@ fn (mut app App) struct_init(c CompositeLit) {
 	typ := c.typ
 	match typ {
 		Ident {
-			app.gen('${typ.name}{')
+			app.force_upper = true
+			n := app.go2v_ident(typ.name)
+			app.gen('${n}{')
 			if c.elts.len > 0 {
 				app.genln('')
 			}

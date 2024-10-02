@@ -1,5 +1,6 @@
 // Copyright (c) 2024 Alexander Medvednikov. All rights reserved.
 // Use of this source code is governed by a GPL license that can be found in the LICENSE file.
+import rand
 
 fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
 	for l_idx, lhs_expr in assign.lhs {
@@ -19,7 +20,22 @@ fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
 		} else {
 			app.gen(', ')
 		}
-		app.expr(lhs_expr)
+		if lhs_expr is Ident {
+			// Handle shadowing
+			mut n := lhs_expr.name
+			if assign.tok == ':=' && n != '_' && n in app.cur_fn_names {
+				n += rand.intn(10000) or { 0 }.str() // LOL fix this
+			}
+
+			app.cur_fn_names[n] = true
+			new_ident := Ident{
+				...lhs_expr
+				name: n
+			}
+			app.ident(new_ident) // lhs_expr)
+		} else {
+			app.expr(lhs_expr)
+		}
 	}
 	// Special case for 'append()' => '<<'
 	if app.check_and_handle_append(assign) {

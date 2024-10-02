@@ -318,9 +318,7 @@ fn validate_loader(value Loader) config.Loader {
 	}
 }
 
-__global versionRegex STRUCT
-TYPE
-
+__global versionRegex = regexp.mustcompile(r'^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?(-[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)*)?$')
 fn validate_features(log logger.Log, target Target, engines []Engine) (compat.JSFeature, compat.CSSFeature, map[css_ast.D]compat.CSSPrefix, string) {
 	if target == default_target && engines.len == 0 {
 		return 0, 0, nil, ''
@@ -1183,7 +1181,8 @@ fn validate_build_options(buildOpts BuildOptions, log logger.Log, realFS fs.FS) 
 	mut out_js, out_css := validate_output_extensions(log, build_opts.out_extension)
 	mut banner_js, banner_css := validate_banner_or_footer(log, 'banner', build_opts.banner)
 	mut footer_js, footer_css := validate_banner_or_footer(log, 'footer', build_opts.footer)
-	mut minify := build_opts.minify_whitespace && build_opts.minify_identifiers && build_opts.minify_syntax
+	mut minify := build_opts.minify_whitespace && build_opts.minify_identifiers
+		&& build_opts.minify_syntax
 	mut platform := validate_platform(build_opts.platform)
 	mut defines, injected_defines := validate_defines(log, build_opts.define, build_opts.pure,
 		platform, true, minify, build_opts.drop)
@@ -1312,7 +1311,8 @@ fn validate_build_options(buildOpts BuildOptions, log logger.Log, realFS fs.FS) 
 		options.abs_output_dir = real_fs.dir(options.abs_output_file)
 	} else if options.abs_output_dir == '' {
 		options.write_to_stdout = true
-		if options.source_map != config.source_map_none && options.source_map != config.source_map_inline {
+		if options.source_map != config.source_map_none
+			&& options.source_map != config.source_map_inline {
 			log.adderror(nil, logger.Range{}, 'Cannot use an external source map without an output path')
 		}
 		if options.legal_comments.hasexternalfile() {
@@ -1781,7 +1781,8 @@ fn (impl &pluginImpl) on_resolve(options OnResolveOptions, callback fn () (OnRes
 			result.plugin_name = response.plugin_name
 			result.abs_watch_files = impl.validatepathsarray(response.watch_files, 'watch file')
 			result.abs_watch_dirs = impl.validatepathsarray(response.watch_dirs, 'watch directory')
-			if err == nil && response.suffix != '' && response.suffix[0] != `?` && response.suffix[0] != `#` {
+			if err == nil && response.suffix != '' && response.suffix[0] != `?`
+				&& response.suffix[0] != `#` {
 				err = strconv.errorf('Invalid path suffix %q returned from plugin (must start with "?" or "#")',
 					response.suffix)
 			}

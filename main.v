@@ -17,7 +17,8 @@ mut:
 	force_upper    bool // for `field Type` in struct decl, `mod.UpperCase` types etc
 	type_decl_name string
 	is_enum_decl   bool
-	is_mut_recv    bool // so that `mut f Foo` is generated instead of `mut f &Foo`
+	is_mut_recv    bool            // so that `mut f Foo` is generated instead of `mut f &Foo`
+	cur_fn_names   map[string]bool // for fixing shadowing
 }
 
 fn (mut app App) genln(s string) {
@@ -146,6 +147,7 @@ fn (mut app App) run_test(subdir string, test_name string) ! {
 	res := os.execute('v fmt -w ${v_path}')
 	if res.exit_code != 0 {
 		println(res)
+		app.tests_ok = false
 	}
 
 	mut formatted_v_code := os.read_file(v_path) or { panic(err) }

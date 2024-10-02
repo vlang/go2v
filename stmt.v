@@ -51,6 +51,9 @@ fn (mut app App) stmt(stmt Stmt) {
 		DeferStmt {
 			app.defer_stmt(stmt)
 		}
+		GoStmt {
+			app.go_stmt(stmt)
+		}
 		else {
 			app.genln('\t// unhandled in stmt: ${stmt}')
 		} // Add additional handlers as needed
@@ -59,6 +62,11 @@ fn (mut app App) stmt(stmt Stmt) {
 
 fn (mut app App) expr_stmt(stmt ExprStmt) {
 	app.expr(stmt.x)
+}
+
+fn (mut app App) go_stmt(stmt GoStmt) {
+	app.gen('go ')
+	app.expr(stmt.call)
 }
 
 fn (mut app App) block_stmt(body BlockStmt) {
@@ -126,12 +134,12 @@ fn (mut app App) range_stmt(node RangeStmt) {
 	if node.key.name == '' {
 		app.gen('_ ')
 	} else {
-		app.gen(node.key.name)
+		app.gen(app.go2v_ident(node.key.name))
 		app.gen(', ')
 		if node.value.name == '' {
 			app.gen(' _ ')
 		} else {
-			app.gen(node.value.name)
+			app.gen(app.go2v_ident(node.value.name))
 		}
 	}
 	app.gen(' in ')
@@ -227,5 +235,9 @@ fn (mut app App) return_stmt(node ReturnStmt) {
 
 // continue break etc
 fn (mut app App) branch_stmt(node BranchStmt) {
-	app.genln(node.tok)
+	app.gen(node.tok)
+	if node.label.name != '' {
+		app.gen(' ' + node.label.name)
+	}
+	app.genln('')
 }

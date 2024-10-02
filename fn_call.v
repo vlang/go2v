@@ -62,11 +62,11 @@ fn (mut app App) call_expr(call CallExpr) {
 		elt := fun.elt
 		if elt is Ident && elt.name == 'byte' {
 			x := call.args[0]
-			if x is BasicLit {
-				app.expr(x)
-				app.gen('.bytes()')
-				return
-			}
+			// TODO not every expr/type can be handled like this?
+			// if x is BasicLit {
+			app.expr(x)
+			app.gen('.bytes()')
+			return
 		}
 	}
 
@@ -130,10 +130,14 @@ fn (mut app App) selector_expr_fn_call(call CallExpr, sel SelectorExpr) {
 	// app.genln('///selector_expr_fn_call')
 	if sel.x is Ident {
 		if sel.x.name in nonexistent_modules {
-			app.handle_nonexistent_module_call(sel.x.name, sel.sel.name, call)
+			app.handle_nonexistent_module_call(sel, sel.x.name, sel.sel.name, call)
 			return
 		}
 	}
+	app.selector_xxx(sel)
+}
+
+fn (mut app App) selector_xxx(sel SelectorExpr) {
 	app.expr(sel.x)
 	app.gen('.')
 	mut sel_name := sel.sel.name.to_lower()
@@ -145,9 +149,16 @@ fn (mut app App) selector_expr_fn_call(call CallExpr, sel SelectorExpr) {
 
 fn (mut app App) make_call(call CallExpr) {
 	// app.genln('//make ${call.fun.type_name()} ar0=${call.args[0].type_name()}')
+	app.force_upper = true
 	app.expr(call.args[0])
+	// len only
+	if call.args.len == 2 {
+		app.gen('{ len: ')
+		app.expr(call.args[1])
+		app.gen(' }')
+	}
 	// cap + len
-	if call.args.len == 3 {
+	else if call.args.len == 3 {
 		app.gen('{ len: ')
 		app.expr(call.args[1])
 		app.gen(', cap: ')
@@ -158,13 +169,13 @@ fn (mut app App) make_call(call CallExpr) {
 	}
 }
 
-fn (mut app App) handle_nonexistent_module_call(mod_name string, fn_name string, node CallExpr) {
+fn (mut app App) handle_nonexistent_module_call(sel SelectorExpr, mod_name string, fn_name string, node CallExpr) {
 	match mod_name {
 		'strings' {
 			app.handle_strings_call(app.go2v_ident(fn_name), node.args)
 		}
 		'path' {
-			app.handle_path_call(app.go2v_ident(fn_name), node.args)
+			app.handle_path_call(sel, app.go2v_ident(fn_name), node.args)
 		}
 		'fmt' {
 			app.handle_fmt_call(app.go2v_ident(fn_name), node.args)
@@ -181,9 +192,14 @@ fn (mut app App) handle_strings_call(fn_name string, args []Expr) {
 	app.skip_first_arg = true
 }
 
-fn (mut app App) handle_path_call(fn_name string, _ []Expr) {
+fn (mut app App) handle_path_call(sel SelectorExpr, fn_name string, x []Expr) {
 	if fn_name == 'base' {
 		app.gen('os.base')
+	}
+	// Go allows module name shadowing, so we can have a variable
+	// `path`
+	else {
+		app.selector_xxx(sel)
 	}
 }
 

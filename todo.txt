@@ -1,0 +1,5 @@
+- Fix shadowing ("redefinition of xxx")
+- Fix `else if x := .... ; x {`
+- Implement `if obj, ok := json.Data.(*js_ast.EObject); ok {`
+- []u8(byteptr) cast ???
+

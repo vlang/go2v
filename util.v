@@ -54,7 +54,13 @@ fn (mut app App) go2v_ident(ident string) string {
 	// println('ident=${ident} force_upper=${app.force_upper}')
 	if app.force_upper {
 		app.force_upper = false
-		return ident // go2v_ident2(ident)
+		if ident in v_keywords_which_are_not_go_keywords {
+			return ident + '_'
+		}
+		if ident in ['string', 'int', 'float64'] {
+			return ident
+		}
+		return ident.capitalize()
 	}
 	return go2v_ident2(ident)
 	/*
