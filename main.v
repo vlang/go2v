@@ -30,7 +30,7 @@ fn (mut app App) gen(s string) {
 }
 
 fn (mut app App) generate_v_code(go_file GoFile) string {
-	app.genln('module ${go_file.package_name.name}\n')
+	app.genln('module ${app.go2v_ident(go_file.package_name.name)}\n')
 
 	for decl in go_file.decls {
 		match decl {
