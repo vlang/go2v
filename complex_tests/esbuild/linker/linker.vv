@@ -1,0 +1,5477 @@
+module linker
+
+import bytes
+import encoding.base64
+import encoding.binary
+import hash
+import sort
+import strconv
+import sync
+import ast // local module
+import bundler // local module
+import compat // local module
+import config // local module
+import css_ast // local module
+import css_lexer // local module
+import css_parser // local module
+import css_printer // local module
+import fs // local module
+import graph // local module
+import helpers // local module
+import js_ast // local module
+import js_lexer // local module
+import js_printer // local module
+import logger // local module
+import renamer // local module
+import resolver // local module
+import runtime // local module
+import sourcemap // local module
+import xxhash // local module
+
+struct linkerContext {
+pub mut:
+	options &config.Options = unsafe { nil }
+	timer   &helpers.Timer  = unsafe { nil }
+	log     logger.Log
+	fs      fs.FS
+	res     &resolver.Resolver = unsafe { nil }
+	graph   graph.LinkerGraph
+	chunks  []chunkInfo
+	// This helps avoid an infinite loop when matching imports to exports
+	cycle_detector []importTracker
+	// This represents the parallel computation of source map related data.
+	// Calling this will block until the computation is done. The resulting value
+	// is shared between threads and must be treated as immutable.
+	data_for_source_maps fn () []bundler.DataForSourceMap = unsafe { nil }
+	// This is passed to us from the bundling phase
+	unique_key_prefix       string
+	unique_key_prefix_bytes []u8
+	// Property mangling results go here
+	mangled_props map[ast.Ref]string
+	// We may need to refer to the CommonJS "module" symbol for exports
+	unbound_module_ref ast.Ref
+	// We may need to refer to the "__esm" and/or "__commonJS" runtime symbols
+	cjs_runtime_ref ast.Ref
+	esm_runtime_ref ast.Ref
+}
+
+struct partRange {
+pub mut:
+	source_index     u32
+	part_index_begin u32
+	part_index_end   u32
+}
+
+struct chunkInfo {
+pub mut:
+	// This is a random string and is used to represent the output path of this
+	// chunk before the final output path has been computed.
+	unique_key                string
+	files_with_parts_in_chunk map[Uint32]Bool
+	entry_bits                helpers.BitSet
+	// For code splitting
+	cross_chunk_imports []chunkImport
+	// This is the representation-specific information
+	chunk_repr chunkRepr
+	// This is the final path of this chunk relative to the output directory, but
+	// without the substitution of the final hash (since it hasn't been computed).
+	final_template []config.PathTemplate
+	// This is the final path of this chunk relative to the output directory. It
+	// is the substitution of the final hash into "finalTemplate".
+	final_rel_path string
+	// If non-empty, this chunk needs to generate an external legal comments file.
+	external_legal_comments []u8
+	// This contains the hash for just this chunk without including information
+	// from the hashes of other chunks. Later on in the linking process, the
+	// final hash for this chunk will be constructed by merging the isolated
+	// hashes of all transitive dependencies of this chunk. This is separated
+	// into two phases like this to handle cycles in the chunk import graph.
+	wait_for_isolated_hash fn () []u8 = unsafe { nil }
+	// Other fields relating to the output file for this chunk
+	json_metadata_chunk_callback fn (finalOutputSize isize) helpers.Joiner = unsafe { nil }
+	output_source_map            sourcemap.SourceMapPieces
+	// When this chunk is initially generated in isolation, the output pieces
+	// will contain slices of the output with the unique keys of other chunks
+	// omitted.
+	intermediate_output intermediateOutput
+	// This information is only useful if "isEntryPoint" is true
+	entry_point_bit usize
+	source_index    u32
+	is_entry_point  bool
+	is_executable   bool
+}
+
+struct chunkImport {
+pub mut:
+	chunk_index u32
+	import_kind ast.ImportKind
+}
+
+type outputPieceIndexKind = u8
+
+enum outputPieceIndexKind {
+	output_piece_none
+	output_piece_asset_index
+	output_piece_chunk_index
+}
+
+// This is a chunk of source code followed by a reference to another chunk. For
+// example, the file "@import 'CHUNK0001'; body { color: black; }" would be
+// represented by two pieces, one with the data "@import '" and another with the
+// data "'; body { color: black; }". The first would have the chunk index 1 and
+// the second would have an invalid chunk index.
+struct outputPiece {
+pub mut:
+	data []u8
+	// Note: The "kind" may be "outputPieceNone" in which case there is one piece
+	// with data and no chunk index. For example, the chunk may not contain any
+	// imports.
+	index u32
+	kind  outputPieceIndexKind
+}
+
+struct intermediateOutput {
+pub mut:
+	// If the chunk has references to other chunks, then "pieces" contains the
+	// contents of the chunk and "joiner" should not be used. Another joiner
+	// will have to be constructed later when merging the pieces together.
+	pieces []outputPiece
+	// If the chunk doesn't have any references to other chunks, then "pieces" is
+	// nil and "joiner" contains the contents of the chunk. This is more efficient
+	// because it avoids doing a join operation twice.
+	joiner helpers.Joiner
+}
+
+interface chunkRepr {
+	is_chunkfn()
+}
+
+fn (mut _ ChunkReprJS) is_chunk() {
+}
+
+fn (mut _ ChunkReprCSS) is_chunk() {
+}
+
+struct chunkReprJS {
+pub mut:
+	files_in_chunk_in_order []u32
+	parts_in_chunk_in_order []partRange
+	// For code splitting
+	exports_to_other_chunks   map[ast.Ref]string
+	imports_from_other_chunks map[Uint32]CrossChunkImportItemArray
+	cross_chunk_prefix_stmts  []js_ast.Stmt
+	cross_chunk_suffix_stmts  []js_ast.Stmt
+	css_chunk_index           u32
+	has_cssc_hunk             bool
+}
+
+struct chunkReprCSS {
+pub mut:
+	imports_in_chunk_in_order []cssImportOrder
+}
+
+struct externalImportCSS {
+pub mut:
+	path                     logger.Path
+	conditions               []css_ast.ImportConditions
+	condition_import_records []ast.ImportRecord
+}
+
+// Returns a log where "log.HasErrors()" only returns true if any errors have
+// been logged since this call. This is useful when there have already been
+// errors logged by other linkers that share the same log.
+fn wrapped_log(log logger.Log) logger.Log {
+	mut mutex := 0
+	mut hasErrors := 0
+	mut add_msg := log.add_msg
+	log.add_msg = fn (msg logger.Msg) {
+		if msg.kind == logger.error {
+			mutex.lock_()
+			defer {
+				mutex.unlock
+			}
+			has_errors = true
+		}
+		add_msg(msg)
+	}
+
+	log.has_errors = fn () {
+		mutex.lock_()
+		defer {
+			mutex.unlock
+		}
+		return has_errors
+	}
+
+	return log
+}
+
+pub fn link(options &config.Options, timer &helpers.Timer, log logger.Log, fs fs.FS, res &resolver.Resolver, inputFiles []graph.InputFile, entryPoints []graph.EntryPoint, uniqueKeyPrefix string, reachableFiles []u32, dataForSourceMaps fn () []bundler.DataForSourceMap) []graph.OutputFile {
+	timer.begin('Link')
+	defer {
+		timer.end('Link')
+	}
+	log = wrapped_log(log)
+	timer.begin('Clone linker graph')
+	mut c := LinkerContext{
+		options:                 options
+		timer:                   timer
+		log:                     log
+		fs:                      fs
+		res:                     res
+		data_for_source_maps:    data_for_source_maps
+		unique_key_prefix:       unique_key_prefix
+		unique_key_prefix_bytes: unique_key_prefix.bytes()
+		graph:                   graph.clone_linker_graph(input_files, reachable_files,
+			entry_points, options.code_splitting)
+	}
+	timer.end('Clone linker graph')
+	mut runtime_repr := c.graph.files[runtime.source_index].input_file.repr
+	if c.options.profiler_names {
+		c.cjs_runtime_ref = runtime_repr.ast.named_exports['__commonJS'].ref
+		c.esm_runtime_ref = runtime_repr.ast.named_exports['__esm'].ref
+	} else {
+		c.cjs_runtime_ref = runtime_repr.ast.named_exports['__commonJSMin'].ref
+		c.esm_runtime_ref = runtime_repr.ast.named_exports['__esmMin'].ref
+	}
+	mut additionalFiles := []graph.OutputFile{}
+	for _, entry_point in entry_points {
+		mut file := &c.graph.files[entry_point.source_index].input_file
+		mut repr := file.repr
+		match repr {
+			graph.JSRepr {
+				if repr.ast.has_lazy_export && (c.options.mode == config.mode_pass_through
+					|| (c.options.mode == config.mode_convert_format
+					&& !c.options.output_format.keep_esmi_mport_export_syntax())) {
+					repr.ast.exports_kind = js_ast.exports_common_js
+				}
+				if repr.ast.export_keyword.len > 0 && (
+					options.output_format == config.format_common_js
+					|| options.output_format == config.format_iife && options.global_name.len > 0) {
+					repr.ast.uses_exports_ref = true
+					repr.meta.force_include_exports_for_entry_point = true
+				}
+			}
+			graph.CopyRepr {
+				additional_files << file.additional_files
+			}
+		}
+	}
+	if c.options.output_format == config.format_common_js {
+		c.unbound_module_ref = c.graph.generate_new_symbol(runtime.source_index, ast.symbol_unbound,
+			'module')
+	} else {
+		c.unbound_module_ref = ast.invalid_ref
+	}
+	c.scan_imports_and_exports()
+	if c.log.has_errors() {
+		c.options.exclusive_mangle_cache_update(fn (_ map[string]string, _ map[string]Bool) {
+		})
+		return []
+		{
+		}
+	}
+	c.tree_shaking_and_code_splitting()
+	if c.options.mode == config.mode_pass_through {
+		for _, entry_point_1 in c.graph.entry_points() {
+			c.prevent_exports_from_being_renamed(entry_point.source_index)
+		}
+	}
+	c.compute_chunks()
+	c.compute_cross_chunk_dependencies()
+	c.timer.begin('Waiting for mangle cache')
+	c.options.exclusive_mangle_cache_update(fn (mangleCache map[string]string, cssUsedLocalNames map[string]Bool) {
+		c.timer.end('Waiting for mangle cache')
+		c.mangle_props(mangle_cache)
+		c.mangle_local_css(css_used_local_names)
+	})
+	ast.follow_all_symbols(c.graph.symbols)
+	return c.generate_chunks_in_parallel(additional_files)
+}
+
+fn (c &LinkerContext) mangle_props(mangleCache map[string]string) {
+	c.timer.begin('Mangle props')
+	defer {
+		c.timer.end('Mangle props')
+	}
+	mut mangled_props := map[ast.Ref]string{}
+	c.mangled_props = mangled_props
+	mut reserved_props := map[string]Bool{}
+	for keyword, _ in js_lexer.keywords {
+		reserved_props[keyword] = true
+	}
+	for original, remapped in mangle_cache {
+		if remapped == false {
+			reserved_props[original] = true
+		} else {
+			reserved_props[remapped] = true
+		}
+	}
+	mut freq := ast.CharFreq{}
+	mut merged_props := map[string]ast.Ref{}
+	for _, source_index in c.graph.reachable_files {
+		if source_index == runtime.source_index {
+			continue
+		}
+		mut repr, ok := c.graph.files[source_index].input_file.repr
+		if ok {
+			for prop, _ in repr.ast.reserved_props {
+				reserved_props[prop] = true
+			}
+			for name, ref in repr.ast.mangled_props {
+				mut existing, ok_1 := merged_props[name]
+				if ok {
+					ast.merge_symbols(c.graph.symbols, ref, existing)
+				} else {
+					merged_props[name] = ref
+				}
+			}
+			if repr.ast.char_freq != nil {
+				freq.include(repr.ast.char_freq)
+			}
+		}
+	}
+	mut sorted := renamer.StableSymbolCountArray{
+		len: 0
+		cap: merged_props.len
+	}
+	mut stable_source_indices := c.graph.stable_source_indices
+	for _, ref_1 in merged_props {
+		sorted << renamer.StableSymbolCount{
+			stable_source_index: stable_source_indices[ref.source_index]
+			ref:                 ref
+			count:               c.graph.symbols.get(ref).use_count_estimate
+		}
+	}
+	sort.sort(sorted)
+	mut minifier := ast.default_name_minifier_js.shuffle_by_char_freq(freq)
+	mut next_name := isize(0)
+	for _, symbol_count in sorted {
+		mut symbol := c.graph.symbols.get(symbol_count.ref)
+		mut existing_1, ok_2 := mangle_cache[symbol.original_name]
+		if ok {
+			if existing != false {
+				mangled_props[symbol_count.ref] = existing
+			}
+			continue
+		}
+		mut name_1 := minifier.number_to_minified_name(next_name)
+		next_name++
+		for reserved_props[name] {
+			name = minifier.number_to_minified_name(next_name)
+			next_name++
+		}
+		if mangle_cache != nil {
+			mangle_cache[symbol.original_name] = name
+		}
+		mangled_props[symbol_count.ref] = name
+	}
+}
+
+fn (c &LinkerContext) mangle_local_css(usedLocalNames map[string]Bool) {
+	c.timer.begin('Mangle local CSS')
+	defer {
+		c.timer.end('Mangle local CSS')
+	}
+	mut mangled_props := c.mangled_props
+	mut global_names := map[string]Bool{}
+	mut local_names := map[ast.Ref]ast.Ref{}
+	mut freq := ast.CharFreq{}
+	for _, source_index in c.graph.reachable_files {
+		mut repr, ok := c.graph.files[source_index].input_file.repr
+		if ok {
+			for inner_index, symbol in c.graph.symbols.symbols_for_source[source_index] {
+				if symbol.kind == ast.symbol_global_css {
+					global_names[symbol.original_name] = true
+				} else {
+					mut ref := ast.Ref{
+						source_index: source_index
+						inner_index:  u32(inner_index)
+					}
+					ref = ast.follow_symbols(c.graph.symbols, ref)
+				}
+			}
+			if repr.ast.char_freq != nil {
+				freq.include(repr.ast.char_freq)
+			}
+		}
+	}
+	mut sorted := renamer.StableSymbolCountArray{
+		len: 0
+		cap: local_names.len
+	}
+	mut stable_source_indices := c.graph.stable_source_indices
+	for ref_1, _ in local_names {
+		sorted << renamer.StableSymbolCount{
+			stable_source_index: stable_source_indices[ref.source_index]
+			ref:                 ref
+			count:               c.graph.symbols.get(ref).use_count_estimate
+		}
+	}
+	sort.sort(sorted)
+	if c.options.minify_identifiers {
+		mut minifier := ast.default_name_minifier_css.shuffle_by_char_freq(freq)
+		mut next_name := isize(0)
+		for _, symbol_count in sorted {
+			mut name := minifier.number_to_minified_name(next_name)
+			for global_names[name] || used_local_names[name] {
+				next_name++
+				name = minifier.number_to_minified_name(next_name)
+			}
+			mangled_props[symbol_count.ref] = name
+			used_local_names[name] = true
+		}
+	} else {
+		mut name_counts := map[string]Uint32{}
+		for _, symbol_count_1 in sorted {
+			mut symbol_1 := c.graph.symbols.get(symbol_count.ref)
+			mut name_1 := strconv.v_sprintf('%s_%s', c.graph.files[symbol_count.ref.source_index].input_file.source.identifier_name,
+				symbol.original_name)
+			if global_names[name] || used_local_names[name] {
+				mut tries, ok_1 := name_counts[name]
+				if !ok {
+					tries = isize(1)
+				}
+				mut prefix := name
+				for {
+					tries++
+					name = prefix + strconv.itoa(isize(tries))
+					if !global_names[name] && !used_local_names[name] {
+						name_counts[prefix] = tries
+						break
+					}
+				}
+			}
+			mangled_props[symbol_count.ref] = name
+			used_local_names[name] = true
+		}
+	}
+}
+
+// Currently the automatic chunk generation algorithm should by construction
+// never generate chunks that import each other since files are allocated to
+// chunks based on which entry points they are reachable from.
+//
+// This will change in the future when we allow manual chunk labels. But before
+// we allow manual chunk labels, we'll need to rework module initialization to
+// allow code splitting chunks to be lazily-initialized.
+//
+// Since that work hasn't been finished yet, cycles in the chunk import graph
+// can cause initialization bugs. So let's forbid these cycles for now to guard
+// against code splitting bugs that could cause us to generate buggy chunks.
+fn (c &LinkerContext) enforce_no_cyclic_chunk_imports() {
+	mut validate := 0
+	mut colors := map[isize]isize{}
+	validate = fn (chunkIndex isize, colors map[isize]isize) {
+		if colors[chunk_index] == 1 {
+			c.log.add_error(nil, logger.Range{}, 'Internal error: generated chunks contain a circular import')
+			return true
+		}
+		if colors[chunk_index] == 2 {
+			return false
+		}
+		colors[chunk_index] = isize(1)
+		for _, chunk_import in c.chunks[chunk_index].cross_chunk_imports {
+			if chunk_import.import_kind != ast.import_dynamic {
+				if validate(isize(chunk_import.chunk_index), colors) {
+					return true
+				}
+			}
+		}
+		colors[chunk_index] = isize(2)
+		return false
+	}
+
+	for i, _ in c.chunks {
+		if validate(i, colors) {
+			break
+		}
+	}
+}
+
+fn (c &LinkerContext) generate_chunks_in_parallel(additionalFiles []graph.OutputFile) []graph.OutputFile {
+	c.timer.begin('Generate chunks')
+	defer {
+		c.timer.end('Generate chunks')
+	}
+	mut generate_wait_group := sync.WaitGroup{}
+	generate_wait_group.add(c.chunks.len)
+	for chunk_index, _ in c.chunks {
+		// append no rhs
+
+		// lhs.len==0
+	}
+	c.enforce_no_cyclic_chunk_imports()
+	generate_wait_group.wait()
+	mut visited := []u32{len: c.Chunks.len}
+	mut finalBytes := []u8{}
+	for chunk_index2, _ in c.chunks {
+		mut chunk := &c.chunks[chunk_index]
+		mut hashSubstitution := 0
+		if config.has_placeholder(chunk.final_template, config.hash_placeholder) {
+			mut hash := xxhash.new()
+			c.append_isolated_hashes_for_imported_chunks(hash, u32(chunk_index), visited,
+				u32(chunk_index))
+			final_bytes = hash.sum(final_bytes[..0])
+			mut final_string := bundler.hash_for_file_name(final_bytes)
+			hash_substitution = &final_string
+		}
+		chunk.final_rel_path = config.template_to_string(config.substitute_template(chunk.final_template,
+			config.PathPlaceholders{
+			hash: hash_substitution
+		}))
+	}
+	c.timer.begin('Generate final output files')
+	mut resultsWaitGroup := 0
+	mut results := [][]graph.OutputFile{len: c.chunks.len}
+	results_wait_group.add(c.chunks.len)
+	for chunk_index3, chunk_1 in c.chunks {
+		go fn (chunkIndex isize, chunk chunkInfo) {
+			mut outputFiles := []graph.OutputFile{}
+			mut commentPrefix := 0
+			mut commentSuffix := 0
+			mut chunk_repr := chunk.chunk_repr
+			match chunk_repr {
+				ChunkReprJS {
+					for _, source_index in chunk_repr.files_in_chunk_in_order {
+						output_files << c.graph.files[source_index].input_file.additional_files
+					}
+					comment_prefix = '//'
+				}
+				ChunkReprCSS {
+					for _, entry in chunk_repr.imports_in_chunk_in_order {
+						if entry.kind == css_import_source_index {
+							output_files << c.graph.files[entry.source_index].input_file.additional_files
+						}
+					}
+					comment_prefix = '/*'
+					comment_suffix = ' */'
+				}
+			}
+			mut final_rel_dir := c.fs.dir(chunk.final_rel_path)
+			mut output_contents_joiner, output_source_map_shifts := c.substitute_final_paths(chunk.intermediate_output,
+				fn (finalRelPathForImport string) {
+				return c.path_between_chunks(final_rel_dir, final_rel_path_for_import)
+			})
+			if chunk.external_legal_comments != nil {
+				mut final_rel_path_for_legal_comments := chunk.final_rel_path + '.LEGAL.txt'
+				if c.options.legal_comments == config.legal_comments_linked_with_comment {
+					mut import_path := c.path_between_chunks(final_rel_dir, final_rel_path_for_legal_comments)
+					import_path = import_path.trim_prefix('./')
+					output_contents_joiner.ensure_newline_at_end()
+					output_contents_joiner.add_string('/*! For license information please see ')
+					output_contents_joiner.add_string(import_path)
+					output_contents_joiner.add_string(' */\n')
+				}
+				output_files << graph.OutputFile{
+					abs_path:            c.fs.join(c.options.abs_output_dir, final_rel_path_for_legal_comments)
+					contents:            chunk.external_legal_comments
+					jsonm_etadata_chunk: strconv.v_sprintf('{\n      "imports": [],\n      "exports": [],\n      "inputs": {},\n      "bytes": %d\n    }',
+						chunk.external_legal_comments.len)
+				}
+			}
+			if c.options.source_map != config.source_map_none && chunk.output_source_map.has_content() {
+				mut output_source_map := chunk.output_source_map.finalize(output_source_map_shifts)
+				mut final_rel_path_for_source_map := chunk.final_rel_path + '.map'
+				match c.options.source_map {
+					config.source_map_linked_with_comment {
+						mut import_path_1 := c.path_between_chunks(final_rel_dir, final_rel_path_for_source_map)
+						import_path = import_path.trim_prefix('./')
+						output_contents_joiner.ensure_newline_at_end()
+						output_contents_joiner.add_string(comment_prefix)
+						output_contents_joiner.add_string('# sourceMappingURL=')
+						output_contents_joiner.add_string(import_path)
+						output_contents_joiner.add_string(comment_suffix)
+						output_contents_joiner.add_string('\n')
+					}
+					config.source_map_inline, config.source_map_inline_and_external {
+						output_contents_joiner.ensure_newline_at_end()
+						output_contents_joiner.add_string(comment_prefix)
+						output_contents_joiner.add_string('# sourceMappingURL=data:application/json;base64,')
+						output_contents_joiner.add_string(base64.std_encoding.encode_to_string(output_source_map))
+						output_contents_joiner.add_string(comment_suffix)
+						output_contents_joiner.add_string('\n')
+					}
+				}
+				match c.options.source_map {
+					config.source_map_linked_with_comment, config.source_map_inline_and_external,
+					config.source_map_external_without_comment {
+						output_files << graph.OutputFile{
+							abs_path:            c.fs.join(c.options.abs_output_dir, final_rel_path_for_source_map)
+							contents:            output_source_map
+							jsonm_etadata_chunk: strconv.v_sprintf('{\n      "imports": [],\n      "exports": [],\n      "inputs": {},\n      "bytes": %d\n    }',
+								output_source_map.len)
+						}
+					}
+				}
+			}
+			mut output_contents := output_contents_joiner.done()
+			mut jsonMetadataChunk := 0
+			if c.options.needs_metafile {
+				mut json_metadata_chunk_pieces := c.break_joiner_into_pieces(chunk.json_metadata_chunk_callback(output_contents.len))
+				mut json_metadata_chunk_bytes, _ := c.substitute_final_paths(json_metadata_chunk_pieces,
+					fn (finalRelPathForImport string) {
+					return resolver.pretty_path(c.fs, logger.Path{
+						text:      c.fs.join(c.options.abs_output_dir, final_rel_path_for_import)
+						namespace: 'file'
+					})
+				})
+				json_metadata_chunk = json_metadata_chunk_bytes.done().str()
+			}
+			output_files << graph.OutputFile{
+				abs_path:            c.fs.join(c.options.abs_output_dir, chunk.final_rel_path)
+				contents:            output_contents
+				jsonm_etadata_chunk: json_metadata_chunk
+				is_executable:       chunk.is_executable
+			}
+			results[chunk_index] = output_files
+			results_wait_group.done()
+		}(chunk_index, chunk)
+	}
+	results_wait_group.wait()
+	c.timer.end('Generate final output files')
+	mut output_files_len := additional_files.len
+	for _, result in results {
+		output_files_len += result.len
+	}
+	mut output_files_1 := []graph.OutputFile{len: 0, cap: output_files_len}
+	output_files << additional_files
+	for _, result_1 in results {
+		output_files << result
+	}
+	return output_files
+}
+
+// Given a set of output pieces (i.e. a buffer already divided into the spans
+// between import paths), substitute the final import paths in and then join
+// everything into a single byte buffer.
+fn (c &LinkerContext) substitute_final_paths(intermediateOutput intermediateOutput, modifyPath fn (_ string) string) (helpers.Joiner, []sourcemap.SourceMapShift) {
+	if intermediate_output.pieces == nil {
+		return intermediate_output.joiner, [sourcemap.SourceMapShift{}]
+	}
+	mut shift := 0
+	shifts = []sourcemap.SourceMapShift{len: 0, cap: intermediate_output.pieces.len}
+	shifts << shift
+	for _, piece in intermediate_output.pieces {
+		mut dataOffset := 0
+		j.add_bytes(piece.data)
+		data_offset.advance_bytes(piece.data)
+		shift.before.add(data_offset)
+		shift.after.add(data_offset)
+		match piece.kind {
+			output_piece_asset_index {
+				mut file := c.graph.files[piece.index]
+				if file.input_file.additional_files.len != 1 {
+					panic('Internal error')
+				}
+				mut rel_path, _ := c.fs.rel(c.options.abs_output_dir, file.input_file.additional_files[0].abs_path)
+				rel_path = rel_path.replace_all('\\', '/')
+				mut import_path := modify_path(rel_path)
+				j.add_string(import_path)
+				shift.before.advance_string(file.input_file.unique_key_for_additional_file)
+				shift.after.advance_string(import_path)
+				shifts << shift
+			}
+			output_piece_chunk_index {
+				mut chunk := c.chunks[piece.index]
+				mut import_path_1 := modify_path(chunk.final_rel_path)
+				j.add_string(import_path)
+				shift.before.advance_string(chunk.unique_key)
+				shift.after.advance_string(import_path)
+				shifts << shift
+			}
+		}
+	}
+	return
+}
+
+fn (c &LinkerContext) accurate_final_byte_count(output intermediateOutput, chunkFinalRelDir string) isize {
+	mut count := isize(0)
+	for _, piece in output.pieces {
+		count += piece.data.len
+		match piece.kind {
+			output_piece_asset_index {
+				mut file := c.graph.files[piece.index]
+				if file.input_file.additional_files.len != 1 {
+					panic('Internal error')
+				}
+				mut rel_path, _ := c.fs.rel(c.options.abs_output_dir, file.input_file.additional_files[0].abs_path)
+				rel_path = rel_path.replace_all('\\', '/')
+				mut import_path := c.path_between_chunks(chunk_final_rel_dir, rel_path)
+				count += import_path.len
+			}
+			output_piece_chunk_index {
+				mut chunk := c.chunks[piece.index]
+				mut import_path_1 := c.path_between_chunks(chunk_final_rel_dir, chunk.final_rel_path)
+				count += import_path.len
+			}
+		}
+	}
+	return count
+}
+
+fn (c &LinkerContext) path_between_chunks(fromRelDir string, toRelPath string) string {
+	if c.options.public_path != '' {
+		return join_with_public_path(c.options.public_path, to_rel_path)
+	}
+	mut rel_path, ok := c.fs.rel(from_rel_dir, to_rel_path)
+	if !ok {
+		c.log.add_error(nil, logger.Range{}, strconv.v_sprintf('Cannot traverse from directory %q to chunk %q',
+			from_rel_dir, to_rel_path))
+		return ''
+	}
+	rel_path = rel_path.replace_all('\\', '/')
+	if !rel_path.has_prefix('./') && !rel_path.has_prefix('../') {
+		rel_path = './' + rel_path
+	}
+	return rel_path
+}
+
+fn (c &LinkerContext) compute_cross_chunk_dependencies() {
+	c.timer.begin('Compute cross-chunk dependencies')
+	defer {
+		c.timer.end('Compute cross-chunk dependencies')
+	}
+	if !c.options.code_splitting {
+		return
+	}
+
+	mut chunk_metas := []chunkMeta{len: c.Chunks.len}
+	mut wait_group := sync.WaitGroup{}
+	wait_group.add(c.chunks.len)
+	for chunk_index4, chunk in c.chunks {
+		go fn (chunkIndex isize, chunk chunkInfo) {
+			mut chunk_meta := &chunk_metas[chunk_index]
+			mut imports := map[ast.Ref]Bool{}
+			chunk_meta.imports = imports
+			chunk_meta.exports = map[ast.Ref]Bool{}
+			for source_index, _ in chunk.files_with_parts_in_chunk {
+				mut repr := c.graph.files[source_index].input_file.repr
+				match repr {
+					graph.JSRepr {
+						for part_index, part_meta in repr.ast.parts {
+							if !part_meta.is_live {
+								continue
+							}
+							mut part := &repr.ast.parts[part_index]
+							for _, import_record_index in part.import_record_indices {
+								mut record := &repr.ast.import_records[import_record_index]
+								if record.source_index.is_valid() && c.is_external_dynamic_import(record,
+									source_index) {
+									mut other_chunk_index := c.graph.files[record.source_index.get_index()].entry_point_chunk_index
+									record.path.text = c.chunks[other_chunk_index].unique_key
+									record.source_index = ast.Index32{}
+									record.flags |= ast.should_not_be_external_in_metafile | ast.contains_unique_key
+									if isize(other_chunk_index) != chunk_index {
+										if chunk_meta.dynamic_imports == nil {
+											chunk_meta.dynamic_imports = map[isize]Bool{}
+										}
+										chunk_meta.dynamic_imports[isize(other_chunk_index)] = true
+									}
+								}
+							}
+							for _, declared in part.declared_symbols {
+								if declared.is_top_level {
+									c.graph.symbols.get(declared.ref).chunk_index = ast.make_index32(u32(chunk_index))
+								}
+							}
+							for ref, _ in part.symbol_uses {
+								mut symbol := c.graph.symbols.get(ref)
+								if symbol.kind == ast.symbol_unbound {
+									continue
+								}
+								if symbol.import_item_status == ast.import_item_missing {
+									continue
+								}
+								mut import_data, ok := repr.meta.imports_to_bind[ref]
+								if ok {
+									ref = import_data.ref
+									symbol = c.graph.symbols.get(ref)
+								} else if repr.meta.wrap == graph.wrap_cjs && ref != repr.ast.wrapper_ref {
+									continue
+								}
+								if symbol.namespace_alias != nil {
+									ref = symbol.namespace_alias.namespace_ref
+								}
+								imports[ref] = true
+							}
+						}
+					}
+				}
+			}
+			if chunk.is_entry_point {
+				mut repr_1, ok_1 := c.graph.files[chunk.source_index].input_file.repr
+				if ok {
+					if repr.meta.wrap != graph.wrap_cjs {
+						for _, alias in repr.meta.sorted_and_filtered_export_aliases {
+							mut export := repr.meta.resolved_exports[alias]
+							mut target_ref := export.ref
+							mut import_data_1, ok_2 := c.graph.files[export.source_index].input_file.repr.meta.imports_to_bind[target_ref]
+							if ok {
+								target_ref = import_data.ref
+							}
+							mut symbol_1 := c.graph.symbols.get(target_ref)
+							if symbol.namespace_alias != nil {
+								target_ref = symbol.namespace_alias.namespace_ref
+							}
+							imports[target_ref] = true
+						}
+					}
+					if repr.meta.force_include_exports_for_entry_point {
+						imports[repr.ast.exports_ref] = true
+					}
+					if repr.meta.wrap != graph.wrap_none {
+						imports[repr.ast.wrapper_ref] = true
+					}
+				}
+			}
+			wait_group.done()
+		}(chunk_index, chunk)
+	}
+	wait_group.wait()
+	for chunk_index, _ in c.chunks {
+		mut chunk_1 := &c.chunks[chunk_index]
+		mut chunk_repr, ok_3 := chunk.chunk_repr
+		if !ok {
+			continue
+		}
+		mut chunk_meta_1 := chunk_metas[chunk_index]
+		chunk_repr.imports_from_other_chunks = map[Uint32]CrossChunkImportItemArray{}
+		for import_ref, _ in chunk_meta.imports {
+			mut other_chunk_index_1 := c.graph.symbols.get(import_ref).chunk_index
+			if other_chunk_index.is_valid() {
+				mut other_chunk_index_2 := other_chunk_index.get_index()
+				if other_chunk_index != u32(chunk_index) {
+					chunk_repr.imports_from_other_chunks[other_chunk_index] << CrossChunkImportItem{
+						ref: import_ref
+					}
+					chunk_metas[other_chunk_index].exports[import_ref] = true
+				}
+			}
+		}
+		if chunk.is_entry_point {
+			for other_chunk_index, other_chunk in c.chunks {
+				_, ok_4 := other_chunk.chunk_repr
+				if ok && chunk_index != other_chunk_index && other_chunk.entry_bits.has_bit(chunk.entry_point_bit) {
+					mut imports_1 := chunk_repr.imports_from_other_chunks[u32(other_chunk_index)]
+					chunk_repr.imports_from_other_chunks[u32(other_chunk_index)] = imports
+				}
+			}
+		}
+		if chunk_meta.dynamic_imports != nil {
+			mut sorted_dynamic_imports := []isize{len: 0, cap: chunk_meta.DynamicImports.len}
+			for chunk_index_1, _ in chunk_meta.dynamic_imports {
+				sorted_dynamic_imports << chunk_index
+			}
+			sort.ints(sorted_dynamic_imports)
+			for _, chunk_index_2 in sorted_dynamic_imports {
+				chunk.cross_chunk_imports << ChunkImport{
+					import_kind: ast.import_dynamic
+					chunk_index: u32(chunk_index)
+				}
+			}
+		}
+	}
+	for chunk_index_3, _ in c.chunks {
+		mut chunk_2 := &c.chunks[chunk_index]
+		mut chunk_repr_1, ok_5 := chunk.chunk_repr
+		if !ok {
+			continue
+		}
+		chunk_repr.exports_to_other_chunks = map[ast.Ref]string{}
+		match c.options.output_format {
+			config.format_esm_odule {
+				mut r := renamer.ExportRenamer{}
+				mut items := []js_ast.ClauseItem{}
+				for _, export_1 in c.sorted_cross_chunk_export_items(chunk_metas[chunk_index].exports) {
+					if c.options.minify_identifiers {
+						alias = r.next_minified_name()
+					} else {
+						alias = r.next_renamed_name(c.graph.symbols.get(export.ref).original_name)
+					}
+					items << js_ast.ClauseItem{
+						name:  ast.LocRef{
+							ref: export.ref
+						}
+						alias: alias
+					}
+					chunk_repr.exports_to_other_chunks[export.ref] = alias
+				}
+				if items.len > 0 {
+					chunk_repr.cross_chunk_suffix_stmts = [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+					]
+				}
+			}
+			else {
+				panic('Internal error')
+			}
+		}
+	}
+	for chunk_index_4, _ in c.chunks {
+		mut chunk_3 := &c.chunks[chunk_index]
+		mut chunk_repr_2, ok_6 := chunk.chunk_repr
+		if !ok {
+			continue
+		}
+		mut crossChunkPrefixStmts := []js_ast.Stmt{}
+		for _, cross_chunk_import in c.sorted_cross_chunk_imports(chunk_repr.imports_from_other_chunks) {
+			match c.options.output_format {
+				config.format_esm_odule {
+					for _, item in cross_chunk_import.sorted_import_items {
+						items << js_ast.ClauseItem{
+							name:  ast.LocRef{
+								ref: item.ref
+							}
+							alias: item.export_alias
+						}
+					}
+					mut import_record_index := u32(chunk.cross_chunk_imports.len)
+					chunk.cross_chunk_imports << ChunkImport{
+						import_kind: ast.import_stmt
+						chunk_index: cross_chunk_import.chunk_index
+					}
+					if items.len > 0 {
+						cross_chunk_prefix_stmts << js_ast.Stmt{
+							data: &js_ast.SImport{
+								items:               &items
+								import_record_index: import_record_index
+							}
+						}
+					} else {
+						cross_chunk_prefix_stmts << js_ast.Stmt{
+							data: &js_ast.SImport{
+								import_record_index: import_record_index
+							}
+						}
+					}
+				}
+				else {
+					panic('Internal error')
+				}
+			}
+		}
+		chunk_repr.cross_chunk_prefix_stmts = cross_chunk_prefix_stmts
+	}
+}
+
+struct crossChunkImport {
+pub mut:
+	sorted_import_items crossChunkImportItemArray
+	chunk_index         u32
+}
+
+// This type is just so we can use Go's native sort function
+type crossChunkImportArray = []crossChunkImport
+
+pub fn (a crossChunkImportArray) len() isize {
+	return a.len
+}
+
+pub fn (a crossChunkImportArray) swap(i isize, j isize) {
+	a[i], a[j] = a[j], a[i]
+}
+
+pub fn (a crossChunkImportArray) less(i isize, j isize) bool {
+	return a[i].chunk_index < a[j].chunk_index
+}
+
+// Sort cross-chunk imports by chunk name for determinism
+fn (c &LinkerContext) sorted_cross_chunk_imports(importsFromOtherChunks map[Uint32]CrossChunkImportItemArray) crossChunkImportArray {
+	mut result := CrossChunkImportArray{
+		len: 0
+		cap: imports_from_other_chunks.len
+	}
+	for other_chunk_index, import_items in imports_from_other_chunks {
+		mut other_chunk := &c.chunks[other_chunk_index]
+		mut exports_to_other_chunks := other_chunk.chunk_repr.exports_to_other_chunks
+		for i, item in import_items {
+			import_items[i].export_alias = exports_to_other_chunks[item.ref]
+		}
+		sort.sort(import_items)
+		result << CrossChunkImport{
+			chunk_index:         other_chunk_index
+			sorted_import_items: import_items
+		}
+	}
+	sort.sort(result)
+	return result
+}
+
+struct crossChunkImportItem {
+pub mut:
+	export_alias string
+	ref          ast.Ref
+}
+
+// This type is just so we can use Go's native sort function
+type crossChunkImportItemArray = []crossChunkImportItem
+
+pub fn (a crossChunkImportItemArray) len() isize {
+	return a.len
+}
+
+pub fn (a crossChunkImportItemArray) swap(i isize, j isize) {
+	a[i], a[j] = a[j], a[i]
+}
+
+pub fn (a crossChunkImportItemArray) less(i isize, j isize) bool {
+	return a[i].export_alias < a[j].export_alias
+}
+
+// The sort order here is arbitrary but needs to be consistent between builds.
+// The InnerIndex should be stable because the parser for a single file is
+// single-threaded and deterministically assigns out InnerIndex values
+// sequentially. But the SourceIndex should be unstable because the main thread
+// assigns out source index values sequentially to newly-discovered dependencies
+// in a multi-threaded producer/consumer relationship. So instead we use the
+// index of the source in the DFS order over all entry points for stability.
+struct stableRef {
+pub mut:
+	stable_source_index u32
+	ref                 ast.Ref
+}
+
+// This type is just so we can use Go's native sort function
+type stableRefArray = []stableRef
+
+pub fn (a stableRefArray) len() isize {
+	return a.len
+}
+
+pub fn (a stableRefArray) swap(i isize, j isize) {
+	a[i], a[j] = a[j], a[i]
+}
+
+pub fn (a stableRefArray) less(i isize, j isize) bool {
+	mut ai, aj := a[i], a[j]
+	return ai.stable_source_index < aj.stable_source_index
+		|| ai.stable_source_index == aj.stable_source_index
+		&& ai.ref.inner_index < aj.ref.inner_index
+}
+
+// Sort cross-chunk exports by chunk name for determinism
+fn (c &LinkerContext) sorted_cross_chunk_export_items(exportRefs map[ast.Ref]Bool) stableRefArray {
+	mut result := StableRefArray{
+		len: 0
+		cap: export_refs.len
+	}
+	for ref, _ in export_refs {
+		result << StableRef{
+			stable_source_index: c.graph.stable_source_indices[ref.source_index]
+			ref:                 ref
+		}
+	}
+	sort.sort(result)
+	return result
+}
+
+fn (c &LinkerContext) scan_imports_and_exports() {
+	c.timer.begin('Scan imports and exports')
+	defer {
+		c.timer.end('Scan imports and exports')
+	}
+	c.timer.begin('Step 1')
+	for _, source_index in c.graph.reachable_files {
+		mut file := &c.graph.files[source_index]
+		mut additional_files := file.input_file.additional_files
+		mut repr := file.input_file.repr
+		match repr {
+			graph.CSSRepr {
+				for import_record_index, _ in repr.ast.import_records {
+					mut record := &repr.ast.import_records[import_record_index]
+					if record.source_index.is_valid() {
+						mut other_file := &c.graph.files[record.source_index.get_index()]
+						mut other_repr, ok := other_file.input_file.repr
+						if ok {
+							record.path.text = other_repr.ast.urlf_or_css
+							record.path.namespace = ''
+							record.source_index = ast.Index32{}
+							if other_file.input_file.loader == config.loader_empty {
+								record.flags |= ast.was_loaded_with_empty_loader
+							} else {
+								record.flags |= ast.should_not_be_external_in_metafile
+							}
+							if other_repr.ast.urlf_or_css.contains(c.unique_key_prefix) {
+								record.flags |= ast.contains_unique_key
+							}
+							additional_files << other_file.input_file.additional_files
+						}
+					} else if record.copy_source_index.is_valid() {
+						mut other_file_1 := &c.graph.files[record.copy_source_index.get_index()]
+						mut other_repr_1, ok_1 := other_file.input_file.repr
+						if ok {
+							record.path.text = other_repr.urlf_or_code
+							record.path.namespace = ''
+							record.copy_source_index = ast.Index32{}
+							record.flags |= ast.should_not_be_external_in_metafile | ast.contains_unique_key
+							additional_files << other_file.input_file.additional_files
+						}
+					}
+				}
+				for _, composes in repr.ast.composes {
+					for _, name in composes.imported_names {
+						mut record_1 := repr.ast.import_records[name.import_record_index]
+						if record.source_index.is_valid() {
+							mut other_file_2 := &c.graph.files[record.source_index.get_index()]
+							mut other_repr_2, ok_2 := other_file.input_file.repr
+							if ok {
+								_, ok_3 := other_repr.ast.local_scope[name.alias]
+								if !ok {
+									mut global, ok_4 := other_repr.ast.global_scope[name.alias]
+									if ok {
+										mut hint := 0
+										if other_file.input_file.loader == config.loader_css {
+											hint = strconv.v_sprintf('Use the "local-css" loader for %q to enable local names.',
+												other_file.input_file.source.pretty_path)
+										} else {
+											hint = strconv.v_sprintf('Use the ":local" selector to change %q into a local name.',
+												name.alias)
+										}
+										c.log.add_error_with_notes(file.line_column_tracker(),
+											css_lexer.range_of_identifier(file.input_file.source,
+											name.alias_loc), strconv.v_sprintf('Cannot use global name %q with "composes"',
+											name.alias), [
+											other_file.line_column_tracker().msg_data(css_lexer.range_of_identifier(other_file.input_file.source,
+												global.loc), strconv.v_sprintf('The global name %q is defined here:',
+												name.alias)), // UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+										])
+									} else {
+										c.log.add_error(file.line_column_tracker(), css_lexer.range_of_identifier(file.input_file.source,
+											name.alias_loc), strconv.v_sprintf('The name %q never appears in %q',
+											name.alias, other_file.input_file.source.pretty_path))
+									}
+								}
+							}
+						}
+					}
+				}
+				c.validate_composes_from_properties(file, repr)
+			}
+			graph.JSRepr {
+				for import_record_index_1, _ in repr.ast.import_records {
+					mut record_2 := &repr.ast.import_records[import_record_index]
+					if !record.source_index.is_valid() {
+						if record.copy_source_index.is_valid() {
+							mut other_file_3 := &c.graph.files[record.copy_source_index.get_index()]
+							mut other_repr_3, ok_5 := other_file.input_file.repr
+							if ok {
+								record.path.text = other_repr.urlf_or_code
+								record.path.namespace = ''
+								record.copy_source_index = ast.Index32{}
+								record.flags |= ast.should_not_be_external_in_metafile | ast.contains_unique_key
+								additional_files << other_file.input_file.additional_files
+							}
+						}
+						continue
+					}
+					mut other_file_4 := &c.graph.files[record.source_index.get_index()]
+					mut other_repr_4 := other_file.input_file.repr
+					match record.kind {
+						ast.import_stmt {
+							if (record.flags.has(ast.contains_import_star)
+								|| record.flags.has(ast.contains_default_alias))
+								&& other_repr.ast.exports_kind == js_ast.exports_none
+								&& !other_repr.ast.has_lazy_export {
+								other_repr.meta.wrap = graph.wrap_cjs
+								other_repr.ast.exports_kind = js_ast.exports_common_js
+							}
+						}
+						ast.import_require {
+							if other_repr.ast.exports_kind == js_ast.exports_esm {
+								other_repr.meta.wrap = graph.wrap_esm
+							} else {
+								other_repr.meta.wrap = graph.wrap_cjs
+								other_repr.ast.exports_kind = js_ast.exports_common_js
+							}
+						}
+						ast.import_dynamic {
+							if !c.options.code_splitting {
+								if other_repr.ast.exports_kind == js_ast.exports_esm {
+									other_repr.meta.wrap = graph.wrap_esm
+								} else {
+									other_repr.meta.wrap = graph.wrap_cjs
+									other_repr.ast.exports_kind = js_ast.exports_common_js
+								}
+							}
+						}
+					}
+				}
+				if repr.ast.exports_kind == js_ast.exports_common_js && (!file.is_entry_point()
+					|| c.options.output_format == config.format_iife
+					|| c.options.output_format == config.format_esm_odule) {
+					repr.meta.wrap = graph.wrap_cjs
+				}
+			}
+		}
+		file.input_file.additional_files = additional_files
+	}
+	c.timer.end('Step 1')
+	c.timer.begin('Step 2')
+	for _, source_index_1 in c.graph.reachable_files {
+		mut repr_1, ok_6 := c.graph.files[source_index].input_file.repr
+		if !ok {
+			continue
+		}
+		if repr.meta.wrap != graph.wrap_none {
+			c.recursively_wrap_dependencies(source_index)
+		}
+		if repr.ast.export_star_import_records.len > 0 {
+			mut visited := map[Uint32]Bool{}
+			c.has_dynamic_exports_due_to_export_star(source_index, visited)
+		}
+		for _, record_3 in repr.ast.import_records {
+			if record.source_index.is_valid() {
+				mut other_repr_5 := c.graph.files[record.source_index.get_index()].input_file.repr
+				if other_repr.ast.exports_kind == js_ast.exports_common_js {
+					c.recursively_wrap_dependencies(record.source_index.get_index())
+				}
+			}
+		}
+	}
+	c.timer.end('Step 2')
+	c.timer.begin('Step 3')
+	mut export_star_stack := []u32{len: 0, cap: 32}
+	for _, source_index_2 in c.graph.reachable_files {
+		mut repr_2, ok_7 := c.graph.files[source_index].input_file.repr
+		if !ok {
+			continue
+		}
+		if repr.ast.has_lazy_export {
+			c.generate_code_for_lazy_export(source_index)
+		}
+		if repr.ast.export_star_import_records.len > 0 {
+			c.add_exports_for_export_star(repr.meta.resolved_exports, source_index, export_star_stack)
+		}
+		repr.meta.resolved_export_star = &graph.ExportData{
+			ref:          repr.ast.exports_ref
+			source_index: source_index
+		}
+	}
+	c.timer.end('Step 3')
+	c.timer.begin('Step 4')
+	for _, source_index_3 in c.graph.reachable_files {
+		mut file_1 := &c.graph.files[source_index]
+		mut repr_3, ok_8 := file.input_file.repr
+		if !ok {
+			continue
+		}
+		if repr.ast.named_imports.len > 0 {
+			c.match_imports_with_exports_for_file(u32(source_index))
+		}
+		if file.is_entry_point() && repr.ast.exports_kind == js_ast.exports_common_js && repr.meta.wrap == graph.wrap_none && (
+			c.options.output_format == config.format_preserve
+			|| c.options.output_format == config.format_common_js) {
+			mut exports_ref := ast.follow_symbols(c.graph.symbols, repr.ast.exports_ref)
+			mut module_ref := ast.follow_symbols(c.graph.symbols, repr.ast.module_ref)
+			c.graph.symbols.get(exports_ref).kind = ast.symbol_unbound
+			c.graph.symbols.get(module_ref).kind = ast.symbol_unbound
+		} else if repr.meta.force_include_exports_for_entry_point
+			|| repr.ast.exports_kind != js_ast.exports_common_js {
+			repr.meta.needs_exports_variable = true
+		}
+		c.create_wrapper_for_file(u32(source_index))
+	}
+	c.timer.end('Step 4')
+	c.timer.begin('Step 5')
+	mut wait_group := sync.WaitGroup{}
+	for _, source_index_4 in c.graph.reachable_files {
+		mut repr_4, ok_9 := c.graph.files[source_index].input_file.repr
+		if !ok {
+			continue
+		}
+		wait_group.add(1)
+		go fn (sourceIndex u32, repr &graph.JSRepr) {
+			mut aliases := []string{len: 0, cap: repr.meta.ResolvedExports.len}
+			mut aliases_1 := []string{len: 0, cap: repr.meta.ResolvedExports.len}
+			sort.strings(aliases)
+			repr.meta.sorted_and_filtered_export_aliases = aliases
+			c.create_exports_for_file(u32(source_index))
+			mut local_dependencies := map[Uint32]Uint32{}
+			mut parts := repr.ast.parts
+			mut named_imports := repr.ast.named_imports
+			mut graph := c.graph
+			for part_index, _ in parts {
+				mut part := &parts[part_index]
+				for ref, properties in part.import_symbol_property_uses {
+					mut use := part.symbol_uses[ref]
+					mut import_data, ok_10 := repr.meta.imports_to_bind[ref]
+					if ok {
+						mut symbol := graph.symbols.get(import_data.ref)
+						if symbol.kind == ast.symbol_tse_num {
+							mut enum_, ok_11 := graph.tse_nums[import_data.ref]
+							if ok {
+								mut found_non_inlined_enum := false
+								for name_1, property_use in properties {
+									_, ok_12 := enum_[name]
+									if !ok {
+										found_non_inlined_enum = true
+										use.count_estimate += property_use.count_estimate
+									}
+								}
+								if found_non_inlined_enum {
+									part.symbol_uses[ref] = use
+								}
+							}
+							continue
+						}
+					}
+					for _, property_use_1 in properties {
+						use.count_estimate += property_use.count_estimate
+					}
+					part.symbol_uses[ref] = use
+				}
+				for ref_1, call_use in part.symbol_call_uses {
+					mut use_1 := part.symbol_uses[ref]
+					mut symbol_1 := graph.symbols.get(ref)
+					if symbol.kind == ast.symbol_import {
+						mut import_data_1, ok_13 := repr.meta.imports_to_bind[ref]
+						if ok {
+							symbol = graph.symbols.get(import_data.ref)
+						}
+					}
+					mut flags := symbol.flags
+					if (flags & (ast.is_empty_function | ast.could_potentially_be_mutated)) == ast.is_empty_function {
+						continue
+					} else if (flags & (ast.is_identity_function | ast.could_potentially_be_mutated)) == ast.is_identity_function {
+						call_use.call_count_estimate -= call_use.single_arg_non_spread_call_count_estimate
+						if call_use.call_count_estimate == 0 {
+							continue
+						}
+					}
+					use.count_estimate += call_use.call_count_estimate
+					part.symbol_uses[ref] = use
+				}
+				for ref_2, _ in part.symbol_uses {
+					if graph.const_values != nil {
+						mut import_data_2, ok_14 := repr.meta.imports_to_bind[ref]
+						if ok {
+							_, is_const_value := graph.const_values[import_data.ref]
+							if is_const_value {
+								part.symbol_uses.delete(import_data.ref)
+								continue
+							}
+						}
+					}
+					for _, other_part_index in repr.top_level_symbol_to_parts(ref) {
+						mut old_part_index, ok_15 := local_dependencies[other_part_index]
+						if !ok || old_part_index != u32(part_index) {
+							local_dependencies[other_part_index] = u32(part_index)
+							part.dependencies << js_ast.Dependency{
+								source_index: source_index
+								part_index:   other_part_index
+							}
+						}
+					}
+					mut named_import, ok_16 := named_imports[ref]
+					if ok {
+						named_import.local_parts_with_uses << u32(part_index)
+						named_imports[ref] = named_import
+					}
+				}
+			}
+			wait_group.done()
+		}(source_index, repr)
+	}
+	wait_group.wait()
+	c.timer.end('Step 5')
+	c.timer.begin('Step 6')
+	for _, source_index_5 in c.graph.reachable_files {
+		mut file_2 := &c.graph.files[source_index]
+		mut repr_5, ok_17 := file.input_file.repr
+		if !ok {
+			continue
+		}
+		if file.is_entry_point() && c.options.output_format == config.format_esm_odule {
+			mut copies := []ast.Ref{len: repr.meta.sorted_and_filtered_export_aliases.len}
+			for i, alias in repr.meta.sorted_and_filtered_export_aliases {
+				copies[i] = c.graph.generate_new_symbol(source_index, ast.symbol_other,
+					'export_' + alias)
+			}
+			repr.meta.cjse_xport_copies = copies
+		}
+		if repr.meta.wrap == graph.wrap_esm {
+			c.graph.symbols.get(repr.ast.wrapper_ref).original_name = 'init_' +
+				file.input_file.source.identifier_name
+		}
+		if repr.meta.wrap != graph.wrap_cjs && repr.ast.exports_kind != js_ast.exports_common_js {
+			mut name_2 := file.input_file.source.identifier_name
+			c.graph.symbols.get(repr.ast.exports_ref).original_name = name + '_exports'
+			c.graph.symbols.get(repr.ast.module_ref).original_name = name + '_module'
+		}
+		if repr.meta.needs_export_symbol_from_runtime {
+			mut runtime_repr := c.graph.files[runtime.source_index].input_file.repr
+			mut export_ref := runtime_repr.ast.module_scope.members['__export'].ref
+			c.graph.generate_symbol_import_and_use(source_index, js_ast.nse_xport_part_index,
+				export_ref, 1, runtime.source_index)
+		}
+		for import_ref, import_data in repr.meta.imports_to_bind {
+			mut resolved_repr := c.graph.files[import_data.source_index].input_file.repr
+			mut parts_declaring_symbol := resolved_repr.top_level_symbol_to_parts(import_data.ref)
+			for _, part_index_1 in repr.ast.named_imports[import_ref].local_parts_with_uses {
+				mut part_1 := &repr.ast.parts[part_index]
+				for _, resolved_part_index in parts_declaring_symbol {
+					part.dependencies << js_ast.Dependency{
+						source_index: import_data.source_index
+						part_index:   resolved_part_index
+					}
+				}
+				part.dependencies << import_data.re_exports
+			}
+			ast.merge_symbols(c.graph.symbols, import_ref, import_data.ref)
+		}
+		if file.is_entry_point() {
+			mut dependencies := []js_ast.Dependency{}
+			for _, alias_1 in repr.meta.sorted_and_filtered_export_aliases {
+				mut export := repr.meta.resolved_exports[alias]
+				mut target_source_index := export.source_index
+				mut target_ref := export.ref
+				mut target_repr := c.graph.files[target_source_index].input_file.repr
+				mut import_data_3, ok_18 := target_repr.meta.imports_to_bind[target_ref]
+				if ok {
+					target_source_index = import_data.source_index
+					target_ref = import_data.ref
+					target_repr = c.graph.files[target_source_index].input_file.repr
+					dependencies << import_data.re_exports
+				}
+				for _, part_index_2 in target_repr.top_level_symbol_to_parts(target_ref) {
+					dependencies << js_ast.Dependency{
+						source_index: target_source_index
+						part_index:   part_index
+					}
+				}
+			}
+			if repr.meta.force_include_exports_for_entry_point {
+				dependencies << js_ast.Dependency{
+					source_index: source_index
+					part_index:   js_ast.nse_xport_part_index
+				}
+			}
+			if repr.meta.wrap != graph.wrap_none {
+				dependencies << js_ast.Dependency{
+					source_index: source_index
+					part_index:   repr.meta.wrapper_part_index.get_index()
+				}
+			}
+			mut entry_point_part_index := c.graph.add_part_to_file(source_index, js_ast.Part{
+				dependencies:             dependencies
+				can_be_removed_if_unused: false
+			})
+			repr.meta.entry_point_part_index = ast.make_index32(entry_point_part_index)
+			if repr.meta.force_include_exports_for_entry_point {
+				c.graph.generate_runtime_symbol_import_and_use(source_index, entry_point_part_index,
+					'__toCommonJS', 1)
+			}
+		}
+		for part_index_3, part_2 in repr.ast.parts {
+			mut to_esmu_ses := u32(0)
+			mut to_common_jsu_ses := u32(0)
+			mut runtime_require_uses := u32(0)
+			for _, import_record_index_2 in part.import_record_indices {
+				mut record_4 := &repr.ast.import_records[import_record_index]
+				if !record.source_index.is_valid()
+					|| c.is_external_dynamic_import(record, source_index) {
+					if record.kind == ast.import_require
+						|| !c.options.output_format.keep_esmi_mport_export_syntax()
+						|| record.kind == ast.import_dynamic
+						&& c.options.unsupported_jsf_eatures.has(compat.dynamic_import) {
+						if config.should_call_runtime_require(c.options.mode, c.options.output_format) {
+							record.flags |= ast.call_runtime_require
+							runtime_require_uses++
+						}
+						if record.kind != ast.import_require && (record.kind != ast.import_stmt
+							|| record.flags.has(ast.contains_import_star)
+							|| record.flags.has(ast.contains_default_alias)
+							|| record.flags.has(ast.contains_esm_odule_alias)) {
+							record.flags |= ast.wrap_with_to_esm
+							to_esmu_ses++
+						}
+					}
+					continue
+				}
+				mut other_source_index := record.source_index.get_index()
+				mut other_repr_6 := c.graph.files[other_source_index].input_file.repr
+				if other_repr.meta.wrap != graph.wrap_none {
+					mut wrapper_ref := other_repr.ast.wrapper_ref
+					c.graph.generate_symbol_import_and_use(source_index, u32(part_index),
+						wrapper_ref, 1, other_source_index)
+					if record.kind != ast.import_require && other_repr.ast.exports_kind == js_ast.exports_common_js {
+						record.flags |= ast.wrap_with_to_esm
+						to_esmu_ses++
+					}
+					if other_repr.meta.wrap == graph.wrap_esm && record.kind != ast.import_stmt {
+						c.graph.generate_symbol_import_and_use(source_index, u32(part_index),
+							other_repr.ast.exports_ref, 1, other_source_index)
+						if record.kind == ast.import_require {
+							record.flags |= ast.wrap_with_to_cjs
+							to_common_jsu_ses++
+						}
+					}
+				} else if record.kind == ast.import_stmt && other_repr.ast.exports_kind == js_ast.exports_esmw_ith_dynamic_fallback {
+					c.graph.generate_symbol_import_and_use(source_index, u32(part_index),
+						other_repr.ast.exports_ref, 1, other_source_index)
+				}
+			}
+			c.graph.generate_runtime_symbol_import_and_use(source_index, u32(part_index),
+				'__toESM', to_esmu_ses)
+			c.graph.generate_runtime_symbol_import_and_use(source_index, u32(part_index),
+				'__toCommonJS', to_common_jsu_ses)
+			c.graph.generate_runtime_symbol_import_and_use(source_index, u32(part_index),
+				'__require', runtime_require_uses)
+			mut re_export_uses := u32(0)
+			for _, import_record_index_3 in repr.ast.export_star_import_records {
+				mut record_5 := &repr.ast.import_records[import_record_index]
+				mut happens_at_run_time := !record.source_index.is_valid() && (
+					!file.is_entry_point()
+					|| !c.options.output_format.keep_esmi_mport_export_syntax())
+				if record.source_index.is_valid() {
+					mut other_source_index_1 := record.source_index.get_index()
+					mut other_repr_7 := c.graph.files[other_source_index].input_file.repr
+					if other_source_index != source_index && other_repr.ast.exports_kind.is_dynamic() {
+						happens_at_run_time = true
+					}
+					if other_repr.ast.exports_kind == js_ast.exports_esmw_ith_dynamic_fallback {
+						c.graph.generate_symbol_import_and_use(source_index, u32(part_index),
+							other_repr.ast.exports_ref, 1, other_source_index)
+					}
+				}
+				if happens_at_run_time {
+					c.graph.generate_symbol_import_and_use(source_index, u32(part_index),
+						repr.ast.exports_ref, 1, source_index)
+					record.flags |= ast.calls_run_time_re_export_fn
+					repr.ast.uses_exports_ref = true
+					re_export_uses++
+				}
+			}
+			c.graph.generate_runtime_symbol_import_and_use(source_index, u32(part_index),
+				'__reExport', re_export_uses)
+		}
+	}
+	c.timer.end('Step 6')
+}
+
+fn (c &LinkerContext) validate_composes_from_properties(rootFile &graph.LinkerFile, rootRepr &graph.CSSRepr) {
+	for _, local in root_repr.ast.local_symbols {
+		mut visited := map[ast.Ref]Bool{}
+		mut properties := map[string]PropertyInFile{}
+		mut visit := 0
+		visit = fn (file &graph.LinkerFile, repr &graph.CSSRepr, ref ast.Ref) {
+			if visited[ref] {
+				return
+			}
+			visited[ref] = true
+			mut composes, ok := repr.ast.composes[ref]
+			if !ok {
+				return
+			}
+			for _, name in composes.imported_names {
+				mut record := repr.ast.import_records[name.import_record_index]
+				if record.source_index.is_valid() {
+					mut other_file := &c.graph.files[record.source_index.get_index()]
+					mut other_repr, ok_1 := other_file.input_file.repr
+					if ok {
+						mut other_name, ok_2 := other_repr.ast.local_scope[name.alias]
+						if ok {
+							visit(other_file, other_repr, other_name.ref)
+						}
+					}
+				}
+			}
+			for _, name_1 in composes.names {
+				visit(file, repr, name.ref)
+			}
+			for key_text, key_loc in composes.properties {
+				mut property, ok_3 := properties[key_text]
+				if !ok {
+					properties[key_text] = PropertyInFile{file, key_loc}
+					continue
+				}
+				if property.file == file || property.file == nil {
+					continue
+				}
+				mut local_original_name := c.graph.symbols.get(local.ref).original_name
+				c.log.add_msg_id(logger.msg_id_css_undefined_composes_from, logger.Msg{
+					kind:  logger.warning
+					data:  root_file.line_column_tracker().msg_data(css_lexer.range_of_identifier(root_file.input_file.source,
+						local.loc), strconv.v_sprintf('The value of %q in the %q class is undefined',
+						key_text, local_original_name))
+					notes: [
+						property.file.line_column_tracker().msg_data(css_lexer.range_of_identifier(property.file.input_file.source,
+							property.loc), strconv.v_sprintf('The first definition of %q is here:',
+							key_text)),
+						file.line_column_tracker().msg_data(css_lexer.range_of_identifier(file.input_file.source,
+							key_loc), strconv.v_sprintf('The second definition of %q is here:',
+							key_text)), // UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+					]
+				})
+				property.file = nil
+				properties[key_text] = property
+			}
+		}
+
+		visit(root_file, root_repr, local.ref)
+	}
+}
+
+fn (c &LinkerContext) generate_code_for_lazy_export(sourceIndex u32) {
+	mut file := &c.graph.files[source_index]
+	mut repr := file.input_file.repr
+	if repr.ast.parts.len < 1 {
+		panic('Internal error')
+	}
+	mut part := &repr.ast.parts[repr.ast.parts.len - 1]
+	if part.stmts.len != 1 {
+		panic('Internal error')
+	}
+	mut lazy_value := part.stmts[0].data.value
+	if repr.csss_ource_index.is_valid() {
+		mut css_source_index := repr.csss_ource_index.get_index()
+		mut css, ok := c.graph.files[css_source_index].input_file.repr
+		if ok {
+			mut exports := js_ast.EObject{}
+			for _, local in css.ast.local_symbols {
+				mut value := js_ast.Expr{
+					loc:  local.loc
+					data: &js_ast.ENameOfSymbol{
+						ref: local.ref
+					}
+				}
+				mut visited := {
+					local.ref: true
+				}
+				mut parts := []js_ast.TemplatePart{}
+				mut visitName := 0
+				mut visitComposes := 0
+				visit_name = fn (repr &graph.CSSRepr, ref ast.Ref) {
+					if !visited[ref] {
+						visited[ref] = true
+						visit_composes(repr, ref)
+						parts << js_ast.TemplatePart{
+							value:       js_ast.Expr{
+								data: &js_ast.ENameOfSymbol{
+									ref: ref
+								}
+							}
+							tail_cooked: [u16(` `)]
+						}
+					}
+				}
+
+				visit_composes = fn (repr &graph.CSSRepr, ref ast.Ref) {
+					mut composes, ok_1 := repr.ast.composes[ref]
+					if ok {
+						for _, name in composes.imported_names {
+							mut record := repr.ast.import_records[name.import_record_index]
+							if record.source_index.is_valid() {
+								mut other_file := &c.graph.files[record.source_index.get_index()]
+								mut other_repr, ok_2 := other_file.input_file.repr
+								if ok {
+									mut other_name, ok_3 := other_repr.ast.local_scope[name.alias]
+									if ok {
+										visit_name(other_repr, other_name.ref)
+									}
+								}
+							}
+						}
+						for _, name_1 in composes.names {
+							visit_name(repr, name.ref)
+						}
+					}
+				}
+
+				visit_composes(css, local.ref)
+				if parts.len > 0 {
+					value.data = &js_ast.ETemplate{
+						parts: append(parts, js_ast.TemplatePart{
+							value: value
+						})
+					}
+				}
+				exports.properties << js_ast.Property{
+					key:          js_ast.Expr{
+						loc:  local.loc
+						data: &js_ast.EString{
+							value: helpers.string_to_utf_16(c.graph.symbols.get(local.ref).original_name)
+						}
+					}
+					value_or_nil: value
+				}
+			}
+			lazy_value.data = &exports
+		}
+	}
+	if repr.ast.exports_kind == js_ast.exports_common_js {
+		part.stmts = [
+			js_ast.assign_stmt(js_ast.Expr{
+				loc:  lazy_value.loc
+				data: &js_ast.EDot{
+					target:   js_ast.Expr{
+						loc:  lazy_value.loc
+						data: &js_ast.EIdentifier{
+							ref: repr.ast.module_ref
+						}
+					}
+					name:     'exports'
+					name_loc: lazy_value.loc
+				}
+			}, lazy_value),
+		]
+		c.graph.generate_symbol_import_and_use(source_index, 0, repr.ast.module_ref, 1,
+			source_index)
+		return
+	}
+	part.stmts = nil
+	mut generate_export := fn (loc logger.Loc, name string, alias string) {
+		mut ref := c.graph.generate_new_symbol(source_index, ast.symbol_other, name)
+		mut part_index := c.graph.add_part_to_file(source_index, js_ast.Part{
+			declared_symbols:         [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+			]
+			can_be_removed_if_unused: true
+		})
+		c.graph.generate_symbol_import_and_use(source_index, part_index, repr.ast.module_ref,
+			1, source_index)
+		repr.meta.top_level_symbol_to_parts_overlay[ref] = [u32(part_index)]
+		repr.meta.resolved_exports[alias] = graph.ExportData{
+			ref:          ref
+			name_loc:     loc
+			source_index: source_index
+		}
+		return ref, part_index
+	}
+
+	mut object, ok_4 := lazy_value.data
+	if ok && file.input_file.loader != config.loader_with_type_json {
+		for _, property in object.properties {
+			mut str, ok_5 := property.key.data
+			if ok && (!file.is_entry_point() || js_ast.is_identifier_utf_16(str.value)
+				|| !c.options.unsupported_jsf_eatures.has(compat.arbitrary_module_namespace_names)) {
+				mut name_2 := helpers.utf_16_to_string(str.value)
+				if name != 'default' {
+					mut ref_1, part_index_1 := generate_export(property.key.loc, name,
+						name)
+					repr.ast.parts[part_index].stmts = [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+					]
+				}
+			}
+		}
+	}
+	mut ref_2, part_index_2 := generate_export(lazy_value.loc,
+		file.input_file.source.identifier_name + '_default', 'default')
+	repr.ast.parts[part_index].stmts = [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+	]
+}
+
+fn (c &LinkerContext) create_exports_for_file(sourceIndex u32) {
+	mut file := &c.graph.files[source_index]
+	mut repr := file.input_file.repr
+	mut properties := []
+	{
+	}
+	mut ns_export_dependencies := []
+	{
+	}
+	mut ns_export_symbol_uses := map[ast.Ref]js_ast.SymbolUse{}
+	for _, alias in repr.meta.sorted_and_filtered_export_aliases {
+		mut export := repr.meta.resolved_exports[alias]
+		mut import_data, ok := c.graph.files[export.source_index].input_file.repr.meta.imports_to_bind[export.ref]
+		if ok {
+			export.ref = import_data.ref
+			export.source_index = import_data.source_index
+			ns_export_dependencies << import_data.re_exports
+		}
+		mut value := 0
+		if c.graph.symbols.get(export.ref).namespace_alias != nil {
+			value = js_ast.Expr{
+				data: &js_ast.EImportIdentifier{
+					ref: export.ref
+				}
+			}
+		} else {
+			value = js_ast.Expr{
+				data: &js_ast.EIdentifier{
+					ref: export.ref
+				}
+			}
+		}
+		mut getter := 0
+		mut body := js_ast.FnBody{
+			block: js_ast.SBlock{
+				stmts: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+				]
+			}
+		}
+		if c.options.unsupported_jsf_eatures.has(compat.arrow) {
+			getter = js_ast.Expr{
+				data: &js_ast.EFunction{
+					fn_: js_ast.Fn{
+						body: body
+					}
+				}
+			}
+		} else {
+			getter = js_ast.Expr{
+				data: &js_ast.EArrow{
+					prefer_expr: true
+					body:        body
+				}
+			}
+		}
+		properties << js_ast.Property{
+			key:          js_ast.Expr{
+				data: &js_ast.EString{
+					value: helpers.string_to_utf_16(alias)
+				}
+			}
+			value_or_nil: getter
+		}
+		ns_export_symbol_uses[export.ref] = js_ast.SymbolUse{
+			count_estimate: 1
+		}
+		for _, part_index in c.graph.files[export.source_index].input_file.repr.top_level_symbol_to_parts(export.ref) {
+			ns_export_dependencies << js_ast.Dependency{
+				source_index: export.source_index
+				part_index:   part_index
+			}
+		}
+	}
+	mut declared_symbols := []
+	{
+	}
+	mut nsExportStmts := []js_ast.Stmt{}
+	if repr.meta.needs_exports_variable {
+		ns_export_stmts << js_ast.Stmt{
+			data: &js_ast.SLocal{
+				decls: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+				]
+			}
+		}
+		declared_symbols << js_ast.DeclaredSymbol{
+			ref:          repr.ast.exports_ref
+			is_top_level: true
+		}
+	}
+	mut export_ref := ast.invalid_ref
+	if properties.len > 0 {
+		mut runtime_repr := c.graph.files[runtime.source_index].input_file.repr
+		export_ref = runtime_repr.ast.module_scope.members['__export'].ref
+		ns_export_stmts << js_ast.Stmt{
+			data: &js_ast.SExpr{
+				value: js_ast.Expr{
+					data: &js_ast.ECall{
+						target: js_ast.Expr{
+							data: &js_ast.EIdentifier{
+								ref: export_ref
+							}
+						}
+						args:   [
+							js_ast.Expr{
+								data: &js_ast.EIdentifier{
+									ref: repr.ast.exports_ref
+								}
+							},
+							js_ast.Expr{
+								data: &js_ast.EObject{
+									properties: properties
+								}
+							},
+						]
+					}
+				}
+			}
+		}
+		for _, part_index_1 in runtime_repr.top_level_symbol_to_parts(export_ref) {
+			ns_export_dependencies << js_ast.Dependency{
+				source_index: runtime.source_index
+				part_index:   part_index
+			}
+		}
+		repr.ast.uses_exports_ref = true
+	}
+	if repr.meta.force_include_exports_for_entry_point && c.options.output_format == config.format_common_js {
+		mut runtime_repr_1 := c.graph.files[runtime.source_index].input_file.repr
+		mut to_common_jsr_ef := runtime_repr.ast.named_exports['__toCommonJS'].ref
+		ns_export_stmts << js_ast.assign_stmt(js_ast.Expr{
+			data: &js_ast.EDot{
+				target: js_ast.Expr{
+					data: &js_ast.EIdentifier{
+						ref: c.unbound_module_ref
+					}
+				}
+				name:   'exports'
+			}
+		}, js_ast.Expr{
+			data: &js_ast.ECall{
+				target: js_ast.Expr{
+					data: &js_ast.EIdentifier{
+						ref: to_common_jsr_ef
+					}
+				}
+				args:   [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+				]
+			}
+		})
+	}
+	if ns_export_stmts.len > 0 {
+		repr.ast.parts[js_ast.nse_xport_part_index] = js_ast.Part{
+			stmts:                    ns_export_stmts
+			symbol_uses:              ns_export_symbol_uses
+			dependencies:             ns_export_dependencies
+			declared_symbols:         declared_symbols
+			can_be_removed_if_unused: true
+			force_tree_shaking:       true
+		}
+		if export_ref != ast.invalid_ref {
+			repr.meta.needs_export_symbol_from_runtime = true
+		}
+	}
+}
+
+fn (c &LinkerContext) create_wrapper_for_file(sourceIndex u32) {
+	mut repr := c.graph.files[source_index].input_file.repr
+	match repr.meta.wrap {
+		graph.wrap_cjs {
+			mut runtime_repr := c.graph.files[runtime.source_index].input_file.repr
+			mut common_jsp_arts := runtime_repr.top_level_symbol_to_parts(c.cjs_runtime_ref)
+			mut dependencies := []js_ast.Dependency{len: common_jsp_arts.len}
+			for i, part_index in common_jsp_arts {
+				dependencies[i] = js_ast.Dependency{
+					source_index: runtime.source_index
+					part_index:   part_index
+				}
+			}
+			mut part_index := c.graph.add_part_to_file(source_index, js_ast.Part{
+				symbol_uses:      {
+					repr.ast.wrapper_ref: // UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+				}
+				declared_symbols: [
+					js_ast.DeclaredSymbol{
+						ref:          repr.ast.exports_ref
+						is_top_level: true
+					},
+					js_ast.DeclaredSymbol{
+						ref:          repr.ast.module_ref
+						is_top_level: true
+					},
+					js_ast.DeclaredSymbol{
+						ref:          repr.ast.wrapper_ref
+						is_top_level: true
+					},
+				]
+				dependencies:     dependencies
+			})
+			repr.meta.wrapper_part_index = ast.make_index32(part_index)
+			c.graph.generate_symbol_import_and_use(source_index, part_index, c.cjs_runtime_ref,
+				1, runtime.source_index)
+		}
+		graph.wrap_esm {
+			mut runtime_repr_1 := c.graph.files[runtime.source_index].input_file.repr
+			mut esm_parts := runtime_repr.top_level_symbol_to_parts(c.esm_runtime_ref)
+			mut dependencies_1 := []js_ast.Dependency{len: esm_parts.len}
+			for i_1, part_index_1 in esm_parts {
+				dependencies[i] = js_ast.Dependency{
+					source_index: runtime.source_index
+					part_index:   part_index
+				}
+			}
+			mut part_index_1 := c.graph.add_part_to_file(source_index, js_ast.Part{
+				symbol_uses:      {
+					repr.ast.wrapper_ref: // UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+				}
+				declared_symbols: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+				]
+				dependencies:     dependencies
+			})
+			repr.meta.wrapper_part_index = ast.make_index32(part_index)
+			c.graph.generate_symbol_import_and_use(source_index, part_index, c.esm_runtime_ref,
+				1, runtime.source_index)
+		}
+	}
+}
+
+fn (c &LinkerContext) match_imports_with_exports_for_file(sourceIndex u32) {
+	mut file := &c.graph.files[source_index]
+	mut repr := file.input_file.repr
+	mut sorted_import_refs := []isize{len: 0, cap: repr.ast.NamedImports.len}
+	for ref, _ in repr.ast.named_imports {
+		sorted_import_refs << isize(ref.inner_index)
+	}
+	sort.ints(sorted_import_refs)
+	for _, inner_index in sorted_import_refs {
+		c.cycle_detector = c.cycle_detector[..0]
+		mut import_ref := ast.Ref{
+			source_index: source_index
+			inner_index:  u32(inner_index)
+		}
+		mut result, re_exports := c.match_import_with_export(ImportTracker{
+			source_index: source_index
+			import_ref:   import_ref
+		}, nil)
+		match result.kind {
+			match_import_ignore {}
+			match_import_normal {
+				repr.meta.imports_to_bind[import_ref] = graph.ImportData{
+					re_exports:   re_exports
+					source_index: result.source_index
+					ref:          result.ref
+				}
+			}
+			match_import_namespace {
+				c.graph.symbols.get(import_ref).namespace_alias = &ast.NamespaceAlias{
+					namespace_ref: result.namespace_ref
+					alias:         result.alias
+				}
+			}
+			match_import_normal_and_namespace {
+				repr.meta.imports_to_bind[import_ref] = graph.ImportData{
+					re_exports:   re_exports
+					source_index: result.source_index
+					ref:          result.ref
+				}
+				c.graph.symbols.get(import_ref).namespace_alias = &ast.NamespaceAlias{
+					namespace_ref: result.namespace_ref
+					alias:         result.alias
+				}
+			}
+			match_import_cycle {
+				mut named_import := repr.ast.named_imports[import_ref]
+				c.log.add_error(file.line_column_tracker(), js_lexer.range_of_identifier(file.input_file.source,
+					named_import.alias_loc), strconv.v_sprintf('Detected cycle while resolving import %q',
+					named_import.alias))
+			}
+			match_import_probably_type_script_type {
+				repr.meta.is_probably_type_script_type[import_ref] = true
+			}
+			match_import_ambiguous {
+				mut named_import_1 := repr.ast.named_imports[import_ref]
+				mut r := js_lexer.range_of_identifier(file.input_file.source, named_import.alias_loc)
+				mut notes := []logger.MsgData{}
+				if result.name_loc.start != 0 && result.other_name_loc.start != 0 {
+					mut a := c.graph.files[result.source_index]
+					mut b := c.graph.files[result.other_source_index]
+					mut ra := js_lexer.range_of_identifier(a.input_file.source, result.name_loc)
+					mut rb := js_lexer.range_of_identifier(b.input_file.source, result.other_name_loc)
+					notes = [a.line_column_tracker().msg_data(ra, 'One matching export is here:'),
+						b.line_column_tracker().msg_data(rb, 'Another matching export is here:')]
+				}
+				mut symbol := c.graph.symbols.get(import_ref)
+				if symbol.import_item_status == ast.import_item_generated {
+					symbol.import_item_status = ast.import_item_missing
+					mut msg := strconv.v_sprintf('Import %q will always be undefined because there are multiple matching exports',
+						named_import.alias)
+					c.log.add_idw_ith_notes(logger.msg_id_bundler_import_is_undefined,
+						logger.warning, file.line_column_tracker(), r, msg, notes)
+				} else {
+					mut msg_1 := strconv.v_sprintf('Ambiguous import %q has multiple matching exports',
+						named_import.alias)
+					c.log.add_error_with_notes(file.line_column_tracker(), r, msg, notes)
+				}
+			}
+		}
+	}
+}
+
+type matchImportKind = u8
+
+enum matchImportKind {
+	match_import_ignore
+	match_import_normal
+	match_import_namespace
+	match_import_normal_and_namespace
+	match_import_cycle
+	match_import_probably_type_script_type
+	match_import_ambiguous
+}
+
+struct matchImportResult {
+pub mut:
+	alias              string
+	kind               matchImportKind
+	namespace_ref      ast.Ref
+	source_index       u32
+	name_loc           logger.Loc
+	other_source_index u32
+	other_name_loc     logger.Loc
+	ref                ast.Ref
+}
+
+fn (c &LinkerContext) match_import_with_export(tracker importTracker, reExportsIn []js_ast.Dependency) (matchImportResult, []js_ast.Dependency) {
+	mut ambiguousResults := []matchImportResult{}
+	re_exports = re_exports_in
+	re_exports = re_exports_in
+	for _, ambiguous_result in ambiguous_results {
+		if ambiguous_result != result {
+			if result.kind == match_import_normal && ambiguous_result.kind == match_import_normal && result.name_loc.start != 0 && ambiguous_result.name_loc.start != 0 {
+				return MatchImportResult{
+					kind:               match_import_ambiguous
+					source_index:       result.source_index
+					name_loc:           result.name_loc
+					other_source_index: ambiguous_result.source_index
+					other_name_loc:     ambiguous_result.name_loc
+				}, nil
+			}
+			return MatchImportResult{
+				kind: match_import_ambiguous
+			}, nil
+		}
+	}
+	return
+}
+
+fn (c &LinkerContext) maybe_forbid_arbitrary_module_namespace_identifier(kind string, sourceIndex u32, loc logger.Loc, alias string) {
+	if !js_ast.is_identifier(alias) {
+		mut file := &c.graph.files[source_index]
+		mut where := config.pretty_print_target_environment(c.options.original_target_env,
+			c.options.unsupported_jsf_eature_overrides_mask)
+		c.log.add_error(file.line_column_tracker(), file.input_file.source.range_of_string(loc),
+			strconv.v_sprintf('Using the string %q as an %s name is not supported in %s',
+			alias, kind, where))
+	}
+}
+
+// Attempt to correct an import name with a typo
+fn (c &LinkerContext) maybe_correct_obvious_typo(repr &graph.JSRepr, name string, msg &logger.Msg) {
+	if repr.meta.resolved_export_typos == nil {
+		mut valid := []string{len: 0, cap: repr.meta.ResolvedExports.len}
+		for alias, _ in repr.meta.resolved_exports {
+			valid << alias
+		}
+		sort.strings(valid)
+		mut typos := helpers.make_typo_detector(valid)
+		repr.meta.resolved_export_typos = &typos
+	}
+	mut corrected, ok := repr.meta.resolved_export_typos.maybe_correct_typo(name)
+	if ok {
+		msg.data.location.suggestion = corrected
+		mut export := repr.meta.resolved_exports[corrected]
+		mut imported_file := &c.graph.files[export.source_index]
+		mut text := strconv.v_sprintf('Did you mean to import %q instead?', corrected)
+		mut note := 0
+		if export.name_loc.start == 0 {
+			note.text = text
+		} else {
+			mut r := 0
+			if imported_file.input_file.loader.is_css() {
+				r = css_lexer.range_of_identifier(imported_file.input_file.source, export.name_loc)
+			} else {
+				r = js_lexer.range_of_identifier(imported_file.input_file.source, export.name_loc)
+			}
+			note = imported_file.line_column_tracker().msg_data(r, text)
+		}
+		msg.notes << note
+	}
+}
+
+fn (c &LinkerContext) recursively_wrap_dependencies(sourceIndex u32) {
+	mut repr := c.graph.files[source_index].input_file.repr
+	if repr.meta.did_wrap_dependencies {
+		return
+	}
+	repr.meta.did_wrap_dependencies = true
+	if source_index == runtime.source_index {
+		return
+	}
+	if repr.meta.wrap == graph.wrap_none {
+		if repr.ast.exports_kind == js_ast.exports_common_js {
+			repr.meta.wrap = graph.wrap_cjs
+		} else {
+			repr.meta.wrap = graph.wrap_esm
+		}
+	}
+	for _, record in repr.ast.import_records {
+		if record.source_index.is_valid() {
+			c.recursively_wrap_dependencies(record.source_index.get_index())
+		}
+	}
+}
+
+fn (c &LinkerContext) has_dynamic_exports_due_to_export_star(sourceIndex u32, visited map[Uint32]Bool) bool {
+	mut repr := c.graph.files[source_index].input_file.repr
+	if repr.ast.exports_kind == js_ast.exports_common_js
+		|| repr.ast.exports_kind == js_ast.exports_esmw_ith_dynamic_fallback {
+		return true
+	}
+	if visited[source_index] {
+		return false
+	}
+	visited[source_index] = true
+	for _, import_record_index in repr.ast.export_star_import_records {
+		mut record := &repr.ast.import_records[import_record_index]
+		if !record.source_index.is_valid() && (!c.graph.files[source_index].is_entry_point()
+			|| !c.options.output_format.keep_esmi_mport_export_syntax())
+			|| record.source_index.is_valid() && record.source_index.get_index() != source_index
+			&& c.has_dynamic_exports_due_to_export_star(record.source_index.get_index(), visited) {
+			repr.ast.exports_kind = js_ast.exports_esmw_ith_dynamic_fallback
+			return true
+		}
+	}
+	return false
+}
+
+fn (c &LinkerContext) add_exports_for_export_star(resolvedExports map[string]graph.ExportData, sourceIndex u32, sourceIndexStack []u32) {
+	for _, prev_source_index in source_index_stack {
+		if prev_source_index == source_index {
+			return
+		}
+	}
+	source_index_stack << source_index
+	mut repr := c.graph.files[source_index].input_file.repr
+	for _, import_record_index in repr.ast.export_star_import_records {
+		mut record := &repr.ast.import_records[import_record_index]
+		if !record.source_index.is_valid() {
+			continue
+		}
+		mut other_source_index := record.source_index.get_index()
+		mut other_repr := c.graph.files[other_source_index].input_file.repr
+		if other_repr.ast.exports_kind == js_ast.exports_common_js {
+			continue
+		}
+		if other_repr.ast.exports_kind == js_ast.exports_common_js {
+			continue
+		}
+		c.add_exports_for_export_star(resolved_exports, other_source_index, source_index_stack)
+	}
+}
+
+struct importTracker {
+pub mut:
+	source_index u32
+	name_loc     logger.Loc
+	import_ref   ast.Ref
+}
+
+type importStatus = u8
+
+enum importStatus {
+	import_no_match
+	import_found
+	import_common_js
+	import_dynamic_fallback
+	import_common_jsw_ithout_exports
+	import_disabled
+	import_external
+	import_probably_type_script_type
+}
+
+fn (c &LinkerContext) advance_import_tracker(tracker importTracker) (importTracker, importStatus, []graph.ImportData) {
+	mut file := &c.graph.files[tracker.source_index]
+	mut repr := file.input_file.repr
+	mut named_import := repr.ast.named_imports[tracker.import_ref]
+	mut record := &repr.ast.import_records[named_import.import_record_index]
+	if !record.source_index.is_valid() {
+		return ImportTracker{}, import_external, nil
+	}
+	mut other_source_index := record.source_index.get_index()
+	mut other_repr := c.graph.files[other_source_index].input_file.repr
+	if !named_import.alias_is_star && !other_repr.ast.has_lazy_export
+		&& other_repr.ast.export_keyword.len == 0 && named_import.alias != 'default'
+		&& !other_repr.ast.uses_exports_ref && !other_repr.ast.uses_module_ref {
+		return ImportTracker{
+			source_index: other_source_index
+			import_ref:   ast.invalid_ref
+		}, import_common_jsw_ithout_exports, nil
+	}
+	if other_repr.ast.exports_kind == js_ast.exports_common_js {
+		return ImportTracker{
+			source_index: other_source_index
+			import_ref:   ast.invalid_ref
+		}, import_common_js, nil
+	}
+	mut matching_export := other_repr.meta.resolved_export_star
+	if named_import.alias_is_star && matching_export != nil {
+		return ImportTracker{
+			source_index: matching_export.source_index
+			import_ref:   matching_export.ref
+			name_loc:     matching_export.name_loc
+		}, import_found, matching_export.potentially_ambiguous_export_star_refs
+	}
+	mut matching_export_1, ok := other_repr.meta.resolved_exports[named_import.alias]
+	if ok {
+		return ImportTracker{
+			source_index: matching_export.source_index
+			import_ref:   matching_export.ref
+			name_loc:     matching_export.name_loc
+		}, import_found, matching_export.potentially_ambiguous_export_star_refs
+	}
+	if other_repr.ast.exports_kind == js_ast.exports_esmw_ith_dynamic_fallback {
+		return ImportTracker{
+			source_index: other_source_index
+			import_ref:   other_repr.ast.exports_ref
+		}, import_dynamic_fallback, nil
+	}
+	if file.input_file.loader.is_type_script() && named_import.is_exported {
+		return ImportTracker{}, import_probably_type_script_type, nil
+	}
+	return ImportTracker{
+		source_index: other_source_index
+	}, import_no_match, nil
+}
+
+fn (c &LinkerContext) tree_shaking_and_code_splitting() {
+	c.timer.begin('Tree shaking')
+	for _, entry_point in c.graph.entry_points() {
+		c.mark_file_live_for_tree_shaking(entry_point.source_index)
+	}
+	c.timer.end('Tree shaking')
+	c.timer.begin('Code splitting')
+	for i, entry_point_1 in c.graph.entry_points() {
+		c.mark_file_reachable_for_code_splitting(entry_point.source_index, usize(i), 0)
+	}
+	c.timer.end('Code splitting')
+}
+
+fn (c &LinkerContext) mark_file_reachable_for_code_splitting(sourceIndex u32, entryPointBit usize, distanceFromEntryPoint u32) {
+	mut file := &c.graph.files[source_index]
+	if !file.is_live {
+		return
+	}
+	mut traverse_again := false
+	if distance_from_entry_point < file.distance_from_entry_point {
+		file.distance_from_entry_point = distance_from_entry_point
+		traverse_again = true
+	}
+	distance_from_entry_point++
+	if file.entry_bits.has_bit(entry_point_bit) && !traverse_again {
+		return
+	}
+	file.entry_bits.set_bit(entry_point_bit)
+	mut repr := file.input_file.repr
+	match repr {
+		graph.JSRepr {
+			if repr.csss_ource_index.is_valid() {
+				c.mark_file_reachable_for_code_splitting(repr.csss_ource_index.get_index(),
+					entry_point_bit, distance_from_entry_point)
+			}
+			for _, record in repr.ast.import_records {
+				if record.source_index.is_valid()
+					&& !c.is_external_dynamic_import(&record, source_index) {
+					c.mark_file_reachable_for_code_splitting(record.source_index.get_index(),
+						entry_point_bit, distance_from_entry_point)
+				}
+			}
+			for _, part in repr.ast.parts {
+				for _, dependency in part.dependencies {
+					if dependency.source_index != source_index {
+						c.mark_file_reachable_for_code_splitting(dependency.source_index,
+							entry_point_bit, distance_from_entry_point)
+					}
+				}
+			}
+		}
+		graph.CSSRepr {
+			for _, record_1 in repr.ast.import_records {
+				if record.source_index.is_valid() {
+					c.mark_file_reachable_for_code_splitting(record.source_index.get_index(),
+						entry_point_bit, distance_from_entry_point)
+				}
+			}
+		}
+	}
+}
+
+fn (c &LinkerContext) mark_file_live_for_tree_shaking(sourceIndex u32) {
+	mut file := &c.graph.files[source_index]
+	if file.is_live {
+		return
+	}
+	file.is_live = true
+	mut repr := file.input_file.repr
+	match repr {
+		graph.JSRepr {
+			if repr.csss_ource_index.is_valid() {
+				c.mark_file_live_for_tree_shaking(repr.csss_ource_index.get_index())
+			}
+			for part_index, part in repr.ast.parts {
+				mut can_be_removed_if_unused := part.can_be_removed_if_unused
+				for _, import_record_index in part.import_record_indices {
+					mut record := &repr.ast.import_records[import_record_index]
+					if record.kind != ast.import_stmt {
+						continue
+					}
+					if record.source_index.is_valid() {
+						mut other_source_index := record.source_index.get_index()
+						mut other_file := &c.graph.files[other_source_index]
+						if other_file.input_file.side_effects.kind != graph.has_side_effects
+							&& !c.options.ignore_dcea_nnotations {
+							continue
+						}
+						c.mark_file_live_for_tree_shaking(other_source_index)
+					} else if record.flags.has(ast.is_external_without_side_effects) {
+						continue
+					}
+					can_be_removed_if_unused = false
+				}
+				if !can_be_removed_if_unused || (!part.force_tree_shaking && !c.options.tree_shaking
+					&& file.is_entry_point()) {
+					c.mark_part_live_for_tree_shaking(source_index, u32(part_index))
+				}
+			}
+		}
+		graph.CSSRepr {
+			for _, record_1 in repr.ast.import_records {
+				if record.source_index.is_valid() {
+					c.mark_file_live_for_tree_shaking(record.source_index.get_index())
+				}
+			}
+		}
+	}
+}
+
+fn (c &LinkerContext) is_external_dynamic_import(record &ast.ImportRecord, sourceIndex u32) bool {
+	return c.options.code_splitting && record.kind == ast.import_dynamic && c.graph.files[record.source_index.get_index()].is_entry_point() && record.source_index.get_index() != source_index
+}
+
+fn (c &LinkerContext) mark_part_live_for_tree_shaking(sourceIndex u32, partIndex u32) {
+	mut file := &c.graph.files[source_index]
+	mut repr := file.input_file.repr
+	mut part := &repr.ast.parts[part_index]
+	if part.is_live {
+		return
+	}
+	part.is_live = true
+	c.mark_file_live_for_tree_shaking(source_index)
+	for _, dep in part.dependencies {
+		c.mark_part_live_for_tree_shaking(dep.source_index, dep.part_index)
+	}
+}
+
+// JavaScript modules are traversed in depth-first postorder. This is the
+// order that JavaScript modules were evaluated in before the top-level await
+// feature was introduced.
+//
+//	  A
+//	 / \
+//	B   C
+//	 \ /
+//	  D
+//
+// If A imports B and then C, B imports D, and C imports D, then the JavaScript
+// traversal order is D B C A.
+//
+// This function may deviate from ESM import order for dynamic imports (both
+// "require()" and "import()"). This is because the import order is impossible
+// to determine since the imports happen at run-time instead of compile-time.
+// In this case we just pick an arbitrary but consistent order.
+fn (c &LinkerContext) find_imported_cssf_iles_in_jso_rder(entryPoint u32) []u32 {
+	mut visited := map[Uint32]Bool{}
+	mut visit := 0
+	visit = fn (sourceIndex u32) {
+		if visited[source_index] {
+			return
+		}
+		visited[source_index] = true
+		mut file := &c.graph.files[source_index]
+		mut repr := file.input_file.repr
+		for _, part in repr.ast.parts {
+			for _, import_record_index in part.import_record_indices {
+				mut record := &repr.ast.import_records[import_record_index]
+				if record.source_index.is_valid() {
+					visit(record.source_index.get_index())
+				}
+			}
+		}
+		if repr.csss_ource_index.is_valid() {
+			order << repr.csss_ource_index.get_index()
+		}
+	}
+
+	visit(entry_point)
+	return
+}
+
+type cssImportKind = u8
+
+enum cssImportKind {
+	css_import_none
+	css_import_source_index
+	css_import_external_path
+	css_import_layers
+}
+
+struct cssImportOrder {
+pub mut:
+	conditions               []css_ast.ImportConditions
+	condition_import_records []ast.ImportRecord
+	layers                   [][]string
+	external_path            logger.Path
+	source_index             u32
+	kind                     cssImportKind
+}
+
+// CSS files are traversed in depth-first postorder just like JavaScript. But
+// unlike JavaScript import statements, CSS "@import" rules are evaluated every
+// time instead of just the first time.
+//
+//	  A
+//	 / \
+//	B   C
+//	 \ /
+//	  D
+//
+// If A imports B and then C, B imports D, and C imports D, then the CSS
+// traversal order is D B D C A.
+//
+// However, evaluating a CSS file multiple times is sort of equivalent to
+// evaluating it once at the last location. So we basically drop all but the
+// last evaluation in the order.
+//
+// The only exception to this is "@layer". Evaluating a CSS file multiple
+// times is sort of equivalent to evaluating it once at the first location
+// as far as "@layer" is concerned. So we may in some cases keep both the
+// first and last locations and only write out the "@layer" information
+// for the first location.
+fn (c &LinkerContext) find_imported_files_in_csso_rder(entryPoints []u32) []cssImportOrder {
+	mut visit := 0
+	mut has_external_import := false
+	visit = fn (sourceIndex u32, visited []u32, wrappingConditions []css_ast.ImportConditions, wrappingImportRecords []ast.ImportRecord) {
+		for _, visited_source_index in visited {
+			if visited_source_index == source_index {
+				return
+			}
+		}
+		visited << source_index
+		mut repr := c.graph.files[source_index].input_file.repr
+		mut top_level_rules := repr.ast.rules
+		if repr.ast.layers_pre_import.len > 0 {
+			order << CssImportOrder{
+				kind:                     css_import_layers
+				layers:                   repr.ast.layers_pre_import
+				conditions:               wrapping_conditions
+				condition_import_records: wrapping_import_records
+			}
+		}
+		for _, rule in top_level_rules {
+			mut at_import, ok := rule.data
+			if ok {
+				mut record := &repr.ast.import_records[at_import.import_record_index]
+				if record.source_index.is_valid() {
+					mut nested_conditions := wrapping_conditions
+					mut nested_import_records := wrapping_import_records
+					if at_import.import_conditions != nil {
+						nested_conditions = nested_conditions.clone()
+						nested_import_records = nested_import_records.clone()
+						mut conditions := 0
+						conditions, nested_import_records = at_import.import_conditions.clone_with_import_records(repr.ast.import_records,
+							nested_import_records)
+						nested_conditions << conditions
+					}
+					visit(record.source_index.get_index(), visited, nested_conditions,
+						nested_import_records)
+					continue
+				}
+				if (record.flags & ast.was_loaded_with_empty_loader) == 0 {
+					mut all_conditions := wrapping_conditions
+					mut all_import_records := wrapping_import_records
+					if at_import.import_conditions != nil {
+						all_conditions = all_conditions.clone()
+						all_import_records = all_import_records.clone()
+						conditions, all_import_records = at_import.import_conditions.clone_with_import_records(repr.ast.import_records,
+							all_import_records)
+						all_conditions << conditions
+					}
+					order << CssImportOrder{
+						kind:                     css_import_external_path
+						external_path:            record.path
+						conditions:               all_conditions
+						condition_import_records: all_import_records
+					}
+					has_external_import = true
+				}
+			}
+		}
+		for _, record_1 in repr.ast.import_records {
+			if record.kind == ast.import_composes_from && record.source_index.is_valid() {
+				visit(record.source_index.get_index(), visited, wrapping_conditions, wrapping_import_records)
+			}
+		}
+		order << CssImportOrder{
+			kind:                     css_import_source_index
+			source_index:             source_index
+			conditions:               wrapping_conditions
+			condition_import_records: wrapping_import_records
+		}
+	}
+
+	for _, source_index in entry_points {
+		visit(source_index, visited[..], nil, nil)
+	}
+	mut wip_order := []cssImportOrder{len: 0, cap: Order.len}
+	if has_external_import {
+		mut is_at_layer_prefix := true
+		for _, entry in order {
+			if entry.kind == css_import_layers && is_at_layer_prefix
+				|| entry.kind == css_import_external_path {
+				wip_order << entry
+			}
+			if entry.kind != css_import_layers {
+				is_at_layer_prefix = false
+			}
+		}
+		is_at_layer_prefix = true
+		for _, entry_1 in order {
+			if (entry.kind != css_import_layers || !is_at_layer_prefix) && entry.kind != css_import_external_path {
+				wip_order << entry
+			}
+			if entry.kind != css_import_layers {
+				is_at_layer_prefix = false
+			}
+		}
+		order, wip_order = wip_order, order[..0]
+	}
+	{
+		mut source_index_duplicates := map[Uint32][]isize{}
+		mut external_path_duplicates := map[logger.Path][]isize{}
+		mut external_path_duplicates_1 := map[logger.Path][]isize{}
+	}
+	{
+		mut layerDuplicates2 := []duplicateEntry{}
+		order, wip_order = wip_order, order[..0]
+	}
+	{
+		mut did_clone := -1
+		for _, entry_2 in order {
+			if entry.kind == css_import_layers && wip_order.len > 0 {
+				mut prev_index := wip_order.len - 1
+				mut prev := wip_order[prev_index]
+				if prev.kind == css_import_layers && import_conditions_are_equal(prev.conditions,
+					entry.conditions) {
+					if did_clone != prev_index {
+						did_clone = prev_index
+						prev.layers = prev.layers.clone()
+					}
+					wip_order[prev_index].layers << entry.layers
+					continue
+				}
+			}
+			wip_order << entry
+		}
+		order = wip_order
+	}
+	return
+}
+
+fn import_conditions_are_equal(a []css_ast.ImportConditions, b []css_ast.ImportConditions) bool {
+	if a.len != b.len {
+		return false
+	}
+	for i := isize(0); i < a.len; i++ {
+		mut ai := a[i]
+		mut bi := b[i]
+		if !css_ast.tokens_equal_ignoring_whitespace(ai.layers, bi.layers)
+			|| !css_ast.tokens_equal_ignoring_whitespace(ai.supports, bi.supports)
+			|| !css_ast.tokens_equal_ignoring_whitespace(ai.media, bi.media) {
+			return false
+		}
+	}
+	return true
+}
+
+// Given two "@import" rules for the same source index (an earlier one and a
+// later one), the earlier one is masked by the later one if the later one's
+// condition list is a prefix of the earlier one's condition list.
+//
+// For example:
+//
+//	// entry.css
+//	@import "foo.css" supports(display: flex);
+//	@import "bar.css" supports(display: flex);
+//
+//	// foo.css
+//	@import "lib.css" screen;
+//
+//	// bar.css
+//	@import "lib.css";
+//
+// When we bundle this code we'll get an import order as follows:
+//
+//  1. lib.css [supports(display: flex), screen]
+//  2. foo.css [supports(display: flex)]
+//  3. lib.css [supports(display: flex)]
+//  4. bar.css [supports(display: flex)]
+//  5. entry.css []
+//
+// For "lib.css", the entry with the conditions [supports(display: flex)] should
+// make the entry with the conditions [supports(display: flex), screen] redundant.
+//
+// Note that all of this deliberately ignores the existence of "@layer" because
+// that is handled separately. All of this is only for handling unlayered styles.
+fn is_conditional_import_redundant(earlier []css_ast.ImportConditions, later []css_ast.ImportConditions) bool {
+	if later.len > earlier.len {
+		return false
+	}
+	for i := isize(0); i < later.len; i++ {
+		mut a := earlier[i]
+		mut b := later[i]
+		if css_ast.tokens_equal_ignoring_whitespace(a.layers, b.layers) {
+			mut same_supports := css_ast.tokens_equal_ignoring_whitespace(a.supports,
+				b.supports)
+			mut same_media := css_ast.tokens_equal_ignoring_whitespace(a.media, b.media)
+			if same_supports && same_media {
+				continue
+			}
+			if same_media && b.supports.len == 0 {
+				continue
+			}
+			if same_supports && b.media.len == 0 {
+				continue
+			}
+		}
+		return false
+	}
+	return true
+}
+
+fn (c &LinkerContext) compute_chunks() {
+	c.timer.begin('Compute chunks')
+	defer {
+		c.timer.end('Compute chunks')
+	}
+	mut js_chunks := map[string]ChunkInfo{}
+	mut css_chunks := map[string]ChunkInfo{}
+	for i, entry_point in c.graph.entry_points() {
+		mut file := &c.graph.files[entry_point.source_index]
+		mut entry_bits := helpers.new_bit_set(usize(c.graph.entry_points().len))
+		entry_bits.set_bit(usize(i))
+		mut key := entry_bits.string()
+		mut chunk := ChunkInfo{
+			entry_bits:                entry_bits
+			is_entry_point:            true
+			source_index:              entry_point.source_index
+			entry_point_bit:           usize(i)
+			files_with_parts_in_chunk: map[Uint32]Bool{}
+		}
+		// append no rhs
+
+		// lhs.len==0
+	}
+	for _, source_index in c.graph.reachable_files {
+		mut file_1 := &c.graph.files[source_index]
+		if file.is_live {
+			_, ok := file.input_file.repr
+			if ok {
+				mut key_1 := file.entry_bits.string()
+				mut chunk_1, ok_1 := js_chunks[key]
+				if !ok {
+					chunk.entry_bits = file.entry_bits
+					chunk.files_with_parts_in_chunk = map[Uint32]Bool{}
+					chunk.chunk_repr = &ChunkReprJS{}
+					js_chunks[key] = chunk
+				}
+				chunk.files_with_parts_in_chunk[u32(source_index)] = true
+			}
+		}
+	}
+	mut sorted_chunks := []chunkInfo{len: 0, cap: JsChunks.len + css_chunks.len}
+	mut sorted_keys := []string{len: 0, cap: JsChunks.len + css_chunks.len}
+	for key_2, _ in js_chunks {
+		sorted_keys << key
+	}
+	sort.strings(sorted_keys)
+	mut js_chunk_indices_for_css := map[string]Uint32{}
+	for _, key_3 in sorted_keys {
+		mut chunk_2 := js_chunks[key]
+		if chunk.chunk_repr.has_cssc_hunk {
+			js_chunk_indices_for_css[key] = u32(sorted_chunks.len)
+		}
+		sorted_chunks << chunk
+	}
+	sorted_keys = sorted_keys[..0]
+	for key_4, _ in css_chunks {
+		sorted_keys << key
+	}
+	sort.strings(sorted_keys)
+	for _, key_5 in sorted_keys {
+		mut chunk_3 := css_chunks[key]
+		mut js_chunk_index, ok_2 := js_chunk_indices_for_css[key]
+		if ok {
+			sorted_chunks[js_chunk_index].chunk_repr.css_chunk_index = u32(sorted_chunks.len)
+		}
+		sorted_chunks << chunk
+	}
+	for chunk_index, chunk_4 in sorted_chunks {
+		if chunk.is_entry_point {
+			mut file_2 := &c.graph.files[chunk.source_index]
+			_, ok_3 := chunk.chunk_repr
+			if ok {
+				_, ok_4 := file.input_file.repr
+				if ok {
+					continue
+				}
+			}
+			file.entry_point_chunk_index = u32(chunk_index)
+		}
+	}
+	for _, chunk_5 in sorted_chunks {
+		mut chunk_repr, ok_5 := chunk.chunk_repr
+		if ok {
+			chunk_repr.files_in_chunk_in_order, chunk_repr.parts_in_chunk_in_order = c.find_imported_parts_in_jso_rder(&chunk)
+		}
+	}
+	for chunk_index_1, _ in sorted_chunks {
+		mut chunk_6 := &sorted_chunks[chunk_index]
+		chunk.unique_key = strconv.v_sprintf('%sC%08d', c.unique_key_prefix, chunk_index)
+		mut stdExt := 0
+		// append no rhs
+
+		// lhs.len==0
+		mut dir := 0
+		mut template := []config.PathTemplate{}
+		if chunk.is_entry_point {
+			mut file_3 := &c.graph.files[chunk.source_index]
+			if file.is_user_specified_entry_point() {
+				template = c.options.entry_path_template
+			} else {
+				template = c.options.chunk_path_template
+			}
+			if c.options.abs_output_file != '' {
+				dir = '/'
+				base = c.fs.base(c.options.abs_output_file)
+				mut original_ext := c.fs.ext(base)
+				base = base[..base.len - original_ext.len]
+				_, ok_6 := file.input_file.repr
+				if ok || std_ext != c.options.output_extension_css {
+					ext = original_ext
+				} else {
+					ext = std_ext
+				}
+			} else {
+				dir, base = bundler.path_relative_to_outbase(&c.graph.files[chunk.source_index].input_file,
+					c.options, c.fs, !file.is_user_specified_entry_point(), c.graph.entry_points()[chunk.entry_point_bit].output_path)
+				ext = std_ext
+			}
+		} else {
+			dir = '/'
+			base = 'chunk'
+			ext = std_ext
+			template = c.options.chunk_path_template
+		}
+		mut template_ext := ext.trim_prefix('.')
+		template << config.PathTemplate{
+			data: ext
+		}
+		chunk.final_template = config.substitute_template(template, config.PathPlaceholders{
+			dir:  &dir
+			name: &base
+			ext:  &template_ext
+		})
+	}
+	c.chunks = sorted_chunks
+}
+
+struct chunkOrder {
+pub mut:
+	source_index u32
+	distance     u32
+	tie_breaker  u32
+}
+
+// This type is just so we can use Go's native sort function
+type chunkOrderArray = []chunkOrder
+
+pub fn (a chunkOrderArray) len() isize {
+	return a.len
+}
+
+pub fn (a chunkOrderArray) swap(i isize, j isize) {
+	a[i], a[j] = a[j], a[i]
+}
+
+pub fn (a chunkOrderArray) less(i isize, j isize) bool {
+	mut ai := a[i]
+	mut aj := a[j]
+	return ai.distance < aj.distance || ai.distance == aj.distance
+		&& ai.tie_breaker < aj.tie_breaker
+}
+
+fn append_or_extend_part_range(ranges []partRange, sourceIndex u32, partIndex u32) []partRange {
+	mut i := ranges.len - 1
+	if i >= 0 {
+		mut r := &ranges[i]
+		if r.source_index == source_index && r.part_index_end == part_index {
+			r.part_index_end = part_index + 1
+			return ranges
+		}
+	}
+	return append(ranges, PartRange{
+		source_index:     source_index
+		part_index_begin: part_index
+		part_index_end:   part_index + 1
+	})
+}
+
+fn (c &LinkerContext) should_include_part(repr &graph.JSRepr, part js_ast.Part) bool {
+	if part.stmts.len == 1 {
+		mut s, ok := part.stmts[0].data
+		if ok {
+			mut record := &repr.ast.import_records[s.import_record_index]
+			if record.source_index.is_valid() && c.graph.files[record.source_index.get_index()].input_file.repr.meta.wrap == graph.wrap_none {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+fn (c &LinkerContext) find_imported_parts_in_jso_rder(chunk &ChunkInfo) ([]u32, []partRange) {
+	mut sorted := ChunkOrderArray{
+		len: 0
+		cap: chunk.files_with_parts_in_chunk.len
+	}
+	for source_index, _ in chunk.files_with_parts_in_chunk {
+		mut file := &c.graph.files[source_index]
+		sorted << ChunkOrder{
+			source_index: source_index
+			distance:     file.distance_from_entry_point
+			tie_breaker:  c.graph.stable_source_indices[source_index]
+		}
+	}
+	sort.sort(sorted)
+	mut visited := map[Uint32]Bool{}
+	mut js_parts_prefix := []partRange{}
+	mut visit := 0
+	visit = fn (sourceIndex u32) {
+		if visited[source_index] {
+			return
+		}
+		visited[source_index] = true
+		mut file_1 := &c.graph.files[source_index]
+		mut repr, ok := file.input_file.repr
+		if ok {
+			mut is_file_in_this_chunk := chunk.entry_bits.equals(file.entry_bits)
+			mut can_file_be_split := repr.meta.wrap == graph.wrap_none
+			if can_file_be_split && is_file_in_this_chunk && repr.ast.parts[js_ast.nse_xport_part_index].is_live {
+				js_parts = append_or_extend_part_range(js_parts, source_index, js_ast.nse_xport_part_index)
+			}
+			for part_index, part in repr.ast.parts {
+				mut is_part_in_this_chunk := is_file_in_this_chunk && repr.ast.parts[part_index].is_live
+				for _, import_record_index in part.import_record_indices {
+					mut record := &repr.ast.import_records[import_record_index]
+					if record.source_index.is_valid() && (record.kind == ast.import_stmt
+						|| is_part_in_this_chunk) {
+						if c.is_external_dynamic_import(record, source_index) {
+							continue
+						}
+						visit(record.source_index.get_index())
+					}
+				}
+				if is_part_in_this_chunk {
+					is_file_in_this_chunk = true
+					if can_file_be_split && u32(part_index) != js_ast.nse_xport_part_index && c.should_include_part(repr,
+						part) {
+						if source_index == runtime.source_index {
+							js_parts_prefix = append_or_extend_part_range(js_parts_prefix,
+								source_index, u32(part_index))
+						} else {
+							js_parts = append_or_extend_part_range(js_parts, source_index,
+								u32(part_index))
+						}
+					}
+				}
+			}
+			if is_file_in_this_chunk {
+				js << source_index
+				if !can_file_be_split {
+					js_parts_prefix << PartRange{
+						source_index:     source_index
+						part_index_begin: 0
+						part_index_end:   u32(repr.ast.parts.len)
+					}
+				}
+			}
+		}
+	}
+
+	visit(runtime.source_index)
+	for _, data in sorted {
+		visit(data.source_index)
+	}
+	js_parts << js_parts
+	return
+}
+
+fn (c &LinkerContext) should_remove_import_export_stmt(sourceIndex u32, stmtList &StmtList, loc logger.Loc, namespaceRef ast.Ref, importRecordIndex u32) bool {
+	mut repr := c.graph.files[source_index].input_file.repr
+	mut record := &repr.ast.import_records[import_record_index]
+	if !record.source_index.is_valid() {
+		if c.options.output_format.keep_esmi_mport_export_syntax() {
+			return false
+		}
+		stmt_list.inside_wrapper_prefix << js_ast.Stmt{
+			loc:  loc
+			data: &js_ast.SLocal{
+				decls: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+				]
+			}
+		}
+		return true
+	}
+	if repr.ast.exports_kind == js_ast.exports_common_js && ast.follow_symbols(c.graph.symbols,
+		namespace_ref) == repr.ast.exports_ref {
+		return true
+	}
+	mut other_file := &c.graph.files[record.source_index.get_index()]
+	mut other_repr := other_file.input_file.repr
+	match other_repr.meta.wrap {
+		graph.wrap_none {}
+		graph.wrap_cjs {
+			stmt_list.inside_wrapper_prefix << js_ast.Stmt{
+				loc:  loc
+				data: &js_ast.SLocal{
+					decls: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+					]
+				}
+			}
+		}
+		graph.wrap_esm {
+			if !other_file.is_live {
+				break
+			}
+			mut value := js_ast.Expr{
+				loc:  loc
+				data: &js_ast.ECall{
+					target: js_ast.Expr{
+						loc:  loc
+						data: &js_ast.EIdentifier{
+							ref: other_repr.ast.wrapper_ref
+						}
+					}
+				}
+			}
+			if other_repr.meta.is_async_or_has_async_dependency {
+				value.data = &js_ast.EAwait{
+					value: value
+				}
+			}
+			stmt_list.inside_wrapper_prefix << js_ast.Stmt{
+				loc:  loc
+				data: &js_ast.SExpr{
+					value: value
+				}
+			}
+		}
+	}
+	return true
+}
+
+fn (c &LinkerContext) convert_stmts_for_chunk(sourceIndex u32, stmtList &StmtList, partStmts []js_ast.Stmt) {
+	mut file := &c.graph.files[source_index]
+	mut should_strip_exports := c.options.mode != config.mode_pass_through || !file.is_entry_point()
+	mut repr := file.input_file.repr
+	mut should_extract_esms_tmts_for_wrap := repr.meta.wrap != graph.wrap_none
+	mut moduleExportsForReExportOrNil := 0
+	if c.options.output_format == config.format_common_js && file.is_entry_point() {
+		module_exports_for_re_export_or_nil = js_ast.Expr{
+			data: &js_ast.EDot{
+				target: js_ast.Expr{
+					data: &js_ast.EIdentifier{
+						ref: c.unbound_module_ref
+					}
+				}
+				name:   'exports'
+			}
+		}
+	}
+	for _, stmt in part_stmts {
+		mut s := stmt.data
+		match s {
+			js_ast.SImport {
+				if c.should_remove_import_export_stmt(source_index, stmt_list, stmt.loc,
+					s.namespace_ref, s.import_record_index)
+				{
+					continue
+				}
+				if c.options.unsupported_jsf_eatures.has(compat.arbitrary_module_namespace_names) && s.items != nil {
+					for _, item in &s.items {
+						c.maybe_forbid_arbitrary_module_namespace_identifier('import',
+							source_index, item.alias_loc, item.alias)
+					}
+				}
+				if should_extract_esms_tmts_for_wrap {
+					stmt_list.outside_wrapper_prefix << stmt
+					continue
+				}
+			}
+			js_ast.SExportStar {
+				if s.alias != nil {
+					if c.should_remove_import_export_stmt(source_index, stmt_list, stmt.loc,
+						s.namespace_ref, s.import_record_index)
+					{
+						continue
+					}
+					if c.options.unsupported_jsf_eatures.has(compat.arbitrary_module_namespace_names) {
+						c.maybe_forbid_arbitrary_module_namespace_identifier('export',
+							source_index, s.alias.loc, s.alias.original_name)
+					}
+					if should_strip_exports {
+						stmt.data = &js_ast.SImport{
+							namespace_ref:       s.namespace_ref
+							star_name_loc:       &s.alias.loc
+							import_record_index: s.import_record_index
+						}
+					}
+					if should_extract_esms_tmts_for_wrap {
+						stmt_list.outside_wrapper_prefix << stmt
+						continue
+					}
+					break
+				}
+				if !should_strip_exports {
+					break
+				}
+				mut record := &repr.ast.import_records[s.import_record_index]
+				if !record.source_index.is_valid() && c.options.output_format.keep_esmi_mport_export_syntax() {
+					if record.flags.has(ast.calls_run_time_re_export_fn) {
+						stmt.data = &js_ast.SImport{
+							namespace_ref:       s.namespace_ref
+							star_name_loc:       &logger.Loc{
+								start: stmt.loc.start
+							}
+							import_record_index: s.import_record_index
+						}
+						mut export_star_ref := c.graph.files[runtime.source_index].input_file.repr.ast.module_scope.members['__reExport'].ref
+						mut args := [
+							js_ast.Expr{
+								loc:  stmt.loc
+								data: &js_ast.EIdentifier{
+									ref: repr.ast.exports_ref
+								}
+							},
+							js_ast.Expr{
+								loc:  stmt.loc
+								data: &js_ast.EIdentifier{
+									ref: s.namespace_ref
+								}
+							},
+						]
+						if module_exports_for_re_export_or_nil.data != nil {
+							args << module_exports_for_re_export_or_nil
+						}
+						stmt_list.inside_wrapper_prefix << js_ast.Stmt{
+							loc:  stmt.loc
+							data: &js_ast.SExpr{
+								value: js_ast.Expr{
+									loc:  stmt.loc
+									data: &js_ast.ECall{
+										target: js_ast.Expr{
+											loc:  stmt.loc
+											data: &js_ast.EIdentifier{
+												ref: export_star_ref
+											}
+										}
+										args:   args
+									}
+								}
+							}
+						}
+						if should_extract_esms_tmts_for_wrap {
+							stmt_list.outside_wrapper_prefix << stmt
+							continue
+						}
+					}
+				} else {
+					if record.source_index.is_valid() {
+						mut other_repr := c.graph.files[record.source_index.get_index()].input_file.repr
+						if other_repr.meta.wrap == graph.wrap_esm {
+							stmt_list.inside_wrapper_prefix << js_ast.Stmt{
+								loc:  stmt.loc
+								data: &js_ast.SExpr{
+									value: js_ast.Expr{
+										loc:  stmt.loc
+										data: &js_ast.ECall{
+											target: js_ast.Expr{
+												loc:  stmt.loc
+												data: &js_ast.EIdentifier{
+													ref: other_repr.ast.wrapper_ref
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					if record.flags.has(ast.calls_run_time_re_export_fn) {
+						mut target := 0
+						if record.source_index.is_valid() {
+							mut other_repr_1 := c.graph.files[record.source_index.get_index()].input_file.repr
+							if other_repr.ast.exports_kind == js_ast.exports_esmw_ith_dynamic_fallback {
+								target = &js_ast.EIdentifier{
+									ref: other_repr.ast.exports_ref
+								}
+							}
+						}
+						if target == nil {
+							target = &js_ast.ERequireString{
+								import_record_index: s.import_record_index
+							}
+						}
+						mut export_star_ref_1 := c.graph.files[runtime.source_index].input_file.repr.ast.module_scope.members['__reExport'].ref
+						mut args_1 := [
+							js_ast.Expr{
+								loc:  stmt.loc
+								data: &js_ast.EIdentifier{
+									ref: repr.ast.exports_ref
+								}
+							},
+							js_ast.Expr{
+								loc:  record.range.loc
+								data: target
+							},
+						]
+						if module_exports_for_re_export_or_nil.data != nil {
+							args << module_exports_for_re_export_or_nil
+						}
+						stmt_list.inside_wrapper_prefix << js_ast.Stmt{
+							loc:  stmt.loc
+							data: &js_ast.SExpr{
+								value: js_ast.Expr{
+									loc:  stmt.loc
+									data: &js_ast.ECall{
+										target: js_ast.Expr{
+											loc:  stmt.loc
+											data: &js_ast.EIdentifier{
+												ref: export_star_ref
+											}
+										}
+										args:   args
+									}
+								}
+							}
+						}
+					}
+					continue
+				}
+			}
+			js_ast.SExportFrom {
+				if c.should_remove_import_export_stmt(source_index, stmt_list, stmt.loc,
+					s.namespace_ref, s.import_record_index)
+				{
+					continue
+				}
+				if c.options.unsupported_jsf_eatures.has(compat.arbitrary_module_namespace_names) {
+					for _, item_1 in s.items {
+						c.maybe_forbid_arbitrary_module_namespace_identifier('export',
+							source_index, item.alias_loc, item.alias)
+						if item.alias_loc != item.name.loc {
+							c.maybe_forbid_arbitrary_module_namespace_identifier('import',
+								source_index, item.name.loc, item.original_name)
+						}
+					}
+				}
+				if should_strip_exports {
+					for i, item_2 in s.items {
+						s.items[i].alias = item.original_name
+					}
+					stmt.data = &js_ast.SImport{
+						namespace_ref:       s.namespace_ref
+						items:               &s.items
+						import_record_index: s.import_record_index
+						is_single_line:      s.is_single_line
+					}
+				}
+				if should_extract_esms_tmts_for_wrap {
+					stmt_list.outside_wrapper_prefix << stmt
+					continue
+				}
+			}
+			js_ast.SExportClause {
+				if should_strip_exports {
+					continue
+				}
+				if c.options.unsupported_jsf_eatures.has(compat.arbitrary_module_namespace_names) {
+					for _, item_3 in s.items {
+						c.maybe_forbid_arbitrary_module_namespace_identifier('export',
+							source_index, item.alias_loc, item.alias)
+					}
+				}
+				if should_extract_esms_tmts_for_wrap {
+					stmt_list.outside_wrapper_prefix << stmt
+					continue
+				}
+			}
+			js_ast.SFunction {
+				if should_strip_exports && s.is_export {
+					mut clone := &s
+					clone.is_export = false
+					stmt.data = &clone
+				}
+			}
+			js_ast.SClass {
+				if should_strip_exports && s.is_export {
+					mut clone_1 := &s
+					clone.is_export = false
+					stmt.data = &clone
+				}
+			}
+			js_ast.SLocal {
+				if should_strip_exports && s.is_export {
+					mut clone_2 := &s
+					clone.is_export = false
+					stmt.data = &clone
+				}
+			}
+			js_ast.SExportDefault {
+				if should_strip_exports {
+					mut s2 := s.value.data
+					match s2 {
+						js_ast.SExpr {
+							stmt = js_ast.Stmt{
+								loc:  stmt.loc
+								data: &js_ast.SLocal{
+									decls: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+									]
+								}
+							}
+						}
+						js_ast.SFunction {
+							s2 = &js_ast.SFunction{
+								fn_: s2.fn_
+							}
+							s2.fn_.name = &s.default_name
+							stmt = js_ast.Stmt{
+								loc:  s.value.loc
+								data: s2
+							}
+						}
+						js_ast.SClass {
+							s2 = &js_ast.SClass{
+								class: s2.class
+							}
+							s2.class.name = &s.default_name
+							stmt = js_ast.Stmt{
+								loc:  s.value.loc
+								data: s2
+							}
+						}
+						else {
+							panic('Internal error')
+						}
+					}
+				}
+			}
+		}
+		stmt_list.inside_wrapper_suffix << stmt
+	}
+}
+
+// "var a = 1; var b = 2;" => "var a = 1, b = 2;"
+fn merge_adjacent_local_stmts(stmts []js_ast.Stmt) []js_ast.Stmt {
+	if stmts.len == 0 {
+		return stmts
+	}
+	mut did_merge_with_previous_local := false
+	mut end := isize(1)
+	for _, stmt in stmts[1..] {
+		mut after, ok := stmt.data
+		if ok {
+			mut before, ok_1 := stmts[end - 1].data
+			if ok {
+				if before.kind == after.kind && before.is_export == after.is_export {
+					if did_merge_with_previous_local {
+						before.decls << after.decls
+					} else {
+						did_merge_with_previous_local = true
+						mut clone := &before
+						clone.decls = []js_ast.Decl{len: 0, cap: before.decls.len + after.decls.len}
+						clone.decls << before.decls
+						clone.decls << after.decls
+						stmts[end - 1].data = &clone
+					}
+					continue
+				}
+			}
+		}
+		did_merge_with_previous_local = false
+		stmts[end] = stmt
+		end++
+	}
+	return stmts[..end]
+}
+
+struct stmtList {
+pub mut:
+	// These statements come first, and can be inside the wrapper
+	inside_wrapper_prefix []js_ast.Stmt
+	// These statements come last, and can be inside the wrapper
+	inside_wrapper_suffix  []js_ast.Stmt
+	outside_wrapper_prefix []js_ast.Stmt
+}
+
+struct compileResultJS {
+pub mut:
+	source_index u32
+	// This is the line and column offset since the previous JavaScript string
+	// or the start of the file if this is the first JavaScript string.
+	generated_offset sourcemap.LineColumnOffset
+}
+
+fn (c &LinkerContext) require_or_import_meta_for_source(sourceIndex u32) js_printer.RequireOrImportMeta {
+	mut repr := c.graph.files[source_index].input_file.repr
+	meta.wrapper_ref = repr.ast.wrapper_ref
+	meta.is_wrapper_async = repr.meta.is_async_or_has_async_dependency
+	if repr.meta.wrap == graph.wrap_esm {
+		meta.exports_ref = repr.ast.exports_ref
+	} else {
+		meta.exports_ref = ast.invalid_ref
+	}
+	return
+}
+
+fn (c &LinkerContext) generate_code_for_file_in_chunk_js(r renamer.Renamer, waitGroup &sync.WaitGroup, partRange partRange, toCommonJSRef ast.Ref, toESMRef ast.Ref, runtimeRequireRef ast.Ref, result &CompileResultJS, dataForSourceMaps []bundler.DataForSourceMap) {
+	defer {
+		c.recover_internal_error(wait_group, part_range.source_index)
+	}
+	mut file := &c.graph.files[part_range.source_index]
+	mut repr := file.input_file.repr
+	mut ns_export_part_index := js_ast.nse_xport_part_index
+	mut needs_wrapper := false
+	mut stmt_list := StmtList{}
+	if repr.meta.wrap != graph.wrap_none && !file.is_entry_point() {
+		for _, directive in repr.ast.directives {
+			stmt_list.inside_wrapper_prefix << js_ast.Stmt{
+				data: &js_ast.SDirective{
+					value: helpers.string_to_utf_16(directive)
+				}
+			}
+		}
+	}
+	if ns_export_part_index >= part_range.part_index_begin && ns_export_part_index < part_range.part_index_end && repr.ast.parts[ns_export_part_index].is_live {
+		c.convert_stmts_for_chunk(part_range.source_index, &stmt_list, repr.ast.parts[ns_export_part_index].stmts)
+		if repr.meta.wrap == graph.wrap_esm {
+			stmt_list.outside_wrapper_prefix << stmt_list.inside_wrapper_suffix
+		} else {
+			stmt_list.inside_wrapper_prefix << stmt_list.inside_wrapper_suffix
+		}
+		stmt_list.inside_wrapper_suffix = nil
+	}
+	mut partIndexForLazyDefaultExport := 0
+	if repr.ast.has_lazy_export {
+		mut default_export, ok := repr.meta.resolved_exports['default']
+		if ok {
+			part_index_for_lazy_default_export = ast.make_index32(repr.top_level_symbol_to_parts(default_export.ref)[0])
+		}
+	}
+	for part_index := part_range.part_index_begin; part_index < part_range.part_index_end; part_index++ {
+		mut part := repr.ast.parts[part_index]
+		if !repr.ast.parts[part_index].is_live {
+			continue
+		}
+		if u32(part_index) == ns_export_part_index {
+			continue
+		}
+		if u32(part_index) == repr.meta.wrapper_part_index.get_index() {
+			needs_wrapper = true
+			continue
+		}
+		mut stmts := part.stmts
+		if part_index_for_lazy_default_export.is_valid() && part_index == part_index_for_lazy_default_export.get_index() {
+			mut stmt := stmts[0]
+			mut default_export_1 := stmt.data
+			mut default_expr := default_export.value.data
+			mut object, ok_1 := default_expr.value.data
+			if ok {
+				mut object_clone := &object
+				object_clone.properties = object_clone.properties.clone()
+				for i, property in object.properties {
+					mut str, ok_2 := property.key.data
+					if ok {
+						mut name := helpers.utf_16_to_string(str.value)
+						if name != 'default' {
+							mut export, ok_3 := repr.meta.resolved_exports[name]
+							if ok {
+								mut part_1 := repr.ast.parts[repr.top_level_symbol_to_parts(export.ref)[0]]
+								if part.is_live {
+									mut ref := part.stmts[0].data.decls[0].binding.data.ref
+									object_clone.properties[i].value_or_nil = js_ast.Expr{
+										loc:  property.key.loc
+										data: &js_ast.EIdentifier{
+											ref: ref
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				mut default_expr_clone := &default_expr
+				default_expr_clone.value.data = &object_clone
+				mut default_export_clone := &default_export
+				default_export_clone.value.data = &default_expr_clone
+				stmt.data = &default_export_clone
+				stmts = [stmt]
+			}
+		}
+		c.convert_stmts_for_chunk(part_range.source_index, &stmt_list, stmts)
+	}
+	mut stmts_1 := stmt_list.inside_wrapper_suffix
+	if stmt_list.inside_wrapper_prefix.len > 0 {
+		stmts << stmts
+	}
+	if c.options.minify_syntax {
+		stmts = merge_adjacent_local_stmts(stmts)
+	}
+	if needs_wrapper {
+		match repr.meta.wrap {
+			graph.wrap_cjs {
+				mut args := []
+				{
+				}
+				if repr.ast.uses_exports_ref || repr.ast.uses_module_ref {
+					args << js_ast.Arg{
+						binding: js_ast.Binding{
+							data: &js_ast.BIdentifier{
+								ref: repr.ast.exports_ref
+							}
+						}
+					}
+					if repr.ast.uses_module_ref {
+						args << js_ast.Arg{
+							binding: js_ast.Binding{
+								data: &js_ast.BIdentifier{
+									ref: repr.ast.module_ref
+								}
+							}
+						}
+					}
+				}
+				mut cjsArgs := []js_ast.Expr{}
+				if c.options.profiler_names {
+					mut kind := js_ast.property_field
+					if !c.options.unsupported_jsf_eatures.has(compat.object_extensions) {
+						kind = js_ast.property_method
+					}
+					cjs_args = [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+					]
+				} else if c.options.unsupported_jsf_eatures.has(compat.arrow) {
+					cjs_args = [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+					]
+				} else {
+					cjs_args = [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+					]
+				}
+				mut value := js_ast.Expr{
+					data: &js_ast.ECall{
+						target: js_ast.Expr{
+							data: &js_ast.EIdentifier{
+								ref: c.cjs_runtime_ref
+							}
+						}
+						args:   cjs_args
+					}
+				}
+				stmts << js_ast.Stmt{
+					data: &js_ast.SLocal{
+						decls: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+						]
+					}
+				}
+			}
+			graph.wrap_esm {
+				mut is_async := repr.meta.is_async_or_has_async_dependency
+				mut decls := []js_ast.Decl{}
+				mut end := isize(0)
+				for _, stmt_1 in stmts {
+					mut s := stmt.data
+					match s {
+						js_ast.SLocal {
+							mut wrap_identifier := fn (loc logger.Loc, ref ast.Ref) {
+								decls << js_ast.Decl{
+									binding: js_ast.Binding{
+										loc:  loc
+										data: &js_ast.BIdentifier{
+											ref: ref
+										}
+									}
+								}
+								return js_ast.Expr{
+									loc:  loc
+									data: &js_ast.EIdentifier{
+										ref: ref
+									}
+								}
+							}
+
+							for _, decl in s.decls {
+								mut binding := js_ast.convert_binding_to_expr(decl.binding,
+									wrap_identifier)
+								if decl.value_or_nil.data != nil {
+									value = js_ast.join_with_comma(value, js_ast.assign(binding,
+										decl.value_or_nil))
+								}
+							}
+							if value.data == nil {
+								continue
+							}
+							stmt = js_ast.Stmt{
+								loc:  stmt.loc
+								data: &js_ast.SExpr{
+									value: value
+								}
+							}
+						}
+						js_ast.SFunction {
+							stmt_list.outside_wrapper_prefix << stmt
+							continue
+						}
+					}
+					stmts[end] = stmt
+					end++
+				}
+				stmts = stmts[..end]
+				mut esmArgs := []js_ast.Expr{}
+				if c.options.profiler_names {
+					mut kind_1 := js_ast.property_field
+					if !c.options.unsupported_jsf_eatures.has(compat.object_extensions) {
+						kind = js_ast.property_method
+					}
+					esm_args = [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+					]
+				} else if c.options.unsupported_jsf_eatures.has(compat.arrow) {
+					esm_args = [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+					]
+				} else {
+					esm_args = [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+					]
+				}
+				mut value_1 := js_ast.Expr{
+					data: &js_ast.ECall{
+						target: js_ast.Expr{
+							data: &js_ast.EIdentifier{
+								ref: c.esm_runtime_ref
+							}
+						}
+						args:   esm_args
+					}
+				}
+				if !c.options.minify_syntax && decls.len > 0 {
+					stmt_list.outside_wrapper_prefix << js_ast.Stmt{
+						data: &js_ast.SLocal{
+							decls: decls
+						}
+					}
+					decls = nil
+				}
+				stmts << js_ast.Stmt{
+					data: &js_ast.SLocal{
+						decls: append(decls, js_ast.Decl{
+							binding:      js_ast.Binding{
+								data: &js_ast.BIdentifier{
+									ref: repr.ast.wrapper_ref
+								}
+							}
+							value_or_nil: value
+						})
+					}
+				}
+			}
+		}
+	}
+	mut addSourceMappings := 0
+	mut inputSourceMap := 0
+	mut lineOffsetTables := []sourcemap.LineOffsetTable{}
+	if file.input_file.loader.can_have_source_map() && c.options.source_map != config.source_map_none {
+		add_source_mappings = true
+		input_source_map = file.input_file.input_source_map
+		line_offset_tables = data_for_source_maps[part_range.source_index].line_offset_tables
+	}
+	mut indent := isize(0)
+	if c.options.output_format == config.format_iife {
+		indent++
+	}
+	mut print_options := js_printer.Options{
+		indent:                            indent
+		output_format:                     c.options.output_format
+		minify_identifiers:                c.options.minify_identifiers
+		minify_whitespace:                 c.options.minify_whitespace
+		minify_syntax:                     c.options.minify_syntax
+		line_limit:                        c.options.line_limit
+		asciio_nly:                        c.options.asciio_nly
+		to_common_jsr_ef:                  to_common_jsr_ef
+		to_esmr_ef:                        to_esmr_ef
+		runtime_require_ref:               runtime_require_ref
+		tse_nums:                          c.graph.tse_nums
+		const_values:                      c.graph.const_values
+		legal_comments:                    c.options.legal_comments
+		unsupported_features:              c.options.unsupported_jsf_eatures
+		source_map:                        c.options.source_map
+		add_source_mappings:               add_source_mappings
+		input_source_map:                  input_source_map
+		line_offset_tables:                line_offset_tables
+		require_or_import_meta_for_source: c.require_or_import_meta_for_source
+		mangled_props:                     c.mangled_props
+		needs_metafile:                    c.options.needs_metafile
+	}
+	mut tree := repr.ast
+	tree.directives = nil
+	tree.parts = [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+	]
+	*result = CompileResultJS{
+		print_result: js_printer.print(tree, c.graph.symbols, r, print_options)
+		source_index: part_range.source_index
+	}
+	if file.input_file.loader == config.loader_file {
+		result.jsonm_etadata_imports << strconv.v_sprintf('\n        {\n          "path": %s,\n          "kind": "file-loader"\n        }',
+			helpers.quote_for_json(file.input_file.unique_key_for_additional_file, c.options.asciio_nly))
+	}
+	wait_group.done()
+}
+
+fn (c &LinkerContext) generate_entry_point_tail_js(r renamer.Renamer, toCommonJSRef ast.Ref, toESMRef ast.Ref, sourceIndex u32) compileResultJS {
+	mut file := &c.graph.files[source_index]
+	mut repr := file.input_file.repr
+	mut stmts := []js_ast.Stmt{}
+	match c.options.output_format {
+		config.format_preserve {
+			if repr.meta.wrap != graph.wrap_none {
+				stmts << js_ast.Stmt{
+					data: &js_ast.SExpr{
+						value: js_ast.Expr{
+							data: &js_ast.ECall{
+								target: js_ast.Expr{
+									data: &js_ast.EIdentifier{
+										ref: repr.ast.wrapper_ref
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		config.format_iife {
+			if repr.meta.wrap == graph.wrap_cjs {
+				if c.options.global_name.len > 0 {
+					stmts << js_ast.Stmt{
+						data: &js_ast.SReturn{
+							value_or_nil: js_ast.Expr{
+								data: &js_ast.ECall{
+									target: js_ast.Expr{
+										data: &js_ast.EIdentifier{
+											ref: repr.ast.wrapper_ref
+										}
+									}
+								}
+							}
+						}
+					}
+				} else {
+					stmts << js_ast.Stmt{
+						data: &js_ast.SExpr{
+							value: js_ast.Expr{
+								data: &js_ast.ECall{
+									target: js_ast.Expr{
+										data: &js_ast.EIdentifier{
+											ref: repr.ast.wrapper_ref
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			} else {
+				if repr.meta.wrap == graph.wrap_esm {
+					stmts << js_ast.Stmt{
+						data: &js_ast.SExpr{
+							value: js_ast.Expr{
+								data: &js_ast.ECall{
+									target: js_ast.Expr{
+										data: &js_ast.EIdentifier{
+											ref: repr.ast.wrapper_ref
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				if repr.meta.force_include_exports_for_entry_point {
+					stmts << js_ast.Stmt{
+						data: &js_ast.SReturn{
+							value_or_nil: js_ast.Expr{
+								data: &js_ast.ECall{
+									target: js_ast.Expr{
+										data: &js_ast.EIdentifier{
+											ref: to_common_jsr_ef
+										}
+									}
+									args:   [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		config.format_common_js {
+			if repr.meta.wrap == graph.wrap_cjs {
+				stmts << js_ast.assign_stmt(js_ast.Expr{
+					data: &js_ast.EDot{
+						target: js_ast.Expr{
+							data: &js_ast.EIdentifier{
+								ref: c.unbound_module_ref
+							}
+						}
+						name:   'exports'
+					}
+				}, js_ast.Expr{
+					data: &js_ast.ECall{
+						target: js_ast.Expr{
+							data: &js_ast.EIdentifier{
+								ref: repr.ast.wrapper_ref
+							}
+						}
+					}
+				})
+			} else {
+				if repr.meta.wrap == graph.wrap_esm {
+					stmts << js_ast.Stmt{
+						data: &js_ast.SExpr{
+							value: js_ast.Expr{
+								data: &js_ast.ECall{
+									target: js_ast.Expr{
+										data: &js_ast.EIdentifier{
+											ref: repr.ast.wrapper_ref
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			if c.options.platform == config.platform_node {
+				mut moduleExports := []js_ast.Property{}
+				for _, export in repr.meta.sorted_and_filtered_export_aliases {
+					if export == 'default' {
+						continue
+					}
+					mut valueOrNil := 0
+					_, ok := js_lexer.keywords[export]
+					if ok {
+						value_or_nil = js_ast.Expr{
+							data: js_ast.en_ull_shared
+						}
+					}
+					module_exports << js_ast.Property{
+						key:          js_ast.Expr{
+							data: &js_ast.EString{
+								value: helpers.string_to_utf_16(export)
+							}
+						}
+						value_or_nil: value_or_nil
+					}
+				}
+				for _, import_record_index in repr.ast.export_star_import_records {
+					mut record := &repr.ast.import_records[import_record_index]
+					if !record.source_index.is_valid() {
+						module_exports << js_ast.Property{
+							kind:         js_ast.property_spread
+							value_or_nil: js_ast.Expr{
+								data: &js_ast.ERequireString{
+									import_record_index: import_record_index
+								}
+							}
+						}
+					}
+				}
+				if module_exports.len > 0 {
+					mut expr := js_ast.Expr{
+						data: &js_ast.EBinary{
+							op:    js_ast.bin_op_logical_and
+							left:  js_ast.Expr{
+								data: &js_ast.ENumber{
+									value: 0
+								}
+							}
+							right: js_ast.assign(js_ast.Expr{
+								data: &js_ast.EDot{
+									target: js_ast.Expr{
+										data: &js_ast.EIdentifier{
+											ref: c.unbound_module_ref
+										}
+									}
+									name:   'exports'
+								}
+							}, js_ast.Expr{
+								data: &js_ast.EObject{
+									properties: module_exports
+								}
+							})
+						}
+					}
+					if !c.options.minify_whitespace {
+						stmts << js_ast.Stmt{
+							data: &js_ast.SComment{
+								text: r'// Annotate the CommonJS export names for ESM import in node:'
+							}
+						}
+					}
+					stmts << js_ast.Stmt{
+						data: &js_ast.SExpr{
+							value: expr
+						}
+					}
+				}
+			}
+		}
+		config.format_esm_odule {
+			if repr.meta.wrap == graph.wrap_cjs {
+				stmts << js_ast.Stmt{
+					data: &js_ast.SExportDefault{
+						value: js_ast.Stmt{
+							data: &js_ast.SExpr{
+								value: js_ast.Expr{
+									data: &js_ast.ECall{
+										target: js_ast.Expr{
+											data: &js_ast.EIdentifier{
+												ref: repr.ast.wrapper_ref
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			} else {
+				if repr.meta.wrap == graph.wrap_esm {
+					if repr.meta.is_async_or_has_async_dependency {
+						stmts << js_ast.Stmt{
+							data: &js_ast.SExpr{
+								value: js_ast.Expr{
+									data: &js_ast.EAwait{
+										value: js_ast.Expr{
+											data: &js_ast.ECall{
+												target: js_ast.Expr{
+													data: &js_ast.EIdentifier{
+														ref: repr.ast.wrapper_ref
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					} else {
+						stmts << js_ast.Stmt{
+							data: &js_ast.SExpr{
+								value: js_ast.Expr{
+									data: &js_ast.ECall{
+										target: js_ast.Expr{
+											data: &js_ast.EIdentifier{
+												ref: repr.ast.wrapper_ref
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				if repr.meta.sorted_and_filtered_export_aliases.len > 0 {
+					mut items := []js_ast.ClauseItem{}
+					for i, alias in repr.meta.sorted_and_filtered_export_aliases {
+						mut export_1 := repr.meta.resolved_exports[alias]
+						mut import_data, ok_1 := c.graph.files[export.source_index].input_file.repr.meta.imports_to_bind[export.ref]
+						if ok {
+							export.ref = import_data.ref
+							export.source_index = import_data.source_index
+						}
+						if c.graph.symbols.get(export.ref).namespace_alias != nil {
+							mut temp_ref := repr.meta.cjse_xport_copies[i]
+							stmts << js_ast.Stmt{
+								data: &js_ast.SLocal{
+									decls: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+									]
+								}
+							}
+							items << js_ast.ClauseItem{
+								name:  ast.LocRef{
+									ref: temp_ref
+								}
+								alias: alias
+							}
+						} else {
+							items << js_ast.ClauseItem{
+								name:  ast.LocRef{
+									ref: export.ref
+								}
+								alias: alias
+							}
+						}
+					}
+					stmts << js_ast.Stmt{
+						data: &js_ast.SExportClause{
+							items: items
+						}
+					}
+				}
+			}
+		}
+	}
+	if stmts.len == 0 {
+		return
+	}
+	mut tree := repr.ast
+	tree.directives = nil
+	tree.parts = [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+	]
+	mut indent := isize(0)
+	if c.options.output_format == config.format_iife {
+		indent++
+	}
+	mut print_options := js_printer.Options{
+		indent:                            indent
+		output_format:                     c.options.output_format
+		minify_identifiers:                c.options.minify_identifiers
+		minify_whitespace:                 c.options.minify_whitespace
+		minify_syntax:                     c.options.minify_syntax
+		line_limit:                        c.options.line_limit
+		asciio_nly:                        c.options.asciio_nly
+		to_common_jsr_ef:                  to_common_jsr_ef
+		to_esmr_ef:                        to_esmr_ef
+		legal_comments:                    c.options.legal_comments
+		unsupported_features:              c.options.unsupported_jsf_eatures
+		require_or_import_meta_for_source: c.require_or_import_meta_for_source
+		mangled_props:                     c.mangled_props
+	}
+	result.print_result = js_printer.print(tree, c.graph.symbols, r, print_options)
+	return
+}
+
+fn (c &LinkerContext) rename_symbols_in_chunk(chunk &ChunkInfo, filesInOrder []u32, timer &helpers.Timer) renamer.Renamer {
+	if c.options.minify_identifiers {
+		timer.begin('Minify symbols')
+		defer {
+			timer.end('Minify symbols')
+		}
+	} else {
+		timer.begin('Rename symbols')
+		defer {
+			timer.end('Rename symbols')
+		}
+	}
+	timer.begin('Compute reserved names')
+	mut module_scopes := []&js_ast.Scope{len: files_in_order.len}
+	for i, source_index in files_in_order {
+		module_scopes[i] = c.graph.files[source_index].input_file.repr.ast.module_scope
+	}
+	mut reserved_names := renamer.compute_reserved_names(module_scopes, c.graph.symbols)
+	if c.options.output_format == config.format_common_js && c.options.platform == config.platform_node {
+		reserved_names['exports'] = isize(1)
+		reserved_names['module'] = isize(1)
+	}
+	if c.options.mode != config.mode_pass_through {
+		reserved_names['require'] = isize(1)
+		reserved_names['Promise'] = isize(1)
+	}
+	timer.end('Compute reserved names')
+	mut sortedImportsFromOtherChunks := 0
+	for _, imports in chunk.chunk_repr.imports_from_other_chunks {
+		for _, item in imports {
+			sorted_imports_from_other_chunks << StableRef{
+				stable_source_index: c.graph.stable_source_indices[item.ref.source_index]
+				ref:                 item.ref
+			}
+		}
+	}
+	sort.sort(sorted_imports_from_other_chunks)
+	if c.options.minify_identifiers {
+		mut firstTopLevelSlots := 0
+		for _, source_index_1 in files_in_order {
+			first_top_level_slots.union_max(c.graph.files[source_index].input_file.repr.ast.nested_scope_slot_counts)
+		}
+		mut r := renamer.new_minify_renamer(c.graph.symbols, first_top_level_slots, reserved_names)
+		timer.begin('Accumulate symbol counts')
+		timer.begin('Parallel phase')
+		mut all_top_level_symbols := []renamer.StableSymbolCountArray{len: files_in_order.len}
+		mut stable_source_indices := c.graph.stable_source_indices
+		mut freq := ast.CharFreq{}
+		mut wait_group := sync.WaitGroup{}
+		wait_group.add(files_in_order.len)
+		for i_1, source_index_2 in files_in_order {
+			mut repr := c.graph.files[source_index].input_file.repr
+			if repr.ast.char_freq != nil {
+				freq.include(repr.ast.char_freq)
+			}
+			go fn (topLevelSymbols &renamer.StableSymbolCountArray, repr &graph.JSRepr) {
+				if repr.ast.uses_exports_ref {
+					r.accumulate_symbol_count(top_level_symbols, repr.ast.exports_ref,
+						1, stable_source_indices)
+				}
+				if repr.ast.uses_module_ref {
+					r.accumulate_symbol_count(top_level_symbols, repr.ast.module_ref,
+						1, stable_source_indices)
+				}
+				for part_index, part in repr.ast.parts {
+					if !repr.ast.parts[part_index].is_live {
+						continue
+					}
+					r.accumulate_symbol_use_counts(top_level_symbols, part.symbol_uses,
+						stable_source_indices)
+					for _, declared in part.declared_symbols {
+						r.accumulate_symbol_count(top_level_symbols, declared.ref, 1,
+							stable_source_indices)
+					}
+				}
+				sort.sort(top_level_symbols)
+				wait_group.done()
+			}(&all_top_level_symbols[i], repr)
+		}
+		wait_group.wait()
+		timer.end('Parallel phase')
+		timer.begin('Serial phase')
+		mut capacity := sorted_imports_from_other_chunks.len
+		for _, array in all_top_level_symbols {
+			capacity += array.len
+		}
+		mut top_level_symbols := renamer.StableSymbolCountArray{
+			len: 0
+			cap: capacity
+		}
+		for _, stable in sorted_imports_from_other_chunks {
+			r.accumulate_symbol_count(&top_level_symbols, stable.ref, 1, stable_source_indices)
+		}
+		for _, array_1 in all_top_level_symbols {
+			top_level_symbols << array
+		}
+		r.allocate_top_level_symbol_slots(top_level_symbols)
+		timer.end('Serial phase')
+		timer.end('Accumulate symbol counts')
+		mut minifier := ast.default_name_minifier_js.shuffle_by_char_freq(freq)
+		timer.begin('Assign names by frequency')
+		r.assign_names_by_frequency(&minifier)
+		timer.end('Assign names by frequency')
+		return r
+	}
+	mut r_1 := renamer.new_number_renamer(c.graph.symbols, reserved_names)
+	mut nested_scopes := map[Uint32][]&js_ast.Scope{}
+	timer.begin('Add top-level symbols')
+	for _, stable_1 in sorted_imports_from_other_chunks {
+		r.add_top_level_symbol(stable.ref)
+	}
+	for _, source_index_3 in files_in_order {
+		mut repr_1 := c.graph.files[source_index].input_file.repr
+		mut scopes := []&js_ast.Scope{}
+		if repr.meta.wrap == graph.wrap_cjs {
+			r.add_top_level_symbol(repr.ast.wrapper_ref)
+			if c.options.output_format.keep_esmi_mport_export_syntax() {
+				for _, part_1 in repr.ast.parts {
+					for _, stmt in part.stmts {
+						mut s := stmt.data
+						match s {
+							js_ast.SImport {
+								if !repr.ast.import_records[s.import_record_index].source_index.is_valid() {
+									r.add_top_level_symbol(s.namespace_ref)
+									if s.default_name != nil {
+										r.add_top_level_symbol(s.default_name.ref)
+									}
+									if s.items != nil {
+										for _, item_1 in &s.items {
+											r.add_top_level_symbol(item.name.ref)
+										}
+									}
+								}
+							}
+							js_ast.SExportStar {
+								if !repr.ast.import_records[s.import_record_index].source_index.is_valid() {
+									r.add_top_level_symbol(s.namespace_ref)
+								}
+							}
+							js_ast.SExportFrom {
+								if !repr.ast.import_records[s.import_record_index].source_index.is_valid() {
+									r.add_top_level_symbol(s.namespace_ref)
+									for _, item_2 in s.items {
+										r.add_top_level_symbol(item.name.ref)
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			nested_scopes[source_index] = [repr.ast.module_scope]
+			continue
+		}
+		if repr.meta.wrap == graph.wrap_esm {
+			r.add_top_level_symbol(repr.ast.wrapper_ref)
+		}
+		for part_index_1, part_2 in repr.ast.parts {
+			if repr.ast.parts[part_index].is_live {
+				for _, declared_1 in part.declared_symbols {
+					if declared.is_top_level {
+						r.add_top_level_symbol(declared.ref)
+					}
+				}
+				scopes << part.scopes
+			}
+		}
+		nested_scopes[source_index] = scopes
+	}
+	timer.end('Add top-level symbols')
+	timer.begin('Assign names by scope')
+	r.assign_names_by_scope(nested_scopes)
+	timer.end('Assign names by scope')
+	return r
+}
+
+fn (c &LinkerContext) generate_chunk_js(chunkIndex isize, chunkWaitGroup &sync.WaitGroup) {
+	defer {
+		c.recover_internal_error(chunk_wait_group, runtime.source_index)
+	}
+	mut chunk := &c.chunks[chunk_index]
+	mut timer := c.timer.fork()
+	if timer != nil {
+		mut time_name := strconv.v_sprintf('Generate chunk %q', path.clean(config.template_to_string(chunk.final_template)))
+		timer.begin(time_name)
+		defer {
+			c.timer.join(timer)
+		}
+		defer {
+			timer.end(time_name)
+		}
+	}
+	mut chunk_repr := chunk.chunk_repr
+	mut compile_results := []compileResultJS{len: 0, cap: chunk_repr.PartsInChunkInOrder.len}
+	mut runtime_members := c.graph.files[runtime.source_index].input_file.repr.ast.module_scope.members
+	mut to_common_jsr_ef := ast.follow_symbols(c.graph.symbols, runtime_members['__toCommonJS'].ref)
+	mut to_esmr_ef := ast.follow_symbols(c.graph.symbols, runtime_members['__toESM'].ref)
+	mut runtime_require_ref := ast.follow_symbols(c.graph.symbols, runtime_members['__require'].ref)
+	mut r := c.rename_symbols_in_chunk(chunk, chunk_repr.files_in_chunk_in_order, timer)
+	mut data_for_source_maps := c.data_for_source_maps()
+	mut chunk_abs_dir := c.fs.dir(c.fs.join(c.options.abs_output_dir, config.template_to_string(chunk.final_template)))
+	timer.begin('Print JavaScript files')
+	mut wait_group := sync.WaitGroup{}
+	for _, part_range in chunk_repr.parts_in_chunk_in_order {
+		if part_range.source_index == runtime.source_index && c.options.omit_runtime_for_tests {
+			continue
+		}
+		compile_results << CompileResultJS{}
+		mut compile_result := &compile_results[compile_results.len - 1]
+		wait_group.add(1)
+		go c.generate_code_for_file_in_chunk_js(r, &wait_group, part_range, to_common_jsr_ef,
+			to_esmr_ef, runtime_require_ref, compile_result, data_for_source_maps)
+	}
+	mut crossChunkPrefix := []u8{}
+	mut crossChunkSuffix := []u8{}
+	mut jsonMetadataImports := []string{}
+	{
+		mut indent := isize(0)
+		if c.options.output_format == config.format_iife {
+			indent++
+		}
+		mut print_options := js_printer.Options{
+			indent:             indent
+			output_format:      c.options.output_format
+			minify_identifiers: c.options.minify_identifiers
+			minify_whitespace:  c.options.minify_whitespace
+			minify_syntax:      c.options.minify_syntax
+			line_limit:         c.options.line_limit
+			needs_metafile:     c.options.needs_metafile
+		}
+		mut cross_chunk_import_records := []ast.ImportRecord{len: chunk.cross_chunk_imports.len}
+		for i, chunk_import in chunk.cross_chunk_imports {
+			cross_chunk_import_records[i] = ast.ImportRecord{
+				kind:  chunk_import.import_kind
+				path:  logger.Path{
+					text: c.chunks[chunk_import.chunk_index].unique_key
+				}
+				flags: ast.should_not_be_external_in_metafile | ast.contains_unique_key
+			}
+		}
+		mut cross_chunk_result := js_printer.print(js_ast.AST{
+			import_records: cross_chunk_import_records
+			parts:          [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+			]
+		}, c.graph.symbols, r, print_options)
+		cross_chunk_prefix = cross_chunk_result.js
+		json_metadata_imports = cross_chunk_result.jsonm_etadata_imports
+		cross_chunk_suffix = js_printer.print(js_ast.AST{
+			parts: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+			]
+		}, c.graph.symbols, r, print_options).js
+	}
+	mut entryPointTail := 0
+	if chunk.is_entry_point {
+		entry_point_tail = c.generate_entry_point_tail_js(r, to_common_jsr_ef, to_esmr_ef,
+			chunk.source_index)
+	}
+	wait_group.wait()
+	timer.end('Print JavaScript files')
+	timer.begin('Join JavaScript files')
+	mut j := helpers.Joiner{}
+	mut prev_offset := sourcemap.LineColumnOffset{}
+	mut indent_1 := ''
+	mut space := ' '
+	mut newline := '\n'
+	if c.options.minify_whitespace {
+		space = ''
+		newline = ''
+	}
+	mut newline_before_comment := false
+	mut is_executable := false
+	if chunk.is_entry_point {
+		mut repr := c.graph.files[chunk.source_index].input_file.repr
+		if repr.ast.hashbang != '' {
+			mut hashbang := repr.ast.hashbang + '\n'
+			prev_offset.advance_string(hashbang)
+			j.add_string(hashbang)
+			newline_before_comment = true
+			is_executable = true
+		}
+	}
+	if c.options.jsb_anner.len > 0 {
+		prev_offset.advance_string(c.options.jsb_anner)
+		prev_offset.advance_string('\n')
+		j.add_string(c.options.jsb_anner)
+		j.add_string('\n')
+		newline_before_comment = true
+	}
+	if chunk.is_entry_point {
+		mut repr_1 := c.graph.files[chunk.source_index].input_file.repr
+		for _, directive in repr.ast.directives {
+			if directive != 'use strict' || c.options.output_format != config.format_esm_odule {
+				mut quoted := helpers.quote_for_json(directive, c.options.asciio_nly).str() + ';' +
+					newline
+				prev_offset.advance_string(quoted)
+				j.add_string(quoted)
+				newline_before_comment = true
+			}
+		}
+	}
+	if c.options.output_format == config.format_iife {
+		mut text := 0
+		indent = '  '
+		if c.options.global_name.len > 0 {
+			text = c.generate_global_name_prefix()
+		}
+		if c.options.unsupported_jsf_eatures.has(compat.arrow) {
+			text += '(function()' + space + '{' + newline
+		} else {
+			text += '(()' + space + '=>' + space + '{' + newline
+		}
+		prev_offset.advance_string(text)
+		j.add_string(text)
+		newline_before_comment = false
+	}
+	if cross_chunk_prefix.len > 0 {
+		newline_before_comment = true
+		prev_offset.advance_bytes(cross_chunk_prefix)
+		j.add_bytes(cross_chunk_prefix)
+	}
+	mut j_meta := helpers.Joiner{}
+	if c.options.needs_metafile {
+		mut is_first_meta := true
+		j_meta.add_string('{\n      "imports": [')
+		for _, json in json_metadata_imports {
+			if is_first_meta {
+				is_first_meta = false
+			} else {
+				j_meta.add_string(',')
+			}
+			j_meta.add_string(json)
+		}
+		for _, compile_result in compile_results {
+			for _, json_1 in compile_result.jsonm_etadata_imports {
+				if is_first_meta {
+					is_first_meta = false
+				} else {
+					j_meta.add_string(',')
+				}
+				j_meta.add_string(json)
+			}
+		}
+		if !is_first_meta {
+			j_meta.add_string('\n      ')
+		}
+		j_meta.add_string('],\n      "exports": [')
+		mut aliases := []string{}
+		if c.options.output_format.keep_esmi_mport_export_syntax() {
+			if chunk.is_entry_point {
+				mut file_repr := c.graph.files[chunk.source_index].input_file.repr
+				if file_repr.meta.wrap == graph.wrap_cjs {
+					aliases = ['default']
+				} else {
+					mut resolved_exports := file_repr.meta.resolved_exports
+					aliases = []string{len: 0, cap: ResolvedExports.len}
+					for alias, _ in resolved_exports {
+						aliases << alias
+					}
+				}
+			} else {
+				aliases = []string{len: 0, cap: chunk_repr.ExportsToOtherChunks.len}
+				for _, alias_1 in chunk_repr.exports_to_other_chunks {
+					aliases << alias
+				}
+			}
+		}
+		is_first_meta = true
+		sort.strings(aliases)
+		for _, alias_2 in aliases {
+			if is_first_meta {
+				is_first_meta = false
+			} else {
+				j_meta.add_string(',')
+			}
+			j_meta.add_string(strconv.v_sprintf('\n        %s', helpers.quote_for_json(alias,
+				c.options.asciio_nly)))
+		}
+		if !is_first_meta {
+			j_meta.add_string('\n      ')
+		}
+		j_meta.add_string('],\n')
+		if chunk.is_entry_point {
+			mut entry_point := c.graph.files[chunk.source_index].input_file.source.pretty_path
+			j_meta.add_string(strconv.v_sprintf('      "entryPoint": %s,\n', helpers.quote_for_json(entry_point,
+				c.options.asciio_nly)))
+		}
+		if chunk_repr.has_cssc_hunk {
+			j_meta.add_string(strconv.v_sprintf('      "cssBundle": %s,\n', helpers.quote_for_json(c.chunks[chunk_repr.css_chunk_index].unique_key,
+				c.options.asciio_nly)))
+		}
+		j_meta.add_string('      "inputs": {')
+	}
+	mut compileResultsForSourceMap := []compileResultForSourceMap{}
+	mut legalCommentList := []legalCommentEntry{}
+	mut metaOrder := []u32{}
+	mut metaBytes := map[Uint32][][]u8{}
+	mut prev_file_name_comment := u32(0)
+	if c.options.needs_metafile {
+		meta_order = []u32{len: 0, cap: CompileResults.len}
+		meta_bytes = {
+			len: compile_results.len
+		}
+	}
+	for _, compile_result_1 in compile_results {
+		if compile_result.extracted_legal_comments.len > 0 {
+			legal_comment_list << LegalCommentEntry{
+				source_index: compile_result.source_index
+				comments:     compile_result.extracted_legal_comments
+			}
+		}
+		if c.options.mode == config.mode_bundle && !c.options.minify_whitespace
+			&& prev_file_name_comment != compile_result.source_index && compile_result.js.len > 0 {
+			if newline_before_comment {
+				prev_offset.advance_string('\n')
+				j.add_string('\n')
+			}
+			mut path := c.graph.files[compile_result.source_index].input_file.source.pretty_path
+			path = path.replace_all('\r', '\\r')
+			path = path.replace_all('\n', '\\n')
+			path = path.replace_all('\u2028', '\\u2028')
+			path = path.replace_all('\u2029', '\\u2029')
+			mut text_1 := strconv.v_sprintf('%s// %s\n', indent, path)
+			prev_offset.advance_string(text)
+			j.add_string(text)
+			prev_file_name_comment = compile_result.source_index
+		}
+		if c.graph.files[compile_result.source_index].input_file.omit_from_source_maps_and_metafile {
+			prev_offset.advance_string(compile_result.js.str())
+			j.add_bytes(compile_result.js)
+		} else {
+			compile_result.generated_offset = prev_offset
+			j.add_bytes(compile_result.js)
+			if compile_result.source_map_chunk.should_ignore {
+				prev_offset.advance_bytes(compile_result.js)
+			} else {
+				prev_offset = sourcemap.LineColumnOffset{}
+				if c.options.source_map != config.source_map_none {
+					compile_results_for_source_map << CompileResultForSourceMap{
+						source_map_chunk: compile_result.source_map_chunk
+						generated_offset: compile_result.generated_offset
+						source_index:     compile_result.source_index
+					}
+				}
+			}
+			if c.options.needs_metafile {
+				mut bytes, ok := meta_bytes[compile_result.source_index]
+				if !ok {
+					meta_order << compile_result.source_index
+				}
+				meta_bytes[compile_result.source_index] << compile_result.js
+			}
+		}
+		if compile_result.js.len > 0 {
+			newline_before_comment = true
+		}
+	}
+	j.add_bytes(entry_point_tail.js)
+	if cross_chunk_suffix.len > 0 {
+		if newline_before_comment {
+			j.add_string(newline)
+		}
+		j.add_bytes(cross_chunk_suffix)
+	}
+	if c.options.output_format == config.format_iife {
+		j.add_string('})();' + newline)
+	}
+	j.ensure_newline_at_end()
+	mut slash_tag := '/script'
+	if c.options.unsupported_jsf_eatures.has(compat.inline_script) {
+		slash_tag = ''
+	}
+	c.maybe_append_legal_comments(c.options.legal_comments, legal_comment_list, chunk,
+		&j, slash_tag)
+	if c.options.jsf_ooter.len > 0 {
+		j.add_string(c.options.jsf_ooter)
+		j.add_string('\n')
+	}
+	chunk.intermediate_output = c.break_joiner_into_pieces(j)
+	timer.end('Join JavaScript files')
+	if c.options.source_map != config.source_map_none {
+		timer.begin('Generate source map')
+		mut can_have_shifts := chunk.intermediate_output.pieces != nil
+		chunk.output_source_map = c.generate_source_map_for_chunk(compile_results_for_source_map,
+			chunk_abs_dir, data_for_source_maps, can_have_shifts)
+		timer.end('Generate source map')
+	}
+	if c.options.needs_metafile {
+		mut pieces := [][]intermediateOutput{len: MetaOrder.len}
+		for i_1, source_index in meta_order {
+			mut slices := meta_bytes[source_index]
+			mut outputs := []intermediateOutput{len: Slices.len}
+			for j_1, slice in slices {
+				outputs[j] = c.break_output_into_pieces(slice)
+			}
+			pieces[i] = outputs
+		}
+		chunk.json_metadata_chunk_callback = fn (finalOutputSize isize) {
+			mut final_rel_dir := c.fs.dir(chunk.final_rel_path)
+			for i_2, source_index_1 in meta_order {
+				if i > 0 {
+					j_meta.add_string(',')
+				}
+				mut count := isize(0)
+				for _, output in pieces[i] {
+					count += c.accurate_final_byte_count(output, final_rel_dir)
+				}
+				j_meta.add_string(strconv.v_sprintf('\n        %s: {\n          "bytesInOutput": %d\n        %s}',
+					helpers.quote_for_json(c.graph.files[source_index].input_file.source.pretty_path,
+					c.options.asciio_nly), count, c.generate_extra_data_for_file_js(source_index)))
+			}
+			if meta_order.len > 0 {
+				j_meta.add_string('\n      ')
+			}
+			j_meta.add_string(strconv.v_sprintf('},\n      "bytes": %d\n    }', final_output_size))
+			return j_meta
+		}
+	}
+	c.generate_isolated_hash_in_parallel(chunk)
+	chunk.is_executable = is_executable
+	chunk_wait_group.done()
+}
+
+fn (c &LinkerContext) generate_global_name_prefix() string {
+	mut text := 0
+	mut global_name := c.options.global_name
+	mut prefix := global_name[0]
+	mut space := ' '
+	mut join := ';\n'
+	if c.options.minify_whitespace {
+		space = ''
+		join = ';'
+	}
+	if global_name.len > 1 && !c.options.unsupported_jsf_eatures.has(compat.logical_assignment) {
+		if js_printer.can_escape_identifier(prefix, c.options.unsupported_jsf_eatures,
+			c.options.asciio_nly)
+		{
+			if c.options.asciio_nly {
+				prefix = js_printer.quote_identifier(nil, prefix, c.options.unsupported_jsf_eatures).str()
+			}
+			text = strconv.v_sprintf('var %s%s', prefix, join)
+		} else {
+			prefix = strconv.v_sprintf('this[%s]', helpers.quote_for_json(prefix, c.options.asciio_nly))
+		}
+		for _, name in global_name[1..] {
+			mut dotOrIndex := 0
+			if js_printer.can_escape_identifier(name, c.options.unsupported_jsf_eatures,
+				c.options.asciio_nly)
+			{
+				if c.options.asciio_nly {
+					name = js_printer.quote_identifier(nil, name, c.options.unsupported_jsf_eatures).str()
+				}
+				dot_or_index = strconv.v_sprintf('.%s', name)
+			} else {
+				dot_or_index = strconv.v_sprintf('[%s]', helpers.quote_for_json(name,
+					c.options.asciio_nly))
+			}
+			prefix = strconv.v_sprintf('(%s%s||=%s{})%s', prefix, space, space, dot_or_index)
+		}
+		return strconv.v_sprintf('%s%s%s=%s', text, prefix, space, space)
+	}
+	if js_printer.can_escape_identifier(prefix, c.options.unsupported_jsf_eatures, c.options.asciio_nly) {
+		if c.options.asciio_nly {
+			prefix = js_printer.quote_identifier(nil, prefix, c.options.unsupported_jsf_eatures).str()
+		}
+		text = strconv.v_sprintf('var %s%s=%s', prefix, space, space)
+	} else {
+		prefix = strconv.v_sprintf('this[%s]', helpers.quote_for_json(prefix, c.options.asciio_nly))
+		text = strconv.v_sprintf('%s%s=%s', prefix, space, space)
+	}
+	for _, name_1 in global_name[1..] {
+		mut old_prefix := prefix
+		if js_printer.can_escape_identifier(name, c.options.unsupported_jsf_eatures, c.options.asciio_nly) {
+			if c.options.asciio_nly {
+				name = js_printer.quote_identifier(nil, name, c.options.unsupported_jsf_eatures).str()
+			}
+			prefix = strconv.v_sprintf('%s.%s', prefix, name)
+		} else {
+			prefix = strconv.v_sprintf('%s[%s]', prefix, helpers.quote_for_json(name,
+				c.options.asciio_nly))
+		}
+		text += strconv.v_sprintf('%s%s||%s{}%s%s%s=%s', old_prefix, space, space, join,
+			prefix, space, space)
+	}
+	return text
+}
+
+struct compileResultCSS {
+pub mut:
+	// This is the line and column offset since the previous CSS string
+	// or the start of the file if this is the first CSS string.
+	generated_offset sourcemap.LineColumnOffset
+	// The source index can be invalid for short snippets that aren't necessarily
+	// tied to any one file and/or that don't really need source mappings. The
+	// source index is really only valid for the compile result that contains the
+	// main contents of a file, which we try to only ever write out once.
+	source_index ast.Index32
+	has_charset  bool
+}
+
+fn (c &LinkerContext) generate_chunk_css(chunkIndex isize, chunkWaitGroup &sync.WaitGroup) {
+	defer {
+		c.recover_internal_error(chunk_wait_group, runtime.source_index)
+	}
+	mut chunk := &c.chunks[chunk_index]
+	mut timer := c.timer.fork()
+	if timer != nil {
+		mut time_name := strconv.v_sprintf('Generate chunk %q', path.clean(config.template_to_string(chunk.final_template)))
+		timer.begin(time_name)
+		defer {
+			c.timer.join(timer)
+		}
+		defer {
+			timer.end(time_name)
+		}
+	}
+	mut chunk_repr := chunk.chunk_repr
+	mut compile_results := []compileResultCSS{len: chunk_repr.ImportsInChunkInOrder.len}
+	mut data_for_source_maps := c.data_for_source_maps()
+	mut chunk_abs_dir := c.fs.dir(c.fs.join(c.options.abs_output_dir, config.template_to_string(chunk.final_template)))
+	timer.begin('Prepare CSS ASTs')
+	mut asts := []css_ast.AST{len: chunk_repr.imports_in_chunk_in_order.len}
+	mut remover := 0
+	if c.options.minify_syntax {
+		remover = css_parser.make_duplicate_rule_mangler(c.graph.symbols)
+	}
+	for i := chunk_repr.imports_in_chunk_in_order.len - 1; i >= 0; i-- {
+		mut entry := chunk_repr.imports_in_chunk_in_order[i]
+		match entry.kind {
+			css_import_layers {
+				mut rules := []css_ast.Rule{}
+				if entry.layers.len > 0 {
+					rules << css_ast.Rule{
+						data: &css_ast.RAtLayer{
+							names: entry.layers
+						}
+					}
+				}
+				mut rules_1, import_records := wrap_rules_with_conditions(rules, nil,
+					entry.conditions, entry.condition_import_records)
+				asts[i] = css_ast.AST{
+					rules:          rules
+					import_records: import_records
+				}
+			}
+			css_import_external_path {
+				mut conditions := 0
+				if entry.conditions.len > 0 {
+					conditions = &entry.conditions[0]
+					for i_1 := entry.conditions.len - 1; i > 0; i-- {
+						mut ast_import := css_ast.AST{
+							rules:          [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+							]
+							import_records: append(entry.condition_import_records, ast.ImportRecord{
+								kind: ast.import_at
+								path: entry.external_path
+							})
+						}
+						mut ast_result := css_printer.print(ast_import, c.graph.symbols,
+							css_printer.Options{
+							minify_whitespace: c.options.minify_whitespace
+							asciio_nly:        c.options.asciio_nly
+						})
+						entry.external_path = logger.Path{
+							text: helpers.encode_string_as_shortest_data_url('text/css',
+								bytes.trim_space(ast_result.css).str())
+						}
+					}
+				}
+				asts[i] = css_ast.AST{
+					path:  entry.external_path
+					rules: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+					]
+				}
+			}
+			css_import_source_index {
+				mut file := &c.graph.files[entry.source_index]
+				mut ast := file.input_file.repr.ast
+				mut rules_2 := []css_ast.Rule{len: 0, cap: ast.rules.len}
+				mut did_find_at_import := false
+				mut did_find_at_layer := false
+				for _, rule in ast.rules {
+					// append no rhs
+
+					// lhs.len==0
+					rules << rule
+				}
+				rules, ast.import_records = wrap_rules_with_conditions(rules, ast.import_records,
+					entry.conditions, entry.condition_import_records)
+				if c.options.minify_syntax {
+					rules = remover.remove_duplicate_rules_in_place(entry.source_index,
+						rules, ast.import_records)
+				}
+				ast.rules = rules
+				asts[i] = ast
+			}
+		}
+	}
+	timer.end('Prepare CSS ASTs')
+	timer.begin('Print CSS files')
+	mut wait_group := sync.WaitGroup{}
+	for i_2, entry_1 in chunk_repr.imports_in_chunk_in_order {
+		wait_group.add(1)
+		go fn (i isize, entry cssImportOrder, compileResult &CompileResultCSS) {
+			mut css_options := css_printer.Options{
+				minify_whitespace:    c.options.minify_whitespace
+				line_limit:           c.options.line_limit
+				asciio_nly:           c.options.asciio_nly
+				legal_comments:       c.options.legal_comments
+				source_map:           c.options.source_map
+				unsupported_features: c.options.unsupported_cssf_eatures
+				needs_metafile:       c.options.needs_metafile
+				local_names:          c.mangled_props
+			}
+			if entry.kind == css_import_source_index {
+				defer {
+					c.recover_internal_error(&wait_group, entry.source_index)
+				}
+				mut file_1 := &c.graph.files[entry.source_index]
+				if file.input_file.loader.can_have_source_map() && c.options.source_map != config.source_map_none {
+					css_options.add_source_mappings = true
+					css_options.input_source_map = file.input_file.input_source_map
+					css_options.line_offset_tables = data_for_source_maps[entry.source_index].line_offset_tables
+				}
+				css_options.input_source_index = entry.source_index
+				compile_result.source_index = ast.make_index32(entry.source_index)
+			}
+			compile_result.print_result = css_printer.print(asts[i], c.graph.symbols,
+				css_options)
+			wait_group.done()
+		}(i, entry, &compile_results[i])
+	}
+	wait_group.wait()
+	timer.end('Print CSS files')
+	timer.begin('Join CSS files')
+	mut j := helpers.Joiner{}
+	mut prev_offset := sourcemap.LineColumnOffset{}
+	mut newline_before_comment := false
+	if c.options.cssb_anner.len > 0 {
+		prev_offset.advance_string(c.options.cssb_anner)
+		j.add_string(c.options.cssb_anner)
+		prev_offset.advance_string('\n')
+		j.add_string('\n')
+	}
+	mut jsonMetadataImports := []string{}
+	{
+		mut tree := css_ast.AST{}
+		for _, compile_result in compile_results {
+			if compile_result.has_charset {
+				tree.rules << css_ast.Rule{
+					data: &css_ast.RAtCharset{
+						encoding: 'UTF-8'
+					}
+				}
+				break
+			}
+		}
+		if tree.rules.len > 0 {
+			mut result := css_printer.print(tree, c.graph.symbols, css_printer.Options{
+				minify_whitespace: c.options.minify_whitespace
+				line_limit:        c.options.line_limit
+				asciio_nly:        c.options.asciio_nly
+				needs_metafile:    c.options.needs_metafile
+			})
+			json_metadata_imports = result.jsonm_etadata_imports
+			if result.css.len > 0 {
+				prev_offset.advance_bytes(result.css)
+				j.add_bytes(result.css)
+				newline_before_comment = true
+			}
+		}
+	}
+	mut j_meta := helpers.Joiner{}
+	if c.options.needs_metafile {
+		mut is_first_meta := true
+		j_meta.add_string('{\n      "imports": [')
+		for _, json in json_metadata_imports {
+			if is_first_meta {
+				is_first_meta = false
+			} else {
+				j_meta.add_string(',')
+			}
+			j_meta.add_string(json)
+		}
+		for _, compile_result_1 in compile_results {
+			for _, json_1 in compile_result.jsonm_etadata_imports {
+				if is_first_meta {
+					is_first_meta = false
+				} else {
+					j_meta.add_string(',')
+				}
+				j_meta.add_string(json)
+			}
+		}
+		if !is_first_meta {
+			j_meta.add_string('\n      ')
+		}
+		if chunk.is_entry_point {
+			mut file_2 := &c.graph.files[chunk.source_index]
+			_, ok := file.input_file.repr
+			if ok {
+				j_meta.add_string(strconv.v_sprintf('],\n      "entryPoint": %s,\n      "inputs": {',
+					helpers.quote_for_json(file.input_file.source.pretty_path, c.options.asciio_nly)))
+			} else {
+				j_meta.add_string('],\n      "inputs": {')
+			}
+		} else {
+			j_meta.add_string('],\n      "inputs": {')
+		}
+	}
+	mut compileResultsForSourceMap := []compileResultForSourceMap{}
+	mut legalCommentList := []legalCommentEntry{}
+	for _, compile_result_2 in compile_results {
+		if compile_result.extracted_legal_comments.len > 0 && compile_result.source_index.is_valid() {
+			legal_comment_list << LegalCommentEntry{
+				source_index: compile_result.source_index.get_index()
+				comments:     compile_result.extracted_legal_comments
+			}
+		}
+		if c.options.mode == config.mode_bundle && !c.options.minify_whitespace
+			&& compile_result.source_index.is_valid() {
+			mut newline := 0
+			if newline_before_comment {
+				newline = '\n'
+			}
+			mut comment := strconv.v_sprintf('%s/* %s */\n', newline, c.graph.files[compile_result.source_index.get_index()].input_file.source.pretty_path)
+			prev_offset.advance_string(comment)
+			j.add_string(comment)
+		}
+		if compile_result.css.len > 0 {
+			newline_before_comment = true
+		}
+		compile_result.generated_offset = prev_offset
+		j.add_bytes(compile_result.css)
+		if compile_result.source_map_chunk.should_ignore {
+			prev_offset.advance_bytes(compile_result.css)
+		} else {
+			prev_offset = sourcemap.LineColumnOffset{}
+			if c.options.source_map != config.source_map_none && compile_result.source_index.is_valid() {
+				compile_results_for_source_map << CompileResultForSourceMap{
+					source_map_chunk: compile_result.source_map_chunk
+					generated_offset: compile_result.generated_offset
+					source_index:     compile_result.source_index.get_index()
+				}
+			}
+		}
+	}
+	j.ensure_newline_at_end()
+	mut slash_tag := '/style'
+	if c.options.unsupported_cssf_eatures.has(compat.inline_style) {
+		slash_tag = ''
+	}
+	c.maybe_append_legal_comments(c.options.legal_comments, legal_comment_list, chunk,
+		&j, slash_tag)
+	if c.options.cssf_ooter.len > 0 {
+		j.add_string(c.options.cssf_ooter)
+		j.add_string('\n')
+	}
+	chunk.intermediate_output = c.break_joiner_into_pieces(j)
+	timer.end('Join CSS files')
+	if c.options.source_map != config.source_map_none {
+		timer.begin('Generate source map')
+		mut can_have_shifts := chunk.intermediate_output.pieces != nil
+		chunk.output_source_map = c.generate_source_map_for_chunk(compile_results_for_source_map,
+			chunk_abs_dir, data_for_source_maps, can_have_shifts)
+		timer.end('Generate source map')
+	}
+	if c.options.needs_metafile {
+		mut pieces := []intermediateOutput{len: CompileResults.len}
+		for i_3, compile_result_3 in compile_results {
+			pieces[i] = c.break_output_into_pieces(compile_result.css)
+		}
+		chunk.json_metadata_chunk_callback = fn (finalOutputSize isize) {
+			mut final_rel_dir := c.fs.dir(chunk.final_rel_path)
+			mut is_first := true
+			for i_4, compile_result_4 in compile_results {
+				if !compile_result.source_index.is_valid() {
+					continue
+				}
+				if is_first {
+					is_first = false
+				} else {
+					j_meta.add_string(',')
+				}
+				j_meta.add_string(strconv.v_sprintf('\n        %s: {\n          "bytesInOutput": %d\n        }',
+					helpers.quote_for_json(c.graph.files[compile_result.source_index.get_index()].input_file.source.pretty_path,
+					c.options.asciio_nly), c.accurate_final_byte_count(pieces[i], final_rel_dir)))
+			}
+			if compile_results.len > 0 {
+				j_meta.add_string('\n      ')
+			}
+			j_meta.add_string(strconv.v_sprintf('},\n      "bytes": %d\n    }', final_output_size))
+			return j_meta
+		}
+	}
+	c.generate_isolated_hash_in_parallel(chunk)
+	chunk_wait_group.done()
+}
+
+fn wrap_rules_with_conditions(rules []css_ast.Rule, importRecords []ast.ImportRecord, conditions []css_ast.ImportConditions, conditionImportRecords []ast.ImportRecord) ([]css_ast.Rule, []ast.ImportRecord) {
+	for i := conditions.len - 1; i >= 0; i-- {
+		mut item := conditions[i]
+		for _, t in item.layers {
+			if rules.len == 0 {
+				if t.children == nil {
+					continue
+				} else {
+					rules = nil
+				}
+			}
+			mut prelude := []css_ast.Token{}
+			if t.children != nil {
+				prelude = &t.children
+			}
+			prelude, import_records = css_ast.clone_tokens_with_import_records(prelude,
+				condition_import_records, nil, import_records)
+			rules = [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+			]
+		}
+		if rules.len > 0 {
+			for _, t_1 in item.supports {
+				t.kind = css_lexer.to_pen_paren
+				t.text = '('
+				prelude, import_records = css_ast.clone_tokens_with_import_records([t],
+					condition_import_records, nil, import_records)
+				rules = [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+				]
+			}
+		}
+		if rules.len > 0 && item.media.len > 0 {
+			prelude, import_records = css_ast.clone_tokens_with_import_records(item.media,
+				condition_import_records, nil, import_records)
+			rules = [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+			]
+		}
+	}
+	return rules, import_records
+}
+
+struct legalCommentEntry {
+pub mut:
+	source_index u32
+	comments     []string
+}
+
+// Add all unique legal comments to the end of the file. These are
+// deduplicated because some projects have thousands of files with the same
+// comment. The comment must be preserved in the output for legal reasons but
+// at the same time we want to generate a small bundle when minifying.
+fn (c &LinkerContext) maybe_append_legal_comments(legalComments config.LegalComments, legalCommentList []legalCommentEntry, chunk &ChunkInfo, j &helpers.Joiner, slashTag string) {
+	match legal_comments {
+		config.legal_comments_none, config.legal_comments_inline {
+			return
+		}
+	}
+
+	mut uniqueFirstPartyComments := []string{}
+	mut thirdPartyComments := []thirdPartyEntry{}
+	mut has_first_party_comment := map[string]string{}
+	for _, entry in legal_comment_list {
+		mut source := c.graph.files[entry.source_index].input_file.source
+		mut package_path := ''
+		if source.key_path.namespace != 'dataurl' {
+			mut path := source.key_path.text
+			mut previous := path.len
+			for previous > 0 {
+				mut slash := path[..previous].last_index_any('\\/')
+				mut component := path[slash + 1..previous]
+				if component == 'node_modules' {
+					if previous < path.len {
+						package_path = path[previous + 1..].replace_all('\\', '/')
+					}
+					break
+				}
+				previous = slash
+			}
+		}
+		if package_path != '' {
+			third_party_comments << ThirdPartyEntry{
+				package_path: package_path
+				comments:     entry.comments
+			}
+		} else {
+			for _, comment in entry.comments {
+				_, ok := has_first_party_comment[comment]
+				if !ok {
+					has_first_party_comment[comment] = unique_first_party_comments << comment
+				}
+			}
+		}
+	}
+	match legal_comments {
+		config.legal_comments_end_of_file {
+			for _, comment_1 in unique_first_party_comments {
+				j.add_string(helpers.escape_closing_tag(comment, slash_tag))
+				j.add_string('\n')
+			}
+			if third_party_comments.len > 0 {
+				j.add_string('/*! Bundled license information:\n')
+				for _, entry_1 in third_party_comments {
+					j.add_string(strconv.v_sprintf('\n%s:\n', helpers.escape_closing_tag(entry.package_path,
+						slash_tag)))
+					for _, comment_2 in entry.comments {
+						comment = helpers.escape_closing_tag(comment, slash_tag)
+						if comment.has_prefix('//') {
+							j.add_string(strconv.v_sprintf('  (*%s *)\n', comment[2..]))
+						} else if comment.has_prefix('/*') && comment.has_suffix('*/') {
+							j.add_string(strconv.v_sprintf('  (%s)\n', comment[1..comment.len - 1].replace_all('\n',
+								'\n  ')))
+						}
+					}
+				}
+				j.add_string('*/\n')
+			}
+		}
+		config.legal_comments_linked_with_comment, config.legal_comments_external_without_comment {
+			mut jComments := 0
+			for _, comment_3 in unique_first_party_comments {
+				j_comments.add_string(comment)
+				j_comments.add_string('\n')
+			}
+			if third_party_comments.len > 0 {
+				if unique_first_party_comments.len > 0 {
+					j_comments.add_string('\n')
+				}
+				j_comments.add_string('Bundled license information:\n')
+				for _, entry_2 in third_party_comments {
+					j_comments.add_string(strconv.v_sprintf('\n%s:\n', entry.package_path))
+					for _, comment_4 in entry.comments {
+						j_comments.add_string(strconv.v_sprintf('  %s\n', comment.replace_all('\n',
+							'\n  ')))
+					}
+				}
+			}
+			chunk.external_legal_comments = j_comments.done()
+		}
+	}
+}
+
+fn (c &LinkerContext) append_isolated_hashes_for_imported_chunks(hash hash.Hash, chunkIndex u32, visited []u32, visitedKey u32) {
+	if visited[chunk_index] == visited_key {
+		return
+	}
+	visited[chunk_index] = visited_key
+	mut chunk := &c.chunks[chunk_index]
+	for _, chunk_import in chunk.cross_chunk_imports {
+		c.append_isolated_hashes_for_imported_chunks(hash, chunk_import.chunk_index, visited,
+			visited_key)
+	}
+	for _, piece in chunk.intermediate_output.pieces {
+		if piece.kind == output_piece_asset_index {
+			mut file := c.graph.files[piece.index]
+			if file.input_file.additional_files.len != 1 {
+				panic('Internal error')
+			}
+			mut rel_path, _ := c.fs.rel(c.options.abs_output_dir, file.input_file.additional_files[0].abs_path)
+			rel_path = rel_path.replace_all('\\', '/')
+			hash_write_length_prefixed(hash, rel_path.bytes())
+		}
+	}
+	hash.write(chunk.wait_for_isolated_hash())
+}
+
+fn (c &LinkerContext) break_joiner_into_pieces(j helpers.Joiner) intermediateOutput {
+	if !j.contains(c.unique_key_prefix, c.unique_key_prefix_bytes) {
+		return IntermediateOutput{
+			joiner: j
+		}
+	}
+	return c.break_output_into_pieces(j.done())
+}
+
+fn (c &LinkerContext) break_output_into_pieces(output []u8) intermediateOutput {
+	mut pieces := []outputPiece{}
+	mut prefix := c.unique_key_prefix_bytes
+	for {
+		mut boundary := bytes.index(output, prefix)
+		mut kind := 0
+		mut index := 0
+		if boundary != -1 {
+			mut start := boundary + prefix.len
+			if start + 9 > output.len {
+				boundary = -1
+			} else {
+				match output[start] {
+					`A` {
+						kind = output_piece_asset_index
+					}
+					`C` {
+						kind = output_piece_chunk_index
+					}
+				}
+				for j := isize(1); j < 9; j++ {
+					mut c_1 := output[start + j]
+					if c < `0` || c > `9` {
+						boundary = -1
+						break
+					}
+					index = index * 10 + u32(c) - `0`
+				}
+			}
+		}
+		match kind {
+			output_piece_asset_index {
+				if index >= u32(c.graph.files.len) {
+					boundary = -1
+				}
+			}
+			output_piece_chunk_index {
+				if index >= u32(c.chunks.len) {
+					boundary = -1
+				}
+			}
+			else {
+				boundary = -1
+			}
+		}
+		if boundary == -1 {
+			pieces << OutputPiece{
+				data: output
+			}
+			break
+		}
+		pieces << OutputPiece{
+			data:  output[..boundary]
+			index: index
+			kind:  kind
+		}
+		output = output[boundary + prefix.len + 9..]
+	}
+	return IntermediateOutput{
+		pieces: pieces
+	}
+}
+
+fn (c &LinkerContext) generate_isolated_hash_in_parallel(chunk &ChunkInfo) {
+	mut channel := {
+		len: 1
+	}
+	chunk.wait_for_isolated_hash = fn () {
+		mut data := <-channel
+		mut data_1 := <-channel
+		return data
+	}
+
+	go c.generate_isolated_hash(chunk, channel)
+}
+
+fn (c &LinkerContext) generate_isolated_hash(chunk &ChunkInfo, channel chan []u8) {
+	mut hash := xxhash.new()
+	mut chunk_repr, ok := chunk.chunk_repr
+	if ok {
+		for _, part_range in chunk_repr.parts_in_chunk_in_order {
+			mut filePath := 0
+			mut file := &c.graph.files[part_range.source_index]
+			if file.input_file.source.key_path.namespace == 'file' {
+				file_path = file.input_file.source.pretty_path
+			} else {
+				file_path = file.input_file.source.key_path.text
+			}
+			hash_write_length_prefixed(hash, file.input_file.source.key_path.namespace.bytes())
+			hash_write_length_prefixed(hash, file_path.bytes())
+			hash_write_uint32(hash, part_range.part_index_begin)
+			hash_write_uint32(hash, part_range.part_index_end)
+		}
+	}
+	for _, part in chunk.final_template {
+		hash_write_length_prefixed(hash, part.data.bytes())
+	}
+	if c.options.public_path != '' {
+		hash_write_length_prefixed(hash, c.options.public_path.bytes())
+	}
+	if chunk.intermediate_output.pieces != nil {
+		for _, piece in chunk.intermediate_output.pieces {
+			hash_write_length_prefixed(hash, piece.data)
+		}
+	} else {
+		mut bytes := chunk.intermediate_output.joiner.done()
+		hash_write_length_prefixed(hash, bytes)
+	}
+	hash_write_length_prefixed(hash, chunk.output_source_map.prefix)
+	hash_write_length_prefixed(hash, chunk.output_source_map.mappings)
+	hash_write_length_prefixed(hash, chunk.output_source_map.suffix)
+	hash_write_length_prefixed(hash, chunk.output_source_map.suffix)
+}
+
+fn hash_write_uint32(hash hash.Hash, value u32) {
+	mut lengthBytes := []u8{}
+	binary.little_endian.put_uint32(length_bytes[..], value)
+	hash.write(length_bytes[..])
+}
+
+// Hash the data in length-prefixed form because boundary locations are
+// important. We don't want "a" + "bc" to hash the same as "ab" + "c".
+fn hash_write_length_prefixed(hash hash.Hash, bytes []u8) {
+	hash_write_uint32(hash, u32(bytes.len))
+	hash.write(bytes)
+}
+
+// Marking a symbol as unbound prevents it from being renamed or minified.
+// This is only used when a module is compiled independently. We use a very
+// different way of handling exports and renaming/minifying when bundling.
+fn (c &LinkerContext) prevent_exports_from_being_renamed(sourceIndex u32) {
+	mut repr, ok := c.graph.files[source_index].input_file.repr
+	if !ok {
+		return
+	}
+	mut has_import_or_export := false
+	for _, part in repr.ast.parts {
+		for _, stmt in part.stmts {
+			mut s := stmt.data
+			match s {
+				js_ast.SImport {
+					if repr.ast.import_records[s.import_record_index].source_index.is_valid() {
+						continue
+					}
+					has_import_or_export = true
+				}
+				js_ast.SLocal {
+					if s.is_export {
+						js_ast.for_each_identifier_binding_in_decls(s.decls, fn (loc logger.Loc, b &js_ast.BIdentifier) {
+							c.graph.symbols.get(b.ref).flags |= ast.must_not_be_renamed
+						})
+						has_import_or_export = true
+					}
+				}
+				js_ast.SFunction {
+					if s.is_export {
+						c.graph.symbols.get(s.fn_.name.ref).kind = ast.symbol_unbound
+						has_import_or_export = true
+					}
+				}
+				js_ast.SClass {
+					if s.is_export {
+						c.graph.symbols.get(s.class.name.ref).kind = ast.symbol_unbound
+						has_import_or_export = true
+					}
+				}
+				js_ast.SExportClause, js_ast.SExportDefault, js_ast.SExportStar {
+					has_import_or_export = true
+				}
+				js_ast.SExportFrom {
+					has_import_or_export = true
+				}
+			}
+		}
+	}
+	if !has_import_or_export {
+		for _, member in repr.ast.module_scope.members {
+			c.graph.symbols.get(member.ref).flags |= ast.must_not_be_renamed
+		}
+	}
+}
+
+struct compileResultForSourceMap {
+pub mut:
+	source_map_chunk sourcemap.Chunk
+	generated_offset sourcemap.LineColumnOffset
+	source_index     u32
+}
+
+fn (c &LinkerContext) generate_source_map_for_chunk(results []compileResultForSourceMap, chunkAbsDir string, dataForSourceMaps []bundler.DataForSourceMap, canHaveShifts bool) sourcemap.SourceMapPieces {
+	mut j := helpers.Joiner{}
+	j.add_string('{\n  "version": 3')
+	mut source_index_to_sources_index := map[Uint32]isize{}
+
+	mut items := []item{len: 0, cap: Results.len}
+	mut next_sources_index := isize(0)
+	for _, result in results {
+		_, ok := source_index_to_sources_index[result.source_index]
+		if ok {
+			continue
+		}
+		source_index_to_sources_index[result.source_index] = next_sources_index
+		mut file := &c.graph.files[result.source_index]
+		if file.input_file.input_source_map == nil {
+			mut quotedContents := []u8{}
+			if !c.options.exclude_sources_content {
+				quoted_contents = data_for_source_maps[result.source_index].quoted_contents[0]
+			}
+			items << Item{
+				path:            file.input_file.source.key_path
+				pretty_path:     file.input_file.source.pretty_path
+				quoted_contents: quoted_contents
+			}
+			next_sources_index++
+			continue
+		}
+		mut sm := file.input_file.input_source_map
+		for i, source in sm.sources {
+			mut path := logger.Path{
+				namespace: file.input_file.source.key_path.namespace
+				text:      source
+			}
+			if path.namespace == 'file' {
+				path.text = c.fs.join(c.fs.dir(file.input_file.source.key_path.text),
+					source)
+			}
+			if !c.options.exclude_sources_content {
+				quoted_contents = data_for_source_maps[result.source_index].quoted_contents[i]
+			}
+			items << Item{
+				path:            path
+				pretty_path:     source
+				quoted_contents: quoted_contents
+			}
+		}
+		next_sources_index += sm.sources.len
+	}
+	j.add_string(',\n  "sources": [')
+	for i_1, item in items {
+		if i != 0 {
+			j.add_string(', ')
+		}
+		if item.path.namespace == 'file' {
+			mut rel_path, ok_1 := c.fs.rel(chunk_abs_dir, item.path.text)
+			if ok {
+				item.pretty_path = rel_path.replace_all('\\', '/')
+			}
+		}
+		j.add_bytes(helpers.quote_for_json(item.pretty_path, c.options.asciio_nly))
+	}
+	j.add_string(']')
+	if c.options.source_root != '' {
+		j.add_string(',\n  "sourceRoot": ')
+		j.add_bytes(helpers.quote_for_json(c.options.source_root, c.options.asciio_nly))
+	}
+	if !c.options.exclude_sources_content {
+		j.add_string(',\n  "sourcesContent": [')
+		for i_2, item_1 in items {
+			if i != 0 {
+				j.add_string(', ')
+			}
+			j.add_bytes(item.quoted_contents)
+		}
+		j.add_string(']')
+	}
+	j.add_string(',\n  "mappings": "')
+	mut mappings_start := j.length()
+	mut prev_end_state := sourcemap.SourceMapState{}
+	mut prev_column_offset := isize(0)
+	mut total_quoted_name_len := isize(0)
+	for _, result_1 in results {
+		mut chunk := result.source_map_chunk
+		mut offset := result.generated_offset
+		mut sources_index := source_index_to_sources_index[result.source_index]
+		if chunk.should_ignore {
+			panic('Internal error')
+		}
+		mut start_state := sourcemap.SourceMapState{
+			source_index:     sources_index
+			generated_line:   offset.lines
+			generated_column: offset.columns
+			original_name:    total_quoted_name_len
+		}
+		if offset.lines == 0 {
+			start_state.generated_column += prev_column_offset
+		}
+		sourcemap.append_source_map_chunk(&j, prev_end_state, start_state, chunk.buffer)
+		mut prev_original_name := prev_end_state.original_name
+		prev_end_state = chunk.end_state
+		prev_end_state.source_index += sources_index
+		if chunk.buffer.first_name_offset.is_valid() {
+			prev_end_state.original_name += total_quoted_name_len
+		} else {
+			prev_end_state.original_name = prev_original_name
+		}
+		prev_column_offset = chunk.final_generated_column
+		total_quoted_name_len += chunk.quoted_names.len
+		if prev_end_state.generated_line == 0 {
+			prev_end_state.generated_column += start_state.generated_column
+			prev_column_offset += start_state.generated_column
+		}
+	}
+	mut mappings_end := j.length()
+	mut is_first_name := true
+	j.add_string('",\n  "names": [')
+	for _, result_2 in results {
+		for _, quoted_name in result.source_map_chunk.quoted_names {
+			if is_first_name {
+				is_first_name = false
+			} else {
+				j.add_string(', ')
+			}
+			j.add_bytes(quoted_name)
+		}
+	}
+	j.add_string(']')
+	j.add_string('\n}\n')
+	mut bytes := j.done()
+	if !can_have_shifts {
+		pieces.prefix = bytes
+	} else {
+		pieces.prefix = bytes[..mappings_start]
+		pieces.mappings = bytes[mappings_start..mappings_end]
+		pieces.suffix = bytes[mappings_end..]
+	}
+	return
+}
+
+// Recover from a panic by logging it as an internal error instead of crashing
+fn (c &LinkerContext) recover_internal_error(waitGroup &sync.WaitGroup, sourceIndex u32) {
+	mut r := recover()
+	if r != nil {
+		mut text := strconv.v_sprintf('panic: %v', r)
+		if source_index != runtime.source_index {
+			text = strconv.v_sprintf('%s (while printing %q)', text, c.graph.files[source_index].input_file.source.pretty_path)
+		}
+		c.log.add_error_with_notes(nil, logger.Range{}, text, [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+		])
+		wait_group.done()
+	}
+}
+
+fn join_with_public_path(publicPath string, relPath string) string {
+	if rel_path.has_prefix('./') {
+		rel_path = rel_path[2..]
+		for {
+			if rel_path.has_prefix('/') {
+				rel_path = rel_path[1..]
+			} else if rel_path.has_prefix('./') {
+				rel_path = rel_path[2..]
+			} else {
+				break
+			}
+		}
+	}
+	if public_path == '' {
+		public_path = '.'
+	}
+	mut slash := '/'
+	if public_path.has_suffix('/') {
+		slash = ''
+	}
+	return strconv.v_sprintf('%s%s%s', public_path, slash, rel_path)
+}
