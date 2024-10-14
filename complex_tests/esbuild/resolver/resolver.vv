@@ -1,0 +1,2756 @@
+module resolver
+
+import errors
+import regexp
+import sort
+import sync
+import syscall
+import ast // local module
+import cache // local module
+import compat // local module
+import config // local module
+import fs // local module
+import helpers // local module
+import js_ast // local module
+import logger // local module
+
+__global defaultMainFields = {
+	config.platform_browser: // UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+	config.platform_node: // UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+	config.platform_neutral: // UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+}
+// These are the main fields to use when the "main fields" setting is configured
+// to something unusual, such as something without the "main" field.
+__global mainFieldsForFailure = ['main', 'module']
+// Path resolution is a mess. One tricky issue is the "module" override for the
+// "main" field in "package.json" files. Bundlers generally prefer "module" over
+// "main" but that breaks packages that export a function in "main" for use with
+// "require()", since resolving to "module" means an object will be returned. We
+// attempt to handle this automatically by having import statements resolve to
+// "module" but switch that out later for "main" if "require()" is used too.
+struct PathPair {
+pub mut:
+	// Either secondary will be empty, or primary will be "module" and secondary
+	// will be "main"
+	primary     logger.Path
+	secondary   logger.Path
+	is_external bool
+}
+
+fn (pp &PathPair) iter() []&logger.Path {
+	mut result := [&pp.primary, &pp.secondary]
+	if !pp.hassecondary() {
+		result = result[..1]
+	}
+	return result
+}
+
+pub fn (pp &PathPair) has_secondary() bool {
+	return pp.secondary.text != ''
+}
+
+struct SideEffectsData {
+pub mut:
+	source &logger.Source = unsafe { nil }
+	// If non-empty, this false value came from a plugin
+	plugin_name string
+	range       logger.Range
+	// If true, "sideEffects" was an array. If false, "sideEffects" was false.
+	is_side_effects_array_in_json bool
+}
+
+struct ResolveResult {
+pub mut:
+	path_pair PathPair
+	// If this was resolved by a plugin, the plugin gets to store its data here
+	plugin_data    voidptr
+	different_case &fs.DifferentCase = unsafe { nil }
+	// If present, any ES6 imports to this file can be considered to have no side
+	// effects. This means they should be removed if unused.
+	primary_side_effects_data &SideEffectsData = unsafe { nil }
+	// These are from "tsconfig.json"
+	tsc_onfig_jsx    config.TSConfigJSX
+	tsc_onfig        &config.TSConfig       = unsafe { nil }
+	tsa_lways_strict &config.TSAlwaysStrict = unsafe { nil }
+	// This is the "type" field from "package.json"
+	module_type_data js_ast.ModuleTypeData
+}
+
+type suggestionRange = u8
+
+enum suggestionRange {
+	suggestion_range_full
+	suggestion_range_end
+}
+
+struct DebugMeta {
+pub mut:
+	notes                []logger.MsgData
+	suggestion_text      string
+	suggestion_message   string
+	suggestion_range     suggestionRange
+	modified_import_path string
+}
+
+pub fn (dm DebugMeta) log_error_msg(log logger.Log, source &logger.Source, r logger.Range, text string, suggestion string, notes []logger.MsgData) {
+	mut tracker := logger.makelinecolumntracker(source)
+	println('KEKW')
+	if source != nil && dm.suggestion_message != '' {
+		mut suggestion_range := r
+		if dm.suggestion_range == suggestion_range_end {
+			suggestion_range = logger.Range{
+				Loc: logger.Loc{
+					Start: r.end() - 1
+				}
+			}
+		}
+		mut data := tracker.msgdata(suggestion_range, dm.suggestion_message)
+		data.location.suggestion = dm.suggestion_text
+		dm.notes << data
+	}
+	mut msg := logger.Msg{
+		Kind:  logger.error
+		Data:  tracker.msgdata(r, text)
+		Notes: append(dm.notes, notes)
+	}
+	if msg.data.location != nil && suggestion != '' {
+		msg.data.location.suggestion = suggestion
+	}
+	log.addmsg(msg)
+}
+
+struct Resolver {
+pub mut:
+	fs                 fs.FS
+	log                logger.Log
+	caches             &cache.CacheSet = unsafe { nil }
+	ts_config_override &TSConfigJSON   = unsafe { nil }
+	// These are sets that represent various conditions for the "exports" field
+	// in package.json.
+	esm_conditions_default map[string]Bool
+	esm_conditions_import  map[string]Bool
+	esm_conditions_require map[string]Bool
+	// A special filtered import order for CSS "@import" imports.
+	//
+	// The "resolve extensions" setting determines the order of implicit
+	// extensions to try when resolving imports with the extension omitted.
+	// Sometimes people create a JavaScript/TypeScript file and a CSS file with
+	// the same name when they create a component. At a high level, users expect
+	// implicit extensions to resolve to the JS file when being imported from JS
+	// and to resolve to the CSS file when being imported from CSS.
+	//
+	// Different bundlers handle this in different ways. Parcel handles this by
+	// having the resolver prefer the same extension as the importing file in
+	// front of the configured "resolve extensions" order. Webpack's "css-loader"
+	// plugin just explicitly configures a special "resolve extensions" order
+	// consisting of only ".css" for CSS files.
+	//
+	// It's unclear what behavior is best here. What we currently do is to create
+	// a special filtered version of the configured "resolve extensions" order
+	// for CSS files that filters out any extension that has been explicitly
+	// configured with a non-CSS loader. This still gives users control over the
+	// order but avoids the scenario where we match an import in a CSS file to a
+	// JavaScript-related file. It's probably not perfect with plugins in the
+	// picture but it's better than some alternatives and probably pretty good.
+	css_extension_order []string
+	// A special sorted import order for imports inside packages.
+	//
+	// The "resolve extensions" setting determines the order of implicit
+	// extensions to try when resolving imports with the extension omitted.
+	// Sometimes people author a package using TypeScript and publish both the
+	// compiled JavaScript and the original TypeScript. The compiled JavaScript
+	// depends on the "tsconfig.json" settings that were passed to "tsc" when
+	// it was compiled, and we don't know what they are (they may even be
+	// unknowable if the "tsconfig.json" file wasn't published).
+	//
+	// To work around this, we sort TypeScript file extensions after JavaScript
+	// file extensions (but only within packages) so that esbuild doesn't load
+	// the original source code in these scenarios. Instead we should load the
+	// compiled code, which is what will be loaded by node at run-time.
+	node_modules_extension_order []string
+	// This cache maps a directory path to information about that directory and
+	// all parent directories
+	dir_cache                map[string]&DirInfo
+	pnp_manifest_was_checked bool
+	pnp_manifest             &PnpData = unsafe { nil }
+	options                  config.Options
+	// This mutex serves two purposes. First of all, it guards access to "dirCache"
+	// which is potentially mutated during path resolution. But this mutex is also
+	// necessary for performance. The "React admin" benchmark mysteriously runs
+	// twice as fast when this mutex is locked around the whole resolve operation
+	// instead of around individual accesses to "dirCache". For some reason,
+	// reducing parallelism in the resolver helps the rest of the bundler go
+	// faster. I'm not sure why this is but please don't change this unless you
+	// do a lot of testing with various benchmarks and there aren't any regressions.
+	mutex sync.Mutex
+}
+
+struct resolverQuery {
+pub mut:
+	debug_meta &DebugMeta = unsafe { nil }
+	debug_logs &DebugLogs = unsafe { nil }
+	kind       ast.ImportKind
+}
+
+pub fn new_resolver(call config.APICall, fs fs.FS, log logger.Log, caches &cache.CacheSet, options &config.Options) &Resolver {
+	mut css_extension_order := []string{len: 0, cap: options.ExtensionOrder.len}
+	for _, ext in options.extension_order {
+		mut loader, ok := options.extension_to_loader[ext]
+		if !ok || loader.iscss() {
+			css_extension_order << ext
+		}
+	}
+	mut node_modules_extension_order := []string{len: 0, cap: options.ExtensionOrder.len}
+	mut split := isize(0)
+	for i, ext in options.extension_order {
+		mut loader5654, ok669 := options.extension_to_loader[ext]
+		if ok && loader == config.loader_js || loader == config.loader_jsx {
+			split = i + 1
+		}
+	}
+	if split != 0 {
+		for _, ext in options.extension_order[..split] {
+			mut loader9978, ok8932 := options.extension_to_loader[ext]
+			if !ok || !loader.istypescript() {
+				node_modules_extension_order << ext
+			}
+		}
+		for _, ext in options.extension_order {
+			mut loader2240, ok4975 := options.extension_to_loader[ext]
+			if ok && loader.istypescript() {
+				node_modules_extension_order << ext
+			}
+		}
+		for _, ext in options.extension_order[split..] {
+			mut loader3653, ok2867 := options.extension_to_loader[ext]
+			if !ok || !loader.istypescript() {
+				node_modules_extension_order << ext
+			}
+		}
+	}
+	mut esm_conditions_default := {
+		'default': true
+	}
+	mut esm_conditions_import := {
+		'import': true
+	}
+	mut esm_conditions_require := {
+		'require': true
+	}
+	for _, condition in options.conditions {
+		esm_conditions_default[condition] = true
+	}
+	match options.platform {
+		config.platform_browser {
+			esm_conditions_default['browser'] = true
+		}
+		config.platform_node {
+			esm_conditions_default['node'] = true
+		}
+	}
+	for key, _ in esm_conditions_default {
+		esm_conditions_import[key] = true
+		esm_conditions_require[key] = true
+	}
+	fs.cwd()
+	mut res := &Resolver{
+		fs:                        fs
+		log:                       log
+		options:                   &options
+		caches:                    caches
+		dirCache:                  map[string]&DirInfo{}
+		cssExtensionOrder:         css_extension_order
+		nodeModulesExtensionOrder: node_modules_extension_order
+		esmConditionsDefault:      esm_conditions_default
+		esmConditionsImport:       esm_conditions_import
+		esmConditionsRequire:      esm_conditions_require
+	}
+	mut debugMeta := 0
+	if options.tsc_onfig_path != '' || options.tsc_onfig_raw != '' {
+		mut r := ResolverQuery{
+			Resolver:  res
+			debugMeta: &debug_meta
+		}
+		mut visited := map[string]Bool{}
+		mut err := 0
+		if call == config.build_call {
+			visited = map[string]Bool{}
+		}
+		if options.tsc_onfig_path != '' {
+			if r.log.level <= logger.level_debug {
+				r.debug_logs = &DebugLogs{
+					what: strconv.v_sprintf('Resolving tsconfig file %q', options.tsc_onfig_path)
+				}
+			}
+			res.ts_config_override, err = r.parsetsconfig(options.tsc_onfig_path, visited,
+				fs.dir(options.tsc_onfig_path))
+		} else {
+			mut source := logger.Source{
+				KeyPath:    logger.Path{
+					Text:      fs.join(fs.cwd(), '<tsconfig.json>')
+					Namespace: 'file'
+				}
+				PrettyPath: '<tsconfig.json>'
+				Contents:   options.tsc_onfig_raw
+			}
+			res.ts_config_override, err = r.parsetsconfigfromsource(source, visited, fs.cwd())
+		}
+		if err != nil {
+			if err == syscall.enoent {
+				r.log.adderror(nil, logger.Range{}, strconv.v_sprintf('Cannot find tsconfig file %q',
+					pretty_path(r.fs, logger.Path{
+					Text:      options.tsc_onfig_path
+					Namespace: 'file'
+				})))
+			} else if err != err_parse_error_already_logged {
+				r.log.adderror(nil, logger.Range{}, strconv.v_sprintf('Cannot read file %q: %s',
+					pretty_path(r.fs, logger.Path{
+					Text:      options.tsc_onfig_path
+					Namespace: 'file'
+				}), err.error()))
+			}
+		} else {
+			r.flushdebuglogs(flush_due_to_success)
+		}
+	}
+	if res.ts_config_override != nil {
+		options.ts.config = res.ts_config_override.settings
+		res.ts_config_override.jsxs_ettings.applyto(&options.jsx)
+		options.tsa_lways_strict = res.ts_config_override.tsalwaysstrictorstrict()
+	}
+	return res
+}
+
+pub fn (res &Resolver) resolve(sourceDir string, importPath string, kind ast.ImportKind) (&ResolveResult, DebugMeta) {
+	mut debugMeta := 0
+	mut r := ResolverQuery{
+		Resolver:  res
+		debugMeta: &debug_meta
+		kind:      kind
+	}
+	if r.log.level <= logger.level_debug {
+		r.debug_logs = &DebugLogs{
+			what: strconv.v_sprintf('Resolving import %q in directory %q of type %q',
+				import_path, source_dir, kind.stringformetafile())
+		}
+	}
+	if r.options.package_aliases != nil && is_package_path(import_path) {
+		if r.debug_logs != nil {
+			r.debug_logs.addnote('Checking for package alias matches')
+		}
+		mut longest_key := ''
+		mut longest_value := ''
+		for key, value in r.options.package_aliases {
+			if key.len > longest_key.len && import_path.has_prefix(key) && (
+				import_path.len == key.len || import_path[key.len] == `/`) {
+				longest_key = key
+				longest_value = value
+			}
+		}
+		if longest_key != '' {
+			debug_meta.modified_import_path = longest_value
+			mut tail := import_path[longest_key.len..]
+			if tail != '/' {
+				debug_meta.modified_import_path += tail
+			}
+			if r.debug_logs != nil {
+				r.debug_logs.addnote(strconv.v_sprintf('  Matched with alias from %q to %q',
+					longest_key, longest_value))
+				r.debug_logs.addnote(strconv.v_sprintf('  Modified import path from %q to %q',
+					import_path, debug_meta.modified_import_path))
+			}
+			import_path = debug_meta.modified_import_path
+			source_dir = r.fs.cwd()
+			if r.debug_logs != nil {
+				r.debug_logs.addnote(strconv.v_sprintf('  Changed resolve directory to %q',
+					source_dir))
+			}
+		} else if r.debug_logs != nil {
+			r.debug_logs.addnote('  Failed to find any package alias matches')
+		}
+	}
+	mut is_explicitly_external := r.isexternal(r.options.external_settings.pre_resolve,
+		import_path, kind)
+	if is_explicitly_external || kind == ast.import_url && import_path.has_prefix('#')
+		|| import_path.has_prefix('http://') || import_path.has_prefix('https://')
+		|| import_path.has_prefix('//') {
+		if r.debug_logs != nil {
+			if is_explicitly_external {
+				r.debug_logs.addnote(strconv.v_sprintf('The path %q was marked as external by the user',
+					import_path))
+			} else {
+				r.debug_logs.addnote('Marking this path as implicitly external')
+			}
+		}
+		r.flushdebuglogs(flush_due_to_success)
+		return &ResolveResult{
+			PathPair: PathPair{
+				Primary:    logger.Path{
+					Text: import_path
+				}
+				IsExternal: true
+			}
+		}, debug_meta
+	}
+	mut path_pair, ok, side_effects := r.checkforbuiltinnodemodules(import_path)
+	if ok {
+		r.flushdebuglogs(flush_due_to_success)
+		return &ResolveResult{
+			PathPair:               path_pair
+			PrimarySideEffectsData: side_effects
+		}, debug_meta
+	}
+	mut parsed, ok6345 := parse_data_url(import_path)
+	if ok {
+		if parsed.decodemimetype() != mimet_ype_unsupported {
+			if r.debug_logs != nil {
+				r.debug_logs.addnote('Putting this path in the "dataurl" namespace')
+			}
+			r.flushdebuglogs(flush_due_to_success)
+			return &ResolveResult{
+				PathPair: PathPair{
+					Primary: logger.Path{
+						Text:      import_path
+						Namespace: 'dataurl'
+					}
+				}
+			}, debug_meta
+		}
+		if r.debug_logs != nil {
+			r.debug_logs.addnote('Marking this data URL as external')
+		}
+		r.flushdebuglogs(flush_due_to_success)
+		return &ResolveResult{
+			PathPair: PathPair{
+				Primary:    logger.Path{
+					Text: import_path
+				}
+				IsExternal: true
+			}
+		}, debug_meta
+	}
+	if source_dir == '' {
+		if r.debug_logs != nil {
+			r.debug_logs.addnote('Cannot resolve this path without a directory')
+		}
+		r.flushdebuglogs(flush_due_to_failure)
+		return nil, debug_meta
+	}
+	if import_path.contains_rune(`*`) {
+		if r.debug_logs != nil {
+			r.debug_logs.addnote('Cannot resolve a path containing a wildcard character in a single-path context')
+		}
+		r.flushdebuglogs(flush_due_to_failure)
+		return nil, debug_meta
+	}
+	r.mutex.lock_()
+	defer {
+		r.mutex.unlock
+	}
+	if !r.pnp_manifest_was_checked {
+		r.pnp_manifest_was_checked = true
+		for dir_info := r.dirinfocached(r.fs.cwd()); dir_info != nil; dir_info = dir_info.parent {
+			mut abs_path := dir_info.pnp_manifest_abs_path
+			if abs_path != '' {
+				if abs_path.has_suffix('.json') {
+					mut json, source := r.extractyarnpnpdatafromjson(abs_path, pnp_report_errors_about_missing_files)
+					if json.data != nil {
+						r.pnp_manifest = compile_yarn_pn_pd_ata(abs_path, r.fs.dir(abs_path),
+							json, source)
+					}
+				} else {
+					mut json2563, source4446 := r.trytoextractyarnpnpdatafromjs(abs_path,
+						pnp_report_errors_about_missing_files)
+					if json.data != nil {
+						r.pnp_manifest = compile_yarn_pn_pd_ata(abs_path, r.fs.dir(abs_path),
+							json, source)
+					}
+				}
+				if r.debug_logs != nil && r.pnp_manifest != nil && r.pnp_manifest.invalid_ignore_pattern_data != '' {
+					r.debug_logs.addnote(
+						'  Invalid Go regular expression for "ignorePatternData": ' +
+						r.pnp_manifest.invalid_ignore_pattern_data)
+				}
+				break
+			}
+		}
+	}
+	mut source_dir_info := r.dirinfocached(source_dir)
+	if source_dir_info == nil {
+		return nil, debug_meta
+	}
+	mut result := r.resolvewithoutsymlinks(source_dir, source_dir_info, import_path)
+	if result == nil {
+		mut suffix := import_path.index_any('?#')
+		if suffix < 1 {
+			r.flushdebuglogs(flush_due_to_failure)
+			return nil, debug_meta
+		}
+		if r.debug_logs != nil {
+			r.debug_logs.addnote(strconv.v_sprintf('Retrying resolution after removing the suffix %q',
+				import_path[suffix..]))
+		}
+		mut result2 := r.resolvewithoutsymlinks(source_dir, source_dir_info, import_path[..suffix])
+		if result2 == nil {
+			r.flushdebuglogs(flush_due_to_failure)
+			return nil, debug_meta
+		} else {
+			result = result2
+			result.path_pair.primary.ignored_suffix = import_path[suffix..]
+			if result.path_pair.hassecondary() {
+				result.path_pair.secondary.ignored_suffix = import_path[suffix..]
+			}
+		}
+	}
+	r.finalizeresolve(result)
+	r.flushdebuglogs(flush_due_to_success)
+	return result, debug_meta
+}
+
+// This returns nil on failure and non-nil on success. Note that this may
+// return an empty array to indicate a successful search that returned zero
+// results.
+pub fn (res &Resolver) resolve_glob(sourceDir string, importPathPattern []helpers.GlobPart, kind ast.ImportKind, prettyPattern string) (map[string]ResolveResult, &logger.Msg) {
+	mut debugMeta := 0
+	mut r := ResolverQuery{
+		Resolver:  res
+		debugMeta: &debug_meta
+		kind:      kind
+	}
+	if r.log.level <= logger.level_debug {
+		r.debug_logs = &DebugLogs{
+			what: strconv.v_sprintf('Resolving glob import %s in directory %q of type %q',
+				pretty_pattern, source_dir, kind.stringformetafile())
+		}
+	}
+	if import_path_pattern.len == 0 {
+		if r.debug_logs != nil {
+			r.debug_logs.addnote('Ignoring empty glob pattern')
+		}
+		r.flushdebuglogs(flush_due_to_failure)
+		return nil, nil
+	}
+	mut first_prefix := import_path_pattern[0].prefix
+	if !first_prefix.has_prefix('./') && !first_prefix.has_prefix('../')
+		&& !first_prefix.has_prefix('.\\') && !first_prefix.has_prefix('..\\') {
+		if kind == ast.import_entry_point {
+			if !r.fs.isabs(first_prefix) {
+				first_prefix = './' + first_prefix
+			}
+		} else {
+			if r.debug_logs != nil {
+				r.debug_logs.addnote('Ignoring glob import that doesn\'t start with "./" or "../"')
+			}
+			r.flushdebuglogs(flush_due_to_failure)
+			return nil, nil
+		}
+	}
+	mut dir_prefix := isize(0)
+	for {
+		mut slash := first_prefix[dir_prefix..].index_any('/\\')
+		if slash == -1 {
+			break
+		}
+		mut star := first_prefix[dir_prefix..].index_byte(`*`)
+		if star != -1 && slash > star {
+			break
+		}
+		dir_prefix += slash + 1
+	}
+	mut suffix := first_prefix[..dir_prefix]
+	if r.fs.isabs(suffix) {
+		source_dir = suffix
+	} else {
+		source_dir = r.fs.join(source_dir, suffix)
+	}
+	r.mutex.lock_()
+	defer {
+		r.mutex.unlock
+	}
+	mut source_dir_info := r.dirinfocached(source_dir)
+	if source_dir_info == nil {
+		if r.debug_logs != nil {
+			r.debug_logs.addnote(strconv.v_sprintf('Failed to find the directory %q',
+				source_dir))
+		}
+		r.flushdebuglogs(flush_due_to_failure)
+		return nil, nil
+	}
+	mut can_match_on_slash := false
+	mut was_glob_star := false
+	mut sb := strings.Builder
+	{
+	}
+	sb.writebyte(`^`)
+	for i, part in import_path_pattern {
+		mut prefix := part.prefix
+		if i == 0 {
+			prefix = first_prefix
+		}
+		if was_glob_star && prefix.len > 0 && (prefix[0] == `/` || prefix[0] == `\\`) {
+			prefix = prefix[1..]
+		}
+		sb.writestring(regexp.quotemeta(prefix))
+		match part.wildcard {
+			helpers.glob_all_including_slash {
+				sb.writestring('(?:[^/]*(?:/|$))*')
+				can_match_on_slash = true
+				was_glob_star = true
+			}
+			helpers.glob_all_except_slash {
+				sb.writestring('[^/]*')
+				was_glob_star = false
+			}
+		}
+	}
+	sb.writebyte(`$`)
+	mut re := regexp.mustcompile(sb.str())
+	mut results := map[string]ResolveResult{}
+	mut visit := 0
+	visit = fn (dirInfo &DirInfo, dir string) {
+		for _, key in dir_info.entries.sortedkeys() {
+			mut entry, _ := dir_info.entries.get(key)
+			if r.debug_logs != nil {
+				r.debug_logs.addnote(strconv.v_sprintf('Considering entry %q', r.fs.join(dir_info.abs_path,
+					key)))
+				r.debug_logs.increaseindent()
+			}
+			match entry.kind(r.fs) {
+				fs.dir_entry {
+					if can_match_on_slash && entry.symlink(r.fs) == '' {
+						mut child_dir_info := r.dirinfocached(r.fs.join(dir_info.abs_path,
+							key))
+						if child_dir_info != nil {
+							visit(child_dir_info, strconv.v_sprintf('%s%s/', dir, key))
+						}
+					}
+				}
+				fs.file_entry {
+					mut rel_path := dir + key
+					if re.matchstring(rel_path) {
+						mut result := 0
+						if r.isexternal(r.options.external_settings.pre_resolve, rel_path,
+							kind)
+						{
+							result.path_pair = PathPair{
+								Primary:    logger.Path{
+									Text: rel_path
+								}
+								IsExternal: true
+							}
+							if r.debug_logs != nil {
+								r.debug_logs.addnote(strconv.v_sprintf('The path %q was marked as external by the user',
+									result.path_pair.primary.text))
+							}
+						} else {
+							mut abs_path := r.fs.join(dir_info.abs_path, key)
+							result.path_pair = PathPair{
+								Primary: logger.Path{
+									Text:      abs_path
+									Namespace: 'file'
+								}
+							}
+						}
+						r.finalizeresolve(&result)
+						results[rel_path] = result
+					}
+				}
+			}
+			if r.debug_logs != nil {
+				r.debug_logs.decreaseindent()
+			}
+		}
+	}
+
+	visit(source_dir_info, first_prefix[..dir_prefix])
+	mut warning := 0
+	if results.len == 0 {
+		warning = &logger.Msg{
+			ID:   logger.msg_id_bundler_empty_glob
+			Kind: logger.warning
+			Data: logger.MsgData{
+				Text: strconv.v_sprintf('The glob pattern %s did not match any files',
+					pretty_pattern)
+			}
+		}
+	}
+	r.flushdebuglogs(flush_due_to_success)
+	return results, warning
+}
+
+fn (r resolverQuery) is_external(matchers config.ExternalMatchers, path string, kind ast.ImportKind) bool {
+	if kind == ast.import_entry_point {
+		return false
+	}
+	_, ok := matchers.exact[path]
+	if ok {
+		return true
+	}
+	for _, pattern in matchers.patterns {
+		if r.debug_logs != nil {
+			r.debug_logs.addnote(strconv.v_sprintf('Checking %q against the external pattern %q',
+				path, pattern.prefix + '*' + pattern.suffix))
+		}
+		if path.len >= pattern.prefix.len +
+			pattern.suffix.len && path.has_prefix(pattern.prefix) && path.has_suffix(pattern.suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+// This tries to run "Resolve" on a package path as a relative path. If
+// successful, the user just forgot a leading "./" in front of the path.
+pub fn (res &Resolver) probe_resolve_package_as_relative(sourceDir string, importPath string, kind ast.ImportKind) (&ResolveResult, DebugMeta) {
+	mut debugMeta := 0
+	mut r := ResolverQuery{
+		Resolver:  res
+		debugMeta: &debug_meta
+		kind:      kind
+	}
+	mut abs_path := r.fs.join(source_dir, import_path)
+	r.mutex.lock_()
+	defer {
+		r.mutex.unlock
+	}
+	mut pair, ok, diff_case := r.loadasfileordirectory(abs_path)
+	if ok {
+		mut result := &ResolveResult{
+			PathPair:      pair
+			DifferentCase: diff_case
+		}
+		r.finalizeresolve(result)
+		r.flushdebuglogs(flush_due_to_success)
+		return result, debug_meta
+	}
+	return nil, debug_meta
+}
+
+struct debugLogs {
+pub mut:
+	what   string
+	indent string
+	notes  []logger.MsgData
+}
+
+fn (d &DebugLogs) add_note(text string) {
+	if d.indent != '' {
+		text = d.indent + text
+	}
+	d.notes << logger.MsgData{
+		Text:                text
+		DisableMaximumWidth: true
+	}
+}
+
+fn (d &DebugLogs) increase_indent() {
+	d.indent += '  '
+}
+
+fn (d &DebugLogs) decrease_indent() {
+	d.indent = d.indent[2..]
+}
+
+type flushMode = u8
+
+enum flushMode {
+	flush_due_to_failure
+	flush_due_to_success
+}
+
+fn (r resolverQuery) flush_debug_logs(mode flushMode) {
+	if r.debug_logs != nil {
+		if mode == flush_due_to_failure {
+			r.log.addidwithnotes(logger.msg_id_none, logger.debug, nil, logger.Range{},
+				r.debug_logs.what, r.debug_logs.notes)
+		} else if r.log.level <= logger.level_verbose {
+			r.log.addidwithnotes(logger.msg_id_none, logger.verbose, nil, logger.Range{},
+				r.debug_logs.what, r.debug_logs.notes)
+		}
+	}
+}
+
+fn (r resolverQuery) finalize_resolve(result &ResolveResult) {
+	if !result.path_pair.is_external && r.isexternal(r.options.external_settings.post_resolve,
+		result.path_pair.primary.text, r.kind) {
+		if r.debug_logs != nil {
+			r.debug_logs.addnote(strconv.v_sprintf('The path %q was marked as external by the user',
+				result.path_pair.primary.text))
+		}
+		result.path_pair.is_external = true
+	} else {
+		for i, path in result.path_pair.iter() {
+			if path.namespace != 'file' {
+				continue
+			}
+			mut dir_info := r.dirinfocached(r.fs.dir(path.text))
+			if dir_info == nil {
+				continue
+			}
+			mut base := r.fs.base(path.text)
+			if !r.options.preserve_symlinks {
+				mut entry, _ := dir_info.entries.get(base)
+				if entry != nil {
+					mut symlink := entry.symlink(r.fs)
+					if symlink != '' {
+					} else if dir_info.abs_real_path != '' {
+						symlink = r.fs.join(dir_info.abs_real_path, base)
+					}
+					if symlink != '' {
+						if r.debug_logs != nil {
+							r.debug_logs.addnote(strconv.v_sprintf('Resolved symlink %q to %q',
+								path.text, symlink))
+						}
+						path.text = symlink
+						dir_info = r.dirinfocached(r.fs.dir(path.text))
+						if dir_info == nil {
+							continue
+						}
+						base = r.fs.base(path.text)
+					}
+				}
+			}
+			if i > 0 {
+				continue
+			}
+			if path.isdisabled() {
+				continue
+			}
+			mut pkg_json := dir_info.enclosing_package_json
+			if pkg_json != nil {
+				if pkg_json.side_effects_map != nil {
+					mut has_side_effects := false
+					mut path_lookup := path.text.replace_all('\\', '/')
+					if pkg_json.side_effects_map[path_lookup] {
+						has_side_effects = true
+					} else {
+						for _, re in pkg_json.side_effects_regexps {
+							if re.matchstring(path_lookup) {
+								has_side_effects = true
+								break
+							}
+						}
+					}
+					if !has_side_effects {
+						if r.debug_logs != nil {
+							r.debug_logs.addnote(strconv.v_sprintf('Marking this file as having no side effects due to %q',
+								pkg_json.source.key_path.text))
+						}
+						result.primary_side_effects_data = pkg_json.side_effects_data
+					}
+				}
+				result.module_type_data = pkg_json.module_type_data
+			}
+			mut ts_config_json := r.tsconfigfordir(dir_info)
+			if ts_config_json != nil {
+				result.tsc_onfig = &ts_config_json.settings
+				result.tsc_onfig_jsx = ts_config_json.jsxs_ettings
+				result.tsa_lways_strict = ts_config_json.tsalwaysstrictorstrict()
+				if r.debug_logs != nil {
+					r.debug_logs.addnote(strconv.v_sprintf('This import is under the effect of %q',
+						ts_config_json.abs_path))
+					if result.tsc_onfig_jsx.jsxf_actory != nil {
+						r.debug_logs.addnote(strconv.v_sprintf('"jsxFactory" is %q due to %q',
+							result.tsc_onfig_jsx.jsxf_actory.join('.'), ts_config_json.abs_path))
+					}
+					if result.tsc_onfig_jsx.jsxf_ragment_factory != nil {
+						r.debug_logs.addnote(strconv.v_sprintf('"jsxFragment" is %q due to %q',
+							result.tsc_onfig_jsx.jsxf_ragment_factory.join('.'), ts_config_json.abs_path))
+					}
+				}
+			}
+		}
+	}
+	if r.debug_logs != nil {
+		r.debug_logs.addnote(strconv.v_sprintf('Primary path is %q in namespace %q', result.path_pair.primary.text,
+			result.path_pair.primary.namespace))
+		if result.path_pair.hassecondary() {
+			r.debug_logs.addnote(strconv.v_sprintf('Secondary path is %q in namespace %q',
+				result.path_pair.secondary.text, result.path_pair.secondary.namespace))
+		}
+	}
+}
+
+fn (r resolverQuery) resolve_without_symlinks(sourceDir string, sourceDirInfo &DirInfo, importPath string) &ResolveResult {
+	mut result := 0
+	if import_path.has_prefix('/') || r.fs.isabs(import_path) {
+		if r.debug_logs != nil {
+			r.debug_logs.addnote(strconv.v_sprintf('The import %q is being treated as an absolute path',
+				import_path))
+		}
+		mut ts_config_json := r.tsconfigfordir(source_dir_info)
+		if ts_config_json != nil && ts_config_json.paths != nil {
+			mut absolute, ok, diff_case := r.matchtsconfigpaths(ts_config_json, import_path)
+			if ok {
+				return &ResolveResult{
+					PathPair:      absolute
+					DifferentCase: diff_case
+				}
+			}
+		}
+		mut absolute438, ok1192, diff_case8477 := r.loadasfileordirectory(import_path)
+		if ok {
+			return &ResolveResult{
+				PathPair:      absolute
+				DifferentCase: diff_case
+			}
+		} else {
+			return nil
+		}
+	}
+	mut is_package_path := is_package_path(import_path)
+	mut check_relative := !is_package_path || r.kind.isfromcss()
+	mut check_package := is_package_path
+	if check_relative {
+		mut abs_path := r.fs.join(source_dir, import_path)
+		if r.isexternal(r.options.external_settings.post_resolve, abs_path, r.kind) {
+			if r.debug_logs != nil {
+				r.debug_logs.addnote(strconv.v_sprintf('The path %q was marked as external by the user',
+					abs_path))
+			}
+			return &ResolveResult{
+				PathPair: PathPair{
+					Primary:    logger.Path{
+						Text:      abs_path
+						Namespace: 'file'
+					}
+					IsExternal: true
+				}
+			}
+		}
+		mut import_dir_info := r.dirinfocached(r.fs.dir(abs_path))
+		if import_dir_info != nil {
+			mut remapped, ok586 := r.checkbrowsermap(import_dir_info, abs_path, absolute_path_kind)
+			if ok {
+				if remapped == nil {
+					return &ResolveResult{
+						PathPair: PathPair{
+							Primary: logger.Path{
+								Text:      abs_path
+								Namespace: 'file'
+								Flags:     logger.path_disabled
+							}
+						}
+					}
+				}
+				mut remapped_result, ok5374, diff_case6147, side_effects := r.resolvewithoutremapping(import_dir_info.enclosing_browser_scope,
+					&remapped)
+				if ok {
+					result = ResolveResult{
+						PathPair:               remapped_result
+						DifferentCase:          diff_case
+						PrimarySideEffectsData: side_effects
+					}
+					check_relative = false
+					check_package = false
+				}
+			}
+		}
+		if check_relative {
+			mut absolute5513, ok8769, diff_case7244 := r.loadasfileordirectory(abs_path)
+			if ok {
+				check_package = false
+				result = ResolveResult{
+					PathPair:      absolute
+					DifferentCase: diff_case
+				}
+			} else if !check_package {
+				return nil
+			}
+		}
+	}
+	if check_package {
+		mut remapped3107, ok4602 := r.checkbrowsermap(source_dir_info, import_path, package_path_kind)
+		if ok {
+			if remapped == nil {
+				mut absolute3113, ok8123, diff_case6646, side_effects5387 := r.loadnodemodules(import_path,
+					source_dir_info, false)
+				if ok {
+					absolute.primary = logger.Path{
+						Text:      absolute.primary.text
+						Namespace: 'file'
+						Flags:     logger.path_disabled
+					}
+					if absolute.hassecondary() {
+						absolute.secondary = logger.Path{
+							Text:      absolute.secondary.text
+							Namespace: 'file'
+							Flags:     logger.path_disabled
+						}
+					}
+					return &ResolveResult{
+						PathPair:               absolute
+						DifferentCase:          diff_case
+						PrimarySideEffectsData: side_effects
+					}
+				} else {
+					return &ResolveResult{
+						PathPair:      PathPair{
+							Primary: logger.Path{
+								Text:  import_path
+								Flags: logger.path_disabled
+							}
+						}
+						DifferentCase: diff_case
+					}
+				}
+			}
+			import_path = &remapped
+			source_dir_info = source_dir_info.enclosing_browser_scope
+		}
+		mut absolute2979, ok6559, diff_case9021, side_effects4687 := r.resolvewithoutremapping(source_dir_info,
+			import_path)
+		if ok {
+			result = ResolveResult{
+				PathPair:               absolute
+				DifferentCase:          diff_case
+				PrimarySideEffectsData: side_effects
+			}
+		} else {
+			return nil
+		}
+	}
+	return &result
+}
+
+fn (r resolverQuery) resolve_without_remapping(sourceDirInfo &DirInfo, importPath string) (PathPair, bool, &fs.DifferentCase, &SideEffectsData) {
+	if is_package_path(import_path) {
+		return r.loadnodemodules(import_path, source_dir_info, false)
+	} else {
+		mut absolute, ok, diff_case := r.loadasfileordirectory(r.fs.join(source_dir_info.abs_path,
+			import_path))
+		return absolute, ok, diff_case, nil
+	}
+}
+
+pub fn pretty_path(fs fs.FS, path logger.Path) string {
+	if path.namespace == 'file' {
+		mut rel, ok := fs.rel(fs.cwd(), path.text)
+		if ok {
+			path.text = rel
+		}
+		path.text = path.text.replace_all('\\', '/')
+	} else if path.namespace != '' {
+		path.text = strconv.v_sprintf('%s:%s', path.namespace, path.text)
+	}
+	if path.isdisabled() {
+		path.text = '(disabled):' + path.text
+	}
+	return path.text + path.ignored_suffix
+}
+
+struct dirInfo {
+pub mut:
+	// These objects are immutable, so we can just point to the parent directory
+	// and avoid having to lock the cache again
+	parent &DirInfo = unsafe { nil }
+	// A pointer to the enclosing dirInfo with a valid "browser" field in
+	// package.json. We need this to remap paths after they have been resolved.
+	enclosing_browser_scope &DirInfo = unsafe { nil }
+	// All relevant information about this directory
+	abs_path                 string
+	pnp_manifest_abs_path    string
+	entries                  fs.DirEntries
+	package_json             &PackageJSON  = unsafe { nil }
+	enclosing_package_json   &PackageJSON  = unsafe { nil }
+	enclosing_tsc_onfig_json &TSConfigJSON = unsafe { nil }
+	abs_real_path            string
+	is_node_modules          bool
+	has_node_modules         bool
+	is_inside_node_modules   bool
+}
+
+fn (r resolverQuery) ts_config_for_dir(dirInfo &DirInfo) &TSConfigJSON {
+	if dir_info.is_inside_node_modules {
+		return nil
+	}
+	if r.ts_config_override != nil {
+		return r.ts_config_override
+	}
+	if dir_info != nil {
+		return dir_info.enclosing_tsc_onfig_json
+	}
+	return nil
+}
+
+fn (r resolverQuery) dir_info_cached(path string) &DirInfo {
+	mut cached, ok := r.dir_cache[path]
+	if !ok {
+		r.dir_cache[path] = nil
+		cached = r.dirinfouncached(path)
+		if cached != nil {
+			r.dir_cache[path] = cached
+		}
+	}
+	if r.debug_logs != nil {
+		if cached == nil {
+			r.debug_logs.addnote(strconv.v_sprintf('Failed to read directory %q', path))
+		} else {
+			mut count := cached.entries.peekentrycount()
+			mut entries := 'entries'
+			if count == 1 {
+				entries = 'entry'
+			}
+			r.debug_logs.addnote(strconv.v_sprintf('Read %d %s for directory %q', count,
+				entries, path))
+		}
+	}
+	return cached
+}
+
+__global errParseErrorImportCycle = errors.new('(import cycle)')
+__global errParseErrorAlreadyLogged = errors.new('(error already logged)')
+// This may return "parseErrorAlreadyLogged" in which case there was a syntax
+// error, but it's already been reported. No further errors should be logged.
+//
+// Nested calls may also return "parseErrorImportCycle". In that case the
+// caller is responsible for logging an appropriate error message.
+fn (r resolverQuery) parse_tsc_onfig(file string, visited map[string]Bool, configDir string) (&TSConfigJSON, error) {
+	if !r.options.preserve_symlinks {
+		mut real, ok := r.fs.evalsymlinks(file)
+		if ok {
+			file = real
+		}
+	}
+	if visited[file] {
+		return nil, err_parse_error_import_cycle
+	}
+	mut contents, err, original_error := r.caches.fsc_ache.readfile(r.fs, file)
+	if r.debug_logs != nil && original_error != nil {
+		r.debug_logs.addnote(strconv.v_sprintf('Failed to read file %q: %s', file, original_error.error()))
+	}
+	if err != nil {
+		return nil, err
+	}
+	if r.debug_logs != nil {
+		r.debug_logs.addnote(strconv.v_sprintf('The file %q exists', file))
+	}
+	mut key_path := logger.Path{
+		Text:      file
+		Namespace: 'file'
+	}
+	mut source := logger.Source{
+		KeyPath:    key_path
+		PrettyPath: pretty_path(r.fs, key_path)
+		Contents:   contents
+	}
+	if visited != nil {
+		visited[file] = true
+	}
+	mut result, err4401 := r.parsetsconfigfromsource(source, visited, config_dir)
+	if visited != nil {
+		visited[file] = false
+	}
+	return result, err
+}
+
+fn (r resolverQuery) parse_tsc_onfig_from_source(source logger.Source, visited map[string]Bool, configDir string) (&TSConfigJSON, error) {
+	mut tracker := logger.makelinecolumntracker(&source)
+	mut file_dir := r.fs.dir(source.key_path.text)
+	mut is_extends := visited.len > 1
+	mut result := parse_tsc_onfig_json(r.log, source, &r.caches.jsonc_ache, r.fs, file_dir,
+		config_dir, fn (extends string, extendsRange logger.Range) {
+		if visited == nil {
+			return nil
+		}
+		mut maybe_finish_our_search := fn (base &TSConfigJSON, err error, extendsFile string) {
+			if err == nil {
+				return base, true
+			}
+			if err == syscall.enoent {
+				return nil, false
+			}
+			if err == err_parse_error_import_cycle {
+				r.log.addid(logger.msg_id_tsc_onfig_json_cycle, logger.warning, &tracker,
+					extends_range, strconv.v_sprintf('Base config file %q forms cycle',
+					extends))
+			} else if err != err_parse_error_already_logged {
+				r.log.adderror(&tracker, extends_range, strconv.v_sprintf('Cannot read file %q: %s',
+					pretty_path(r.fs, logger.Path{
+					Text:      extends_file
+					Namespace: 'file'
+				}), err.error()))
+			}
+			return nil, true
+		}
+
+		if is_package_path(extends) {
+			mut pnp_data := r.pnp_manifest
+			if pnp_data == nil {
+				mut current := file_dir
+				for {
+					_, _, ok := fs.parseyarnpnpvirtualpath(current)
+					if !ok {
+						mut abs_path := r.fs.join(current, '.pnp.data.json')
+						mut json_, source2 := r.extractyarnpnpdatafromjson(abs_path, pnp_ignore_errors_about_missing_files)
+						if json.data != nil {
+							pnp_data = compile_yarn_pn_pd_ata(abs_path, current, json_,
+								source2)
+							break
+						}
+						abs_path = r.fs.join(current, '.pnp.cjs')
+						mut json3, source3 := r.trytoextractyarnpnpdatafromjs(abs_path,
+							pnp_ignore_errors_about_missing_files)
+						if json.data != nil {
+							pnp_data = compile_yarn_pn_pd_ata(abs_path, current, json3,
+								source3)
+							break
+						}
+						abs_path = r.fs.join(current, '.pnp.js')
+						mut json4, source4 := r.trytoextractyarnpnpdatafromjs(abs_path,
+							pnp_ignore_errors_about_missing_files)
+						if json.data != nil {
+							pnp_data = compile_yarn_pn_pd_ata(abs_path, current, json4,
+								source4)
+							break
+						}
+					}
+					mut next := r.fs.dir(current)
+					if current == next {
+						break
+					}
+					current = next
+				}
+			}
+			if pnp_data != nil {
+				mut result3287 := r.resolvetounqualified(extends, file_dir, pnp_data)
+				if result.status == pnp_error_generic {
+					if r.debug_logs != nil {
+						r.debug_logs.addnote('The Yarn PnP path resolution algorithm returned an error')
+					}
+					goto pnpError
+				} else if result.status == pnp_success {
+					mut entries, _, dir_err := r.fs.readdirectory(result.pkg_dir_path)
+					if dir_err == nil {
+						mut entry, _ := entries.get('package.json')
+						if entry != nil && entry.kind(r.fs) == fs.file_entry {
+							mut package_json := r.parsepackagejson(result.pkg_dir_path)
+							if package_json != nil && package_json.exports_map != nil {
+								mut absolute, ok4657, _ := r.esmresolvealgorithm(finalize_imports_exports_yarn_pn_ptsc_onfig_extends,
+									result.pkg_ident, '.' + result.pkg_subpath, package_json,
+									result.pkg_dir_path, source.key_path.text)
+								if ok {
+									mut base, err := r.parsetsconfig(absolute.primary.text,
+										visited, config_dir)
+									mut result2, should_return := maybe_finish_our_search(base,
+										err, absolute.primary.text)
+									if should_return {
+										return result2
+									}
+								}
+								goto pnpError
+							}
+						}
+					}
+					extends = r.fs.join(result.pkg_dir_path, result.pkg_subpath)
+				}
+			}
+		}
+		if is_package_path(extends) && !r.fs.isabs(extends) {
+			mut esm_package_name, esm_package_subpath, esm_ok := esm_parse_package_name(extends)
+			if r.debug_logs != nil && esm_ok {
+				r.debug_logs.addnote(strconv.v_sprintf('Parsed tsconfig package name %q and package subpath %q',
+					esm_package_name, esm_package_subpath))
+			}
+			mut current6818 := file_dir
+			for {
+				if r.fs.base(current) != 'node_modules' {
+					mut join := r.fs.join(current, 'node_modules', extends)
+					mut pkg_dir := r.fs.join(current, 'node_modules', esm_package_name)
+					mut pj_file := r.fs.join(pkg_dir, 'package.json')
+					_, err7770, original_error := r.fs.readfile(pj_file)
+					if err == nil {
+						mut package_json_3586 := r.parsepackagejson(pkg_dir)
+						if package_json != nil {
+							if package_json.tsconfig != '' {
+								join = package_json.tsconfig
+								if !r.fs.isabs(join) {
+									join = r.fs.join(pkg_dir, join)
+								}
+							}
+							if package_json.exports_map != nil {
+								if r.debug_logs != nil {
+									r.debug_logs.addnote(strconv.v_sprintf('Looking for %q in "exports" map in %q',
+										esm_package_subpath, package_json.source.key_path.text))
+									r.debug_logs.increaseindent()
+									defer {
+										r.debug_logs.decrease_indent
+									}
+								}
+								mut conditions := r.esm_conditions_require
+								mut resolved_path, status, debug := r.esmpackageexportsresolve('/',
+									esm_package_subpath, package_json.exports_map.root,
+									conditions)
+								resolved_path, status, debug = r.esmhandlepostconditions(resolved_path,
+									status, debug)
+								if status == pj_status_exact
+									|| status == pj_status_exact_ends_with_star {
+									mut file_to_check := r.fs.join(pkg_dir, resolved_path)
+									mut base8854, err1635 := r.parsetsconfig(file_to_check,
+										visited, config_dir)
+									mut result3478, should_return7036 := maybe_finish_our_search(base,
+										err, file_to_check)
+									if should_return {
+										return result
+									}
+								}
+							}
+						}
+					} else if r.debug_logs != nil && original_error != nil {
+						r.debug_logs.addnote(strconv.v_sprintf('Failed to read file %q: %s',
+							pj_file, original_error.error()))
+					}
+					mut files_to_check := [r.fs.join(join, 'tsconfig.json'), join, join + '.json']
+					for _, file_to_check in files_to_check {
+						mut base7975, err1361 := r.parsetsconfig(file_to_check, visited,
+							config_dir)
+						if err != nil && err != syscall.enoent {
+							mut entries4221, _, dir_err3495 := r.fs.readdirectory(r.fs.dir(file_to_check))
+							if dir_err == nil {
+								mut entry2, _ := entries.get(r.fs.base(file_to_check))
+								if entry != nil && entry2.kind(r.fs) == fs.dir_entry {
+									continue
+								}
+							}
+						}
+						mut result3923, should_return9497 := maybe_finish_our_search(base,
+							err, file_to_check)
+						if should_return {
+							return result
+						}
+					}
+				}
+				mut next7079 := r.fs.dir(current)
+				if current == next {
+					break
+				}
+				current = next
+			}
+		} else {
+			mut extends_file := extends
+			if extends_file == '.' || extends_file == '..' {
+				extends_file += '/tsconfig.json'
+			}
+			if !r.fs.isabs(extends_file) {
+				extends_file = r.fs.join(file_dir, extends_file)
+			}
+			mut base3333, err6235 := r.parsetsconfig(extends_file, visited, config_dir)
+			if err != nil && !extends_file.has_suffix('.json') {
+				mut entries5527, _, dir_err3468 := r.fs.readdirectory(r.fs.dir(extends_file))
+				if dir_err == nil {
+					mut extends_base := r.fs.base(extends_file)
+					mut entry3, _ := entries.get(extends_base)
+					if entry3 == nil || entry3.kind(r.fs) != fs.file_entry {
+						mut entry4, _ := entries.get(extends_base + '.json')
+						if entry4 != nil && entry4.kind(r.fs) == fs.file_entry {
+							base, err = r.parsetsconfig(extends_file + '.json', visited,
+								config_dir)
+						}
+					}
+				}
+			}
+			mut result7166, should_return2474 := maybe_finish_our_search(base, err, extends_file)
+			if should_return {
+				return result
+			}
+		}
+		if is_package_path(extends) && !r.fs.isabs(extends) {
+			mut esm_package_name7871, esm_package_subpath2973, esm_ok_99 := esm_parse_package_name(extends)
+			if r.debug_logs != nil && esm_ok {
+				r.debug_logs.addnote(strconv.v_sprintf('Parsed tsconfig package name %q and package subpath %q',
+					esm_package_name, esm_package_subpath))
+			}
+			mut current7477 := file_dir
+			for {
+				if r.fs.base(current) != 'node_modules' {
+					mut join1670 := r.fs.join(current, 'node_modules', extends)
+					mut pkg_dir4158 := r.fs.join(current, 'node_modules', esm_package_name)
+					mut pj_file2620 := r.fs.join(pkg_dir, 'package.json')
+					_, err8008, original_error6814 := r.fs.readfile(pj_file)
+					if err == nil {
+						mut package_json_7108 := r.parsepackagejson(pkg_dir)
+						if package_json != nil {
+							if package_json.tsconfig != '' {
+								join = package_json.tsconfig
+								if !r.fs.isabs(join) {
+									join = r.fs.join(pkg_dir, join)
+								}
+							}
+							if package_json.exports_map != nil {
+								if r.debug_logs != nil {
+									r.debug_logs.addnote(strconv.v_sprintf('Looking for %q in "exports" map in %q',
+										esm_package_subpath, package_json.source.key_path.text))
+									r.debug_logs.increaseindent()
+									defer {
+										r.debug_logs.decrease_indent
+									}
+								}
+								mut conditions5411 := r.esm_conditions_require
+								mut resolved_path1061, status1287, debug2089 := r.esmpackageexportsresolve('/',
+									esm_package_subpath, package_json.exports_map.root,
+									conditions)
+								resolved_path, status, debug = r.esmhandlepostconditions(resolved_path,
+									status, debug)
+								if status == pj_status_exact
+									|| status == pj_status_exact_ends_with_star {
+									mut file_to_check9071 := r.fs.join(pkg_dir, resolved_path)
+									mut base9932, err7878 := r.parsetsconfig(file_to_check,
+										visited, config_dir)
+									mut result6978, should_return7403 := maybe_finish_our_search(base,
+										err, file_to_check)
+									if should_return {
+										return result
+									}
+								}
+							}
+						}
+					} else if r.debug_logs != nil && original_error != nil {
+						r.debug_logs.addnote(strconv.v_sprintf('Failed to read file %q: %s',
+							pj_file, original_error.error()))
+					}
+					mut files_to_check9795 := [r.fs.join(join, 'tsconfig.json'), join, join + '.json']
+					for _, file_to_check in files_to_check {
+						mut base2169, err9805 := r.parsetsconfig(file_to_check, visited,
+							config_dir)
+						if err != nil && err != syscall.enoent {
+							mut entries202, _, dir_err7820 := r.fs.readdirectory(r.fs.dir(file_to_check))
+							if dir_err == nil {
+								mut entry28969, _ := entries.get(r.fs.base(file_to_check))
+								if entry != nil && entry2.kind(r.fs) == fs.dir_entry {
+									continue
+								}
+							}
+						}
+						mut result3199, should_return3321 := maybe_finish_our_search(base,
+							err, file_to_check)
+						if should_return {
+							return result
+						}
+					}
+				}
+				mut next2714 := r.fs.dir(current)
+				if current == next {
+					break
+				}
+				current = next
+			}
+		} else {
+			mut extends_file7760 := extends
+			if extends_file == '.' || extends_file == '..' {
+				extends_file += '/tsconfig.json'
+			}
+			if !r.fs.isabs(extends_file) {
+				extends_file = r.fs.join(file_dir, extends_file)
+			}
+			mut base807, err9614 := r.parsetsconfig(extends_file, visited, config_dir)
+			if err != nil && !extends_file.has_suffix('.json') {
+				mut entries3155, _, dir_err9477 := r.fs.readdirectory(r.fs.dir(extends_file))
+				if dir_err == nil {
+					mut extends_base3550 := r.fs.base(extends_file)
+					mut entry37384, _ := entries.get(extends_base)
+					if entry3 == nil || entry3.kind(r.fs) != fs.file_entry {
+						mut entry43318, _ := entries.get(extends_base + '.json')
+						if entry4 != nil && entry4.kind(r.fs) == fs.file_entry {
+							base, err = r.parsetsconfig(extends_file + '.json', visited,
+								config_dir)
+						}
+					}
+				}
+			}
+			mut result7873, should_return3433 := maybe_finish_our_search(base, err, extends_file)
+			if should_return {
+				return result
+			}
+		}
+		return nil
+	})
+	if result == nil {
+		return nil, err_parse_error_already_logged
+	}
+	if !is_extends && result.paths != nil && result.base_url == nil {
+		mut tracker3 := 0
+		for key, paths in result.paths.map {
+			mut end := isize(0)
+			for _, path in paths {
+				if is_valid_tsc_onfig_path_no_base_urlp_attern(path.text, r.log, &result.paths.source,
+					&tracker, path.loc)
+				{
+					paths[end] = path
+					end++
+				}
+			}
+			if end < paths.len {
+				result.paths.map[key] = paths[..end]
+			}
+		}
+	}
+	return result, nil
+}
+
+fn (r resolverQuery) dir_info_uncached(path string) &DirInfo {
+	mut parentInfo := 0
+	mut parent_dir := r.fs.dir(path)
+	if parent_dir != path {
+		parent_info = r.dirinfocached(parent_dir)
+		if parent_info == nil {
+			return nil
+		}
+	}
+	mut entries, err, original_error := r.fs.readdirectory(path)
+	if err == syscall.eacces || err == syscall.eperm {
+		entries = fs.makeemptydirentries(path)
+		err = nil
+	}
+	if r.debug_logs != nil && original_error != nil {
+		r.debug_logs.addnote(strconv.v_sprintf('Failed to read directory %q: %s', path,
+			original_error.error()))
+	}
+	if err != nil {
+		if err != syscall.enoent && err != syscall.enotdir {
+			r.log.adderror(nil, logger.Range{}, strconv.v_sprintf('Cannot read directory %q: %s',
+				pretty_path(r.fs, logger.Path{
+				Text:      path
+				Namespace: 'file'
+			}), err.error()))
+		}
+		return nil
+	}
+	mut info := &DirInfo{
+		absPath: path
+		parent:  parent_info
+		entries: entries
+	}
+	mut base := r.fs.base(path)
+	if base == 'node_modules' {
+		info.is_node_modules = true
+		info.is_inside_node_modules = true
+	} else {
+		mut entry, _ := entries.get('node_modules')
+		if entry != nil {
+			info.has_node_modules = entry.kind(r.fs) == fs.dir_entry
+		}
+	}
+	if parent_info != nil {
+		info.enclosing_package_json = parent_info.enclosing_package_json
+		info.enclosing_browser_scope = parent_info.enclosing_browser_scope
+		info.enclosing_tsc_onfig_json = parent_info.enclosing_tsc_onfig_json
+		if parent_info.is_inside_node_modules {
+			info.is_inside_node_modules = true
+		}
+		if !r.options.preserve_symlinks {
+			mut entry1445, _ := parent_info.entries.get(base)
+			if entry != nil {
+				mut symlink2 := entry.symlink(r.fs)
+				if symlink2 != '' {
+					if r.debug_logs != nil {
+						r.debug_logs.addnote(strconv.v_sprintf('Resolved symlink %q to %q',
+							path, symlink))
+					}
+					info.abs_real_path = symlink
+				} else if parent_info.abs_real_path != '' {
+					mut symlink := r.fs.join(parent_info.abs_real_path, base)
+					if r.debug_logs != nil {
+						r.debug_logs.addnote(strconv.v_sprintf('Resolved symlink %q to %q',
+							path, symlink))
+					}
+					info.abs_real_path = symlink
+				}
+			}
+		}
+	}
+	mut entry6, _ := entries.get('package.json')
+	if entry6 != nil && entry6.kind(r.fs) == fs.file_entry {
+		info.package_json = r.parsepackagejson(path)
+		if info.package_json != nil {
+			info.enclosing_package_json = info.package_json
+			if info.package_json.browser_map != nil {
+				info.enclosing_browser_scope = info
+			}
+		}
+	}
+	if r.ts_config_override == nil {
+		mut tsConfigPath := 0
+		mut entry5723, _ := entries.get('tsconfig.json')
+		if entry != nil && entry.kind(r.fs) == fs.file_entry {
+			ts_config_path = r.fs.join(path, 'tsconfig.json')
+		} else {
+			mut entryx, _ := entries.get('jsconfig.json')
+			if entryx != nil && entryx.kind(r.fs) == fs.file_entry {
+				ts_config_path = r.fs.join(path, 'jsconfig.json')
+			}
+		}
+		if ts_config_path != '' && !info.is_inside_node_modules {
+			mut err := 0
+			info.enclosing_tsc_onfig_json, err = r.parsetsconfig(ts_config_path, map[string]Bool{},
+				r.fs.dir(ts_config_path))
+			if err != nil {
+				if err == syscall.enoent {
+					r.log.adderror(nil, logger.Range{}, strconv.v_sprintf('Cannot find tsconfig file %q',
+						pretty_path(r.fs, logger.Path{
+						Text:      ts_config_path
+						Namespace: 'file'
+					})))
+				} else if err != err_parse_error_already_logged {
+					r.log.addid(logger.msg_id_tsc_onfig_json_missing, logger.debug, nil,
+						logger.Range{}, strconv.v_sprintf('Cannot read file %q: %s', pretty_path(r.fs,
+						logger.Path{
+						Text:      ts_config_path
+						Namespace: 'file'
+					}), err.error()))
+				}
+			}
+		}
+	}
+	if r.pnp_manifest == nil {
+		_, _, ok := fs.parseyarnpnpvirtualpath(path)
+		if !ok {
+			mut pnp, _ := entries.get('.pnp.data.json')
+			if pnp != nil && pnp.kind(r.fs) == fs.file_entry {
+				info.pnp_manifest_abs_path = r.fs.join(path, '.pnp.data.json')
+			} else {
+				mut pnp2, _ := entries.get('.pnp.cjs')
+				if pnp != nil && pnp.kind(r.fs) == fs.file_entry {
+					info.pnp_manifest_abs_path = r.fs.join(path, '.pnp.cjs')
+				} else {
+					mut pnp3, _ := entries.get('.pnp.js')
+					if pnp != nil && pnp.kind(r.fs) == fs.file_entry {
+						info.pnp_manifest_abs_path = r.fs.join(path, '.pnp.js')
+					}
+				}
+			}
+		}
+	}
+	return info
+}
+
+// TypeScript-specific behavior: if the extension is ".js" or ".jsx", try
+// replacing it with ".ts" or ".tsx". At the time of writing this specific
+// behavior comes from the function "loadModuleFromFile()" in the file
+// "moduleNameResolver.ts" in the TypeScript compiler source code. It
+// contains this comment:
+//
+//	If that didn't work, try stripping a ".js" or ".jsx" extension and
+//	replacing it with a TypeScript one; e.g. "./foo.js" can be matched
+//	by "./foo.ts" or "./foo.d.ts"
+//
+// We don't care about ".d.ts" files because we can't do anything with
+// those, so we ignore that part of the behavior.
+//
+// See the discussion here for more historical context:
+// https://github.com/microsoft/TypeScript/issues/4595
+__global rewrittenFileExtensions = {
+	'.js': // UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+	'.jsx': // UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+	'.mjs': // UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+	'.cjs': // UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+}
+fn (r resolverQuery) load_as_file(path string, extensionOrder []string) (string, bool, &fs.DifferentCase) {
+	if r.debug_logs != nil {
+		r.debug_logs.addnote(strconv.v_sprintf('Attempting to load %q as a file', path))
+		r.debug_logs.increaseindent()
+		defer {
+			r.debug_logs.decrease_indent
+		}
+	}
+	mut dir_path := r.fs.dir(path)
+	mut entries, err, original_error := r.fs.readdirectory(dir_path)
+	if r.debug_logs != nil && original_error != nil {
+		r.debug_logs.addnote(strconv.v_sprintf('Failed to read directory %q: %s', dir_path,
+			original_error.error()))
+	}
+	if err != nil {
+		if err != syscall.enoent {
+			r.log.adderror(nil, logger.Range{}, strconv.v_sprintf('Cannot read directory %q: %s',
+				pretty_path(r.fs, logger.Path{
+				Text:      dir_path
+				Namespace: 'file'
+			}), err.error()))
+		}
+		return '', false, nil
+	}
+	mut try_file := fn (base string) {
+		mut base_with_suffix := base
+		if r.debug_logs != nil {
+			r.debug_logs.addnote(strconv.v_sprintf('Checking for file %q', base_with_suffix))
+		}
+		mut entry, diff_case := entries.get(base_with_suffix)
+		if entry != nil && entry.kind(r.fs) == fs.file_entry {
+			if r.debug_logs != nil {
+				r.debug_logs.addnote(strconv.v_sprintf('Found file %q', base_with_suffix))
+			}
+			return r.fs.join(dir_path, base_with_suffix), true, diff_case
+		}
+		return '', false, nil
+	}
+
+	mut base := r.fs.base(path)
+	mut absolute2, ok, diff_case2 := try_file(base)
+	if ok {
+		return absolute2, ok, diff_case2
+	}
+	for _, ext in extension_order {
+	}
+	for old, exts in rewritten_file_extensions {
+		if !base.has_suffix(old) {
+			continue
+		}
+		mut last_dot := base.last_index_byte(`.`)
+		for _, ext in exts {
+			mut absolute, ok6833, diff_case1146 := try_file(base[..last_dot] + ext)
+			if ok {
+				return absolute, ok, diff_case
+			}
+		}
+		break
+	}
+	if r.debug_logs != nil {
+		r.debug_logs.addnote(strconv.v_sprintf('Failed to find file %q', base))
+	}
+	return '', false, nil
+}
+
+fn (r resolverQuery) load_as_index(dirInfo &DirInfo, extensionOrder []string) (PathPair, bool, &fs.DifferentCase) {
+	for _, ext in extension_order {
+		mut base := 'index' + ext
+		mut entry, diff_case := dir_info.entries.get(base)
+		if entry != nil && entry.kind(r.fs) == fs.file_entry {
+			if r.debug_logs != nil {
+				r.debug_logs.addnote(strconv.v_sprintf('Found file %q', r.fs.join(dir_info.abs_path,
+					base)))
+			}
+			return PathPair{
+				Primary: logger.Path{
+					Text:      r.fs.join(dir_info.abs_path, base)
+					Namespace: 'file'
+				}
+			}, true, diff_case
+		}
+		if r.debug_logs != nil {
+			r.debug_logs.addnote(strconv.v_sprintf('Failed to find file %q', r.fs.join(dir_info.abs_path,
+				base)))
+		}
+	}
+	return PathPair{}, false, nil
+}
+
+fn (r resolverQuery) load_as_index_with_browser_remapping(dirInfo &DirInfo, path string, extensionOrder []string) (PathPair, bool, &fs.DifferentCase) {
+	mut abs_path := r.fs.join(path, 'index')
+	mut remapped, ok := r.checkbrowsermap(dir_info, abs_path, absolute_path_kind)
+	if ok {
+		if remapped == nil {
+			return PathPair{
+				Primary: logger.Path{
+					Text:      abs_path
+					Namespace: 'file'
+					Flags:     logger.path_disabled
+				}
+			}, true, nil
+		}
+		mut remapped_abs := r.fs.join(path, &remapped)
+		mut absolute, ok2898, diff_case := r.loadasfile(remapped_abs, extension_order)
+		if ok {
+			return PathPair{
+				Primary: logger.Path{
+					Text:      absolute
+					Namespace: 'file'
+				}
+			}, true, diff_case
+		}
+		mut field_dir_info := r.dirinfocached(remapped_abs)
+		if field_dir_info != nil {
+			mut absolute4, ok4, _ := r.loadasindex(field_dir_info, extension_order)
+			if ok {
+				return absolute4, true, nil
+			}
+		}
+		return PathPair{}, false, nil
+	}
+	return r.loadasindex(dir_info, extension_order)
+}
+
+fn get_property(json js_ast.Expr, name string) (js_ast.Expr, logger.Loc, bool) {
+	return js_ast.Expr{}, logger.Loc{}, false
+}
+
+fn get_string(json js_ast.Expr) (string, bool) {
+	return '', false
+}
+
+fn get_bool(json js_ast.Expr) (bool, bool) {
+	return false, false
+}
+
+fn (r resolverQuery) load_as_file_or_directory(path string) (PathPair, bool, &fs.DifferentCase) {
+	mut extension_order := r.options.extension_order
+	if r.kind.mustresolvetocss() {
+		extension_order = r.css_extension_order
+	} else if helpers.isinsidenodemodules(path) {
+		extension_order = r.node_modules_extension_order
+	}
+	mut absolute9, ok9, diff_case9 := r.loadasfile(path, extension_order)
+	if ok {
+		return PathPair{
+			Primary: logger.Path{
+				Text:      absolute
+				Namespace: 'file'
+			}
+		}, true, diff_case
+	}
+	if r.debug_logs != nil {
+		r.debug_logs.addnote(strconv.v_sprintf('Attempting to load %q as a directory',
+			path))
+		r.debug_logs.increaseindent()
+		defer {
+			r.debug_logs.decrease_indent
+		}
+	}
+	mut dir_info := r.dirinfocached(path)
+	if dir_info == nil {
+		return PathPair{}, false, nil
+	}
+	mut absolute10, ok, diff_case10 := r.loadasmainfield(dir_info, path, extension_order)
+	if ok {
+		return absolute, true, diff_case
+	}
+	mut absolute1111, ok9687, diff_case1111 := r.loadasindexwithbrowserremapping(dir_info,
+		path, extension_order)
+	if ok {
+		return absolute, true, diff_case
+	}
+	return PathPair{}, false, nil
+}
+
+fn (r resolverQuery) load_as_main_field(dirInfo &DirInfo, path string, extensionOrder []string) (PathPair, bool, &fs.DifferentCase) {
+	if dir_info.package_json == nil {
+		return PathPair{}, false, nil
+	}
+	mut main_field_values := dir_info.package_json.main_fields
+	mut main_field_keys := r.options.main_fields
+	mut auto_main := false
+	if main_field_keys == nil {
+		main_field_keys = default_main_fields[r.options.platform]
+		auto_main = true
+	}
+	mut load_main_field := fn (fieldRelPath string, field string) {
+		if r.debug_logs != nil {
+			r.debug_logs.addnote(strconv.v_sprintf('Found main field %q with path %q',
+				field, field_rel_path))
+			r.debug_logs.increaseindent()
+			defer {
+				r.debug_logs.decrease_indent
+			}
+		}
+		mut field_abs_path := r.fs.join(path, field_rel_path)
+		mut remapped, ok := r.checkbrowsermap(dir_info, field_abs_path, absolute_path_kind)
+		if ok {
+			if remapped == nil {
+				return PathPair{
+					Primary: logger.Path{
+						Text:      field_abs_path
+						Namespace: 'file'
+						Flags:     logger.path_disabled
+					}
+				}, true, nil
+			}
+			field_abs_path = r.fs.join(path, &remapped)
+		}
+		mut absolute13, ok6845, diff_case13 := r.loadasfile(field_abs_path, extension_order)
+		if ok {
+			return PathPair{
+				Primary: logger.Path{
+					Text:      absolute
+					Namespace: 'file'
+				}
+			}, true, diff_case
+		}
+		mut field_dir_info := r.dirinfocached(field_abs_path)
+		if field_dir_info != nil {
+			mut absolute, ok3209, _ := r.loadasindexwithbrowserremapping(field_dir_info,
+				field_abs_path, extension_order)
+			if ok {
+				return absolute, true, nil
+			}
+		}
+		return PathPair{}, false, nil
+	}
+
+	if r.debug_logs != nil {
+		r.debug_logs.addnote(strconv.v_sprintf('Searching for main fields in %q', dir_info.package_json.source.key_path.text))
+		r.debug_logs.increaseindent()
+		defer {
+			r.debug_logs.decrease_indent
+		}
+	}
+	mut found_something := false
+	for _, key in main_field_keys {
+		mut value, ok9276 := main_field_values[key]
+		if !ok {
+			if r.debug_logs != nil {
+				r.debug_logs.addnote(strconv.v_sprintf('Did not find main field %q', key))
+			}
+			continue
+		}
+		found_something = true
+		mut absolute6904, ok2818, diff_case := load_main_field(value.rel_path, key)
+		if !ok {
+			continue
+		}
+		if auto_main && key == 'module' {
+			mut absoluteMain := 0
+			mut okMain := 0
+			mut diffCaseMain := 0
+			mut main, ok905 := main_field_values['main']
+			if ok {
+				mut absolute767, ok801, diff_case5289 := load_main_field(main.rel_path,
+					'main')
+				if ok {
+					absolute_main = absolute
+					ok_main = true
+					diff_case_main = diff_case
+				}
+			} else {
+				mut absolute4746, ok9667, diff_case7586 := r.loadasindexwithbrowserremapping(dir_info,
+					path, extension_order)
+				if ok {
+					absolute_main = absolute
+					ok_main = true
+					diff_case_main = diff_case
+				}
+			}
+			if ok_main {
+				if r.kind != ast.import_require {
+					if r.debug_logs != nil {
+						r.debug_logs.addnote(strconv.v_sprintf('Resolved to %q using the "module" field in %q',
+							absolute.primary.text, dir_info.package_json.source.key_path.text))
+						r.debug_logs.addnote(strconv.v_sprintf('The fallback path in case of "require" is %q',
+							absolute_main.primary.text))
+					}
+					return PathPair{
+						Primary:   absolute.primary
+						Secondary: absolute_main.primary
+					}, true, diff_case
+				} else {
+					if r.debug_logs != nil {
+						r.debug_logs.addnote(strconv.v_sprintf('Resolved to %q because of "require"',
+							absolute_main.primary.text))
+					}
+					return absolute_main, true, diff_case_main
+				}
+			}
+		}
+		if r.debug_logs != nil {
+			r.debug_logs.addnote(strconv.v_sprintf('Resolved to %q using the %q field in %q',
+				absolute.primary.text, key, dir_info.package_json.source.key_path.text))
+		}
+		return absolute, true, diff_case
+	}
+	if !found_something {
+		for _, field in main_fields_for_failure {
+			mut main9243, ok1316 := main_field_values[field]
+			if ok {
+				mut tracker2 := logger.makelinecolumntracker(&dir_info.package_json.source)
+				mut key_range := dir_info.package_json.source.rangeofstring(main.key_loc)
+				if main_field_keys.len == 0 && r.options.platform == config.platform_neutral {
+					r.debug_meta.notes << tracker2.msgdata(key_range, strconv.v_sprintf('The %q field here was ignored. Main fields must be configured explicitly when using the "neutral" platform.',
+						field))
+				} else {
+					r.debug_meta.notes << tracker2.msgdata(key_range, strconv.v_sprintf('The %q field here was ignored because the list of main fields to use is currently set to [%s].',
+						field, helpers.stringarraytoquotedcommaseparatedstring(main_field_keys)))
+				}
+				break
+			}
+		}
+	}
+	return PathPair{}, false, nil
+}
+
+fn has_case_insensitive_suffix(s string, suffix string) bool {
+	return s.len >= suffix.len && s[s.len - suffix.len..].equal_fold(suffix)
+}
+
+// This closely follows the behavior of "tryLoadModuleUsingPaths()" in the
+// official TypeScript compiler
+fn (r resolverQuery) match_tsc_onfig_paths(tsConfigJSON &TSConfigJSON, path string) (PathPair, bool, &fs.DifferentCase) {
+	if r.debug_logs != nil {
+		r.debug_logs.addnote(strconv.v_sprintf('Matching %q against "paths" in %q', path,
+			ts_config_json.abs_path))
+		r.debug_logs.increaseindent()
+		defer {
+			r.debug_logs.decrease_indent
+		}
+	}
+	mut abs_base_url := ts_config_json.base_urlf_or_paths
+	if ts_config_json.base_url != nil {
+		abs_base_url = &ts_config_json.base_url
+	}
+	if r.debug_logs != nil {
+		r.debug_logs.addnote(strconv.v_sprintf('Using %q as "baseUrl"', abs_base_url))
+	}
+	for key, original_paths in ts_config_json.paths.map {
+		if key == path {
+			if r.debug_logs != nil {
+				r.debug_logs.addnote(strconv.v_sprintf('Found an exact match for %q in "paths"',
+					key))
+			}
+			for _, original_path in original_paths {
+				if has_case_insensitive_suffix(original_path.text, '.d.ts') {
+					if r.debug_logs != nil {
+						r.debug_logs.addnote(strconv.v_sprintf('Ignoring substitution %q because it ends in ".d.ts"',
+							original_path.text))
+					}
+					continue
+				}
+				mut absolute_original_path := original_path.text
+				if !r.fs.isabs(absolute_original_path) {
+					absolute_original_path = r.fs.join(abs_base_url, absolute_original_path)
+				}
+				mut absolute, ok, diff_case := r.loadasfileordirectory(absolute_original_path)
+				if ok {
+					return absolute, true, diff_case
+				}
+			}
+			return PathPair{}, false, nil
+		}
+	}
+
+	mut longest_match_prefix_length := -1
+	mut longest_match_suffix_length := -1
+	mut longestMatch := 0
+	for key, original_paths in ts_config_json.paths.map {
+		mut star_index := key.index_byte(`*`)
+		if star_index != -1 {
+			mut prefix, suffix := key[..star_index], key[star_index + 1..]
+			if path.has_prefix(prefix) && path.has_suffix(suffix) && (
+				prefix.len > longest_match_prefix_length
+				|| prefix.len == longest_match_prefix_length
+				&& suffix.len > longest_match_suffix_length) {
+				longest_match_prefix_length = prefix.len
+				longest_match_suffix_length = suffix.len
+				longest_match = match_{
+					prefix:        prefix
+					suffix:        suffix
+					originalPaths: original_paths
+				}
+			}
+		}
+	}
+	if longest_match_prefix_length != -1 {
+		if r.debug_logs != nil {
+			r.debug_logs.addnote(strconv.v_sprintf('Found a fuzzy match for %q in "paths"',
+				longest_match.prefix + '*' + longest_match.suffix))
+		}
+		for _, original_path in longest_match.original_paths {
+			mut matched_text := path[longest_match.prefix.len..path.len - longest_match.suffix.len]
+			mut original_path2 := original_path.text.replace('*', matched_text, 1)
+			if has_case_insensitive_suffix(original_path, '.d.ts') {
+				if r.debug_logs != nil {
+					r.debug_logs.addnote(strconv.v_sprintf('Ignoring substitution %q because it ends in ".d.ts"',
+						original_path))
+				}
+				continue
+			}
+			mut absolute_original_path5049 := original_path
+			if !r.fs.isabs(original_path) {
+				absolute_original_path = r.fs.join(abs_base_url, original_path)
+			}
+			mut absolute5418, ok2409, diff_case6841 := r.loadasfileordirectory(absolute_original_path)
+			if ok {
+				return absolute, true, diff_case
+			}
+		}
+	}
+	return PathPair{}, false, nil
+}
+
+fn (r resolverQuery) load_package_imports(importPath string, dirInfoPackageJSON &DirInfo) (PathPair, bool, &fs.DifferentCase, &SideEffectsData) {
+	mut package_json := dir_info_package_json.package_json
+	if r.debug_logs != nil {
+		r.debug_logs.addnote(strconv.v_sprintf('Looking for %q in "imports" map in %q',
+			import_path, package_json.source.key_path.text))
+		r.debug_logs.increaseindent()
+		defer {
+			r.debug_logs.decrease_indent
+		}
+	}
+	if import_path == '#' || import_path.has_prefix('#/') {
+		if r.debug_logs != nil {
+			r.debug_logs.addnote(strconv.v_sprintf('The path %q must not equal "#" and must not start with "#/".',
+				import_path))
+		}
+		mut tracker := logger.makelinecolumntracker(&package_json.source)
+		r.debug_meta.notes << tracker.msgdata(package_json.imports_map.root.first_token,
+			strconv.v_sprintf('This "imports" map was ignored because the module specifier %q is invalid:',
+			import_path))
+		return PathPair{}, false, nil, nil
+	}
+	mut conditions := r.esm_conditions_default
+	match r.kind {
+		ast.import_stmt, ast.import_dynamic {
+			conditions = r.esm_conditions_import
+		}
+		ast.import_require, ast.import_require_resolve {
+			conditions = r.esm_conditions_require
+		}
+	}
+	mut resolved_path, status, debug := r.esmpackageimportsresolve(import_path, package_json.imports_map.root,
+		conditions)
+	resolved_path, status, debug = r.esmhandlepostconditions(resolved_path, status, debug)
+	if status == pj_status_package_resolve {
+		mut path_pair, ok, side_effects := r.checkforbuiltinnodemodules(resolved_path)
+		if ok {
+			return path_pair, true, nil, side_effects
+		}
+		mut absolute, ok9001, diff_case, side_effects3861 := r.loadnodemodules(resolved_path,
+			dir_info_package_json, true)
+		if !ok {
+			mut tracker1541 := logger.makelinecolumntracker(&package_json.source)
+			r.debug_meta.notes << r.debug_meta.notes
+		}
+		return absolute, ok, diff_case, side_effects
+	}
+	mut absolute741, ok9655, diff_case9018 := r.finalizeimportsexportsresult(finalize_imports_exports_normal,
+		dir_info_package_json.abs_path, conditions, &package_json.imports_map, package_json,
+		resolved_path, status, debug, '', '', '')
+	return absolute, ok, diff_case, nil
+}
+
+fn (r resolverQuery) esm_resolve_algorithm(kind finalizeImportsExportsKind, esmPackageName string, esmPackageSubpath string, packageJSON &PackageJSON, absPkgPath string, absPath string) (PathPair, bool, &fs.DifferentCase) {
+	if r.debug_logs != nil {
+		r.debug_logs.addnote(strconv.v_sprintf('Looking for %q in "exports" map in %q',
+			esm_package_subpath, package_json.source.key_path.text))
+		r.debug_logs.increaseindent()
+		defer {
+			r.debug_logs.decrease_indent
+		}
+	}
+	mut conditions := r.esm_conditions_default
+	match r.kind {
+		ast.import_stmt, ast.import_dynamic {
+			conditions = r.esm_conditions_import
+		}
+		ast.import_require, ast.import_require_resolve {
+			conditions = r.esm_conditions_require
+		}
+		ast.import_entry_point {
+			conditions = r.esm_conditions_import
+		}
+	}
+	mut resolved_path, status, debug := r.esmpackageexportsresolve('/', esm_package_subpath,
+		package_json.exports_map.root, conditions)
+	resolved_path, status, debug = r.esmhandlepostconditions(resolved_path, status, debug)
+	return r.finalizeimportsexportsresult(kind, abs_pkg_path, conditions, &package_json.exports_map,
+		package_json, resolved_path, status, debug, esm_package_name, esm_package_subpath,
+		abs_path)
+}
+
+fn (r resolverQuery) load_node_modules(importPath string, dirInfo &DirInfo, forbidImports bool) (PathPair, bool, &fs.DifferentCase, &SideEffectsData) {
+	if r.debug_logs != nil {
+		r.debug_logs.addnote(strconv.v_sprintf('Searching for %q in "node_modules" directories starting from %q',
+			import_path, dir_info.abs_path))
+		r.debug_logs.increaseindent()
+		defer {
+			r.debug_logs.decrease_indent
+		}
+	}
+	mut ts_config_json := r.tsconfigfordir(dir_info)
+	if ts_config_json != nil {
+		if ts_config_json.paths != nil {
+			mut absolute, ok, diff_case := r.matchtsconfigpaths(ts_config_json, import_path)
+			if ok {
+				return absolute, true, diff_case, nil
+			}
+		}
+		if ts_config_json.base_url != nil {
+			mut base_path := r.fs.join(&ts_config_json.base_url, import_path)
+			mut absolute8801, ok8486, diff_case9187 := r.loadasfileordirectory(base_path)
+			if ok {
+				return absolute, true, diff_case, nil
+			}
+		}
+	}
+	mut dir_info_package_json := dir_info
+	for dir_info_package_json != nil && dir_info_package_json.package_json == nil {
+		dir_info_package_json = dir_info_package_json.parent
+	}
+	if dir_info_package_json != nil && import_path.has_prefix('#') && !forbid_imports
+		&& dir_info_package_json.package_json.imports_map != nil {
+		return r.loadpackageimports(import_path, dir_info_package_json)
+	}
+	if r.options.external_packages && is_package_path(import_path) {
+		if r.debug_logs != nil {
+			r.debug_logs.addnote("Marking this path as external because it's a package path")
+		}
+		return PathPair{
+			Primary:    logger.Path{
+				Text: import_path
+			}
+			IsExternal: true
+		}, true, nil, nil
+	}
+	if r.pnp_manifest != nil {
+		mut result := r.resolvetounqualified(import_path, dir_info.abs_path, r.pnp_manifest)
+		if result.status.iserror() {
+			if r.debug_logs != nil {
+				r.debug_logs.addnote('The Yarn PnP path resolution algorithm returned an error')
+			}
+			match result.status {
+				pnp_error_dependency_not_found {
+					r.debug_meta.notes = [
+						r.pnp_manifest.tracker.msgdata(result.error_range, strconv.v_sprintf("The Yarn Plug'n'Play manifest forbids importing %q here because it's not listed as a dependency of this package:",
+							result.error_ident)),
+					]
+				}
+				pnp_error_unfulfilled_peer_dependency {
+					r.debug_meta.notes = [
+						r.pnp_manifest.tracker.msgdata(result.error_range, strconv.v_sprintf("The Yarn Plug'n'Play manifest says this package has a peer dependency on %q, but the package %q has not been installed:",
+							result.error_ident, result.error_ident)),
+					]
+				}
+			}
+			return PathPair{}, false, nil, nil
+		} else if result.status == pnp_success {
+			mut abs_path := r.fs.join(result.pkg_dir_path, result.pkg_subpath)
+			mut pkg_dir_info := r.dirinfocached(result.pkg_dir_path)
+			if pkg_dir_info != nil {
+				mut package_json := pkg_dir_info.package_json
+				if package_json != nil && package_json.exports_map != nil {
+					mut absolute4319, ok7920, diff_case4042 := r.esmresolvealgorithm(finalize_imports_exports_normal,
+						result.pkg_ident, '.' + result.pkg_subpath, package_json, pkg_dir_info.abs_path,
+						abs_path)
+					return absolute, ok, diff_case, nil
+				}
+				mut remapped, ok8897 := r.checkbrowsermap(pkg_dir_info, abs_path, absolute_path_kind)
+				if ok {
+					if remapped == nil {
+						return PathPair{
+							Primary: logger.Path{
+								Text:      abs_path
+								Namespace: 'file'
+								Flags:     logger.path_disabled
+							}
+						}, true, nil, nil
+					}
+					mut remapped_result, ok5696, diff_case350, side_effects := r.resolvewithoutremapping(pkg_dir_info.enclosing_browser_scope,
+						&remapped)
+					if ok {
+						return remapped_result, true, diff_case, side_effects
+					}
+				}
+				mut absolute2406, ok3462, diff_case7001 := r.loadasfileordirectory(abs_path)
+				if ok {
+					return absolute, true, diff_case, nil
+				}
+			}
+			if r.debug_logs != nil {
+				r.debug_logs.addnote(strconv.v_sprintf('Failed to resolve %q to a file',
+					abs_path))
+			}
+			return PathPair{}, false, nil, nil
+		}
+	}
+	mut esm_package_name, esm_package_subpath, esm_ok := esm_parse_package_name(import_path)
+	if r.debug_logs != nil && esm_ok {
+		r.debug_logs.addnote(strconv.v_sprintf('Parsed package name %q and package subpath %q',
+			esm_package_name, esm_package_subpath))
+	}
+	if dir_info_package_json != nil {
+		mut package_json_9442 := dir_info_package_json.package_json
+		if package_json.name == esm_package_name && package_json.exports_map != nil {
+			mut absolute4480, ok1078, diff_case85 := r.esmresolvealgorithm(finalize_imports_exports_normal,
+				esm_package_name, esm_package_subpath, package_json, dir_info_package_json.abs_path,
+				r.fs.join(dir_info_package_json.abs_path, esm_package_subpath))
+			return absolute, ok, diff_case, nil
+		}
+	}
+	mut try_to_resolve_package := fn (absDir string) {
+		mut abs_path222 := r.fs.join(abs_dir, import_path)
+		if r.debug_logs != nil {
+			r.debug_logs.addnote(strconv.v_sprintf('Checking for a package in the directory %q',
+				abs_path))
+		}
+		if esm_ok {
+			mut abs_pkg_path := r.fs.join(abs_dir, esm_package_name)
+			mut pkg_dir_info2055 := r.dirinfocached(abs_pkg_path)
+			if pkg_dir_info != nil {
+				mut package_json_8460 := pkg_dir_info.package_json
+				if package_json != nil && package_json.exports_map != nil {
+					mut absolute2213, ok1331, diff_case110 := r.esmresolvealgorithm(finalize_imports_exports_normal,
+						esm_package_name, esm_package_subpath, package_json, abs_pkg_path,
+						abs_path)
+					return absolute, ok, diff_case, nil, true
+				}
+				mut remapped2746, ok7335 := r.checkbrowsermap(pkg_dir_info, abs_path,
+					absolute_path_kind)
+				if ok {
+					if remapped == nil {
+						return PathPair{
+							Primary: logger.Path{
+								Text:      abs_path
+								Namespace: 'file'
+								Flags:     logger.path_disabled
+							}
+						}, true, nil, nil, true
+					}
+					mut remapped_result6489, ok9343, diff_case9353, side_effects969 := r.resolvewithoutremapping(pkg_dir_info.enclosing_browser_scope,
+						&remapped)
+					if ok {
+						return remapped_result, true, diff_case, side_effects, true
+					}
+				}
+			}
+		}
+		mut absolute6332, ok7423, diff_case6301 := r.loadasfileordirectory(abs_path)
+		if ok {
+			return absolute, true, diff_case, nil, true
+		}
+		return PathPair{}, false, nil, nil, false
+	}
+
+	for {
+		if dir_info.has_node_modules {
+			mut absolute888, ok8676, diff_case6124, side_effects9381, should_stop := try_to_resolve_package(r.fs.join(dir_info.abs_path,
+				'node_modules'))
+			if should_stop {
+				return absolute, ok, diff_case, side_effects
+			}
+		}
+		dir_info = dir_info.parent
+		if dir_info == nil {
+			break
+		}
+	}
+	for _, abs_dir in r.options.abs_node_paths {
+		mut absolute9006, ok9778, diff_case1806, side_effects5625, should_stop4613 := try_to_resolve_package(abs_dir)
+		if should_stop {
+			return absolute, ok, diff_case, side_effects
+		}
+	}
+	return PathPair{}, false, nil, nil
+}
+
+fn (r resolverQuery) check_for_built_in_node_modules(importPath string) (PathPair, bool, &SideEffectsData) {
+	if r.options.platform == config.platform_node && built_in_node_modules[import_path] {
+		if r.debug_logs != nil {
+			r.debug_logs.addnote('Marking this path as implicitly external due to it being a node built-in')
+		}
+		r.flushdebuglogs(flush_due_to_success)
+		return PathPair{
+			Primary:    logger.Path{
+				Text: import_path
+			}
+			IsExternal: true
+		}, true, &SideEffectsData{}
+	}
+	if r.options.platform == config.platform_node && import_path.has_prefix('node:') {
+		if r.debug_logs != nil {
+			r.debug_logs.addnote('Marking this path as implicitly external due to the "node:" prefix')
+		}
+		mut sideEffects := 0
+		if built_in_node_modules[import_path.trim_prefix('node:')] {
+			side_effects = &SideEffectsData{}
+		}
+		mut convert_import_to_require := !r.options.output_format.keepesmimportexportsyntax()
+		mut is_import := !convert_import_to_require && (r.kind == ast.import_stmt
+			|| r.kind == ast.import_dynamic)
+		mut is_require := r.kind == ast.import_require
+			|| r.kind == ast.import_require_resolve || convert_import_to_require
+			&& (r.kind == ast.import_stmt || r.kind == ast.import_dynamic)
+		if is_import && r.options.unsupported_jsf_eatures.has(compat.node_colon_prefix_import) {
+			if r.debug_logs != nil {
+				r.debug_logs.addnote('Removing the "node:" prefix because the target environment doesn\'t support it with "import" statements')
+			}
+			import_path = import_path[5..]
+		}
+		if is_require && r.options.unsupported_jsf_eatures.has(compat.node_colon_prefix_require) {
+			if r.debug_logs != nil {
+				r.debug_logs.addnote('Removing the "node:" prefix because the target environment doesn\'t support it with "require" calls')
+			}
+			import_path = import_path[5..]
+		}
+		r.flushdebuglogs(flush_due_to_success)
+		return PathPair{
+			Primary:    logger.Path{
+				Text: import_path
+			}
+			IsExternal: true
+		}, true, side_effects
+	}
+	return PathPair{}, false, nil
+}
+
+type finalizeImportsExportsKind = u8
+
+enum finalizeImportsExportsKind {
+	finalize_imports_exports_normal
+	finalize_imports_exports_yarn_pn_ptsc_onfig_extends
+}
+
+fn (r resolverQuery) finalize_imports_exports_result(kind finalizeImportsExportsKind, absDirPath string, conditions map[string]Bool, importExportMap pjMap, packageJSON &PackageJSON, resolvedPath string, status pjStatus, debug pjDebug, esmPackageName string, esmPackageSubpath string, absImportPath string) (PathPair, bool, &fs.DifferentCase) {
+	mut missing_suffix := ''
+	if (status == pj_status_exact || status == pj_status_exact_ends_with_star
+		|| status == pj_status_inexact) && resolved_path.has_prefix('/') {
+		mut abs_resolved_path := r.fs.join(abs_dir_path, resolved_path)
+		match status {
+			pj_status_exact, pj_status_exact_ends_with_star {
+				if r.debug_logs != nil {
+					r.debug_logs.addnote(strconv.v_sprintf('The resolved path %q is exact',
+						abs_resolved_path))
+				}
+				if kind == finalize_imports_exports_yarn_pn_ptsc_onfig_extends {
+					if r.debug_logs != nil {
+						r.debug_logs.addnote(strconv.v_sprintf('Resolved to %q', abs_resolved_path))
+					}
+					return PathPair{
+						Primary: logger.Path{
+							Text:      abs_resolved_path
+							Namespace: 'file'
+						}
+					}, true, nil
+				}
+				mut resolved_dir_info := r.dirinfocached(r.fs.dir(abs_resolved_path))
+				mut base := r.fs.base(abs_resolved_path)
+				mut extension_order := r.options.extension_order
+				if r.kind.mustresolvetocss() {
+					extension_order = r.css_extension_order
+				}
+				if resolved_dir_info == nil {
+					status = pj_status_module_not_found
+				} else {
+					mut entry, diff_case := resolved_dir_info.entries.get(base)
+					if entry == nil {
+						for old, exts in rewritten_file_extensions {
+							if !base.has_suffix(old) {
+								continue
+							}
+							mut last_dot := base.last_index_byte(`.`)
+							for _, ext in exts {
+								mut base_with_ext := base[..last_dot] + ext
+								entry, diff_case = resolved_dir_info.entries.get(base_with_ext)
+								if entry != nil {
+									abs_resolved_path = r.fs.join(resolved_dir_info.abs_path,
+										base_with_ext)
+									break
+								}
+							}
+							break
+						}
+					}
+					if entry == nil {
+						mut ends_with_star := status == pj_status_exact_ends_with_star
+						status = pj_status_module_not_found
+						if ends_with_star {
+							for _, ext in extension_order {
+								mut entry3035, _ := resolved_dir_info.entries.get(base + ext)
+								if entry != nil {
+									if r.debug_logs != nil {
+										r.debug_logs.addnote(strconv.v_sprintf('The import %q is missing the extension %q',
+											path.join(esm_package_name, esm_package_subpath),
+											ext))
+									}
+									status = pj_status_module_not_found_missing_extension
+									missing_suffix = ext
+									break
+								}
+							}
+						}
+					} else {
+						mut kindxx := entry.kind(r.fs)
+						if kindxx == fs.dir_entry {
+							if r.debug_logs != nil {
+								r.debug_logs.addnote(strconv.v_sprintf('The path %q is a directory, which is not allowed',
+									abs_resolved_path))
+							}
+							mut ends_with_star56 := status == pj_status_exact_ends_with_star
+							status = pj_status_unsupported_directory_import
+							if ends_with_star {
+								mut resolved_dir_info5572 := r.dirinfocached(abs_resolved_path)
+								if resolved_dir_info != nil {
+									for _, ext in extension_order {
+										mut base9184 := 'index' + ext
+										mut entry247, _ := resolved_dir_info.entries.get(base)
+										if entry != nil && entry.kind(r.fs) == fs.file_entry {
+											status = pj_status_unsupported_directory_import_missing_index
+											missing_suffix = '/' + base
+											if r.debug_logs != nil {
+												r.debug_logs.addnote(strconv.v_sprintf('The import %q is missing the suffix %q',
+													path.join(esm_package_name, esm_package_subpath),
+													missing_suffix))
+											}
+											break
+										}
+									}
+								}
+							}
+						} else if kind != fs.file_entry {
+							status = pj_status_module_not_found
+						} else {
+							if r.debug_logs != nil {
+								r.debug_logs.addnote(strconv.v_sprintf('Resolved to %q',
+									abs_resolved_path))
+							}
+							return PathPair{
+								Primary: logger.Path{
+									Text:      abs_resolved_path
+									Namespace: 'file'
+								}
+							}, true, diff_case
+						}
+					}
+				}
+			}
+			pj_status_inexact {
+				if r.debug_logs != nil {
+					r.debug_logs.addnote(strconv.v_sprintf('The resolved path %q is inexact',
+						abs_resolved_path))
+				}
+				mut absolute, ok, diff_case969 := r.loadasfileordirectory(abs_resolved_path)
+				if ok {
+					return absolute, true, diff_case
+				}
+				status = pj_status_module_not_found
+			}
+		}
+	}
+	if resolved_path.has_prefix('/') {
+		resolved_path = '.' + resolved_path
+	}
+	mut tracker := logger.makelinecolumntracker(&package_json.source)
+	match status {
+		pj_status_invalid_module_specifier {
+			r.debug_meta.notes = [
+				tracker.msgdata(debug.token, strconv.v_sprintf('The module specifier %q is invalid%s:',
+					resolved_path, debug.invalid_because)),
+			]
+		}
+		pj_status_invalid_package_configuration {
+			r.debug_meta.notes = [
+				tracker.msgdata(debug.token, 'The package configuration has an invalid value here:'),
+			]
+		}
+		pj_status_invalid_package_target {
+			mut why := strconv.v_sprintf('The package target %q is invalid%s:', resolved_path,
+				debug.invalid_because)
+			if resolved_path == '' {
+				why = 'The package configuration has an invalid value here:'
+			}
+			r.debug_meta.notes = [tracker.msgdata(debug.token, why)]
+		}
+		pj_status_package_path_not_exported {
+			if debug.is_because_of_null_literal {
+				r.debug_meta.notes = [
+					tracker.msgdata(debug.token, strconv.v_sprintf('The path %q cannot be imported from package %q because it was explicitly disabled by the package author here:',
+						esm_package_subpath, esm_package_name)),
+				]
+				break
+			}
+			r.debug_meta.notes = [
+				tracker.msgdata(debug.token, strconv.v_sprintf('The path %q is not exported by package %q:',
+					esm_package_subpath, esm_package_name)),
+			]
+			mut absolute7912, ok3641, _ := r.loadasfileordirectory(abs_import_path)
+			if ok && absolute.primary.namespace == 'file' {
+				mut rel_path, ok5947 := r.fs.rel(abs_dir_path, absolute.primary.text)
+				if ok {
+					mut query := '.' + path.join('/', rel_path.replace_all('\\', '/'))
+					mut ok2589, subpath, token := r.esmpackageexportsreverseresolve(query,
+						import_export_map.root, conditions)
+					if ok {
+						r.debug_meta.notes << tracker.msgdata(token, strconv.v_sprintf('The file %q is exported at path %q:',
+							query, subpath))
+						mut actual_import_path := path.join(esm_package_name, subpath)
+						r.debug_meta.suggestion_text = helpers.quoteforjson(actual_import_path,
+							false).str()
+
+						r.debug_meta.suggestion_message = strconv.v_sprintf('Import from %q to get the file %q:',
+							actual_import_path, pretty_path(r.fs, absolute.primary))
+					}
+				}
+			}
+		}
+		pj_status_package_import_not_defined {
+			r.debug_meta.notes = [
+				tracker.msgdata(debug.token, strconv.v_sprintf('The package import %q is not defined in this "imports" map:',
+					resolved_path)),
+			]
+		}
+		pj_status_module_not_found, pj_status_module_not_found_missing_extension {
+			r.debug_meta.notes = [
+				tracker.msgdata(debug.token, strconv.v_sprintf('The module %q was not found on the file system:',
+					resolved_path)),
+			]
+			if status == pj_status_module_not_found_missing_extension {
+				mut actual_import_path833 := path.join(esm_package_name, esm_package_subpath +
+					missing_suffix)
+				r.debug_meta.suggestion_range = suggestion_range_end
+				r.debug_meta.suggestion_text = missing_suffix
+				r.debug_meta.suggestion_message = strconv.v_sprintf('Import from %q to get the file %q:',
+					actual_import_path, pretty_path(r.fs, logger.Path{
+					Text:      r.fs.join(abs_dir_path, resolved_path + missing_suffix)
+					Namespace: 'file'
+				}))
+			}
+		}
+		pj_status_unsupported_directory_import,
+		pj_status_unsupported_directory_import_missing_index {
+			r.debug_meta.notes = [
+				tracker.msgdata(debug.token, strconv.v_sprintf('Importing the directory %q is forbidden by this package:',
+					resolved_path)),
+				tracker.msgdata(package_json.source.rangeofstring(import_export_map.property_key_loc),
+					strconv.v_sprintf('The presence of %q here makes importing a directory forbidden:',
+					import_export_map.property_key)),
+			]
+			if status == pj_status_unsupported_directory_import_missing_index {
+				mut actual_import_path4333 := path.join(esm_package_name, esm_package_subpath +
+					missing_suffix)
+				r.debug_meta.suggestion_range = suggestion_range_end
+				r.debug_meta.suggestion_text = missing_suffix
+				r.debug_meta.suggestion_message = strconv.v_sprintf('Import from %q to get the file %q:',
+					actual_import_path, pretty_path(r.fs, logger.Path{
+					Text:      r.fs.join(abs_dir_path, resolved_path + missing_suffix)
+					Namespace: 'file'
+				}))
+			}
+		}
+		pj_status_undefined_no_conditions_match {
+			mut keys := []string{len: 0, cap: Conditions.len}
+			for key, _ in conditions {
+				keys << key
+			}
+			sort.strings(keys)
+			mut unmatched_conditions := []string{len: debug.UnmatchedConditions.len}
+			for i, key in debug.unmatched_conditions {
+				unmatched_conditions[i] = key.text
+			}
+			r.debug_meta.notes = [
+				tracker.msgdata(import_export_map.root.first_token, strconv.v_sprintf('The path %q is not currently exported by package %q:',
+					esm_package_subpath, esm_package_name)),
+				tracker.msgdata(debug.token, strconv.v_sprintf('None of the conditions in the package definition (%s) match any of the currently active conditions (%s):',
+					helpers.stringarraytoquotedcommaseparatedstring(unmatched_conditions),
+					helpers.stringarraytoquotedcommaseparatedstring(keys))),
+			]
+			mut did_suggest_enabling_condition := false
+			for _, key in debug.unmatched_conditions {
+				match key.text {
+					'import' {
+						if r.kind == ast.import_require || r.kind == ast.import_require_resolve {
+							r.debug_meta.suggestion_message =
+								'Consider using an "import" statement to import this file, ' +
+								'which will work because the "import" condition is supported by this package:'
+						}
+					}
+					'require' {
+						if r.kind == ast.import_stmt || r.kind == ast.import_dynamic {
+							r.debug_meta.suggestion_message =
+								'Consider using a "require()" call to import this file, ' +
+								'which will work because the "require" condition is supported by this package:'
+						}
+					}
+					else {
+						if !did_suggest_enabling_condition && key.text != 'types' {
+							mut how := 0
+							match logger.api {
+								logger.cliapi {
+									how = strconv.v_sprintf('"--conditions=%s"', key.text)
+								}
+								logger.jsapi {
+									how = strconv.v_sprintf('"conditions: [\'%s\']"',
+										key.text)
+								}
+								logger.go_api {
+									how = strconv.v_sprintf("'Conditions: []string{%q}'",
+										key.text)
+								}
+							}
+							r.debug_meta.notes << tracker.msgdata(key.range, strconv.v_sprintf(
+								'Consider enabling the %q condition if this package expects it to be enabled. ' +
+								'You can use %s to do that:', key.text, how))
+							did_suggest_enabling_condition = true
+						}
+					}
+				}
+			}
+		}
+	}
+	return PathPair{}, false, nil
+}
+
+// Package paths are loaded from a "node_modules" directory. Non-package paths
+// are relative or absolute paths.
+pub fn is_package_path(path string) bool {
+	return !path.has_prefix('/') && !path.has_prefix('./') && !path.has_prefix('../') && path != '.'
+		&& path != '..'
+}
+
+// This list can be obtained with the following command:
+//
+//	node --experimental-wasi-unstable-preview1 -p "[...require('module').builtinModules].join('\n')"
+//
+// Be sure to use the *LATEST* version of node when updating this list!
+__global BuiltInNodeModules = {
+	'_http_agent':         true
+	'_http_client':        true
+	'_http_common':        true
+	'_http_incoming':      true
+	'_http_outgoing':      true
+	'_http_server':        true
+	'_stream_duplex':      true
+	'_stream_passthrough': true
+	'_stream_readable':    true
+	'_stream_transform':   true
+	'_stream_wrap':        true
+	'_stream_writable':    true
+	'_tls_common':         true
+	'_tls_wrap':           true
+	'assert':              true
+	'assert/strict':       true
+	'async_hooks':         true
+	'buffer':              true
+	'child_process':       true
+	'cluster':             true
+	'console':             true
+	'constants':           true
+	'crypto':              true
+	'dgram':               true
+	'diagnostics_channel': true
+	'dns':                 true
+	'dns/promises':        true
+	'domain':              true
+	'events':              true
+	'fs':                  true
+	'fs/promises':         true
+	'http':                true
+	'http2':               true
+	'https':               true
+	'inspector':           true
+	'module':              true
+	'net':                 true
+	'os':                  true
+	'path':                true
+	'path/posix':          true
+	'path/win32':          true
+	'perf_hooks':          true
+	'process':             true
+	'punycode':            true
+	'querystring':         true
+	'readline':            true
+	'repl':                true
+	'stream':              true
+	'stream/consumers':    true
+	'stream/promises':     true
+	'stream/web':          true
+	'string_decoder':      true
+	'sys':                 true
+	'timers':              true
+	'timers/promises':     true
+	'tls':                 true
+	'trace_events':        true
+	'tty':                 true
+	'url':                 true
+	'util':                true
+	'util/types':          true
+	'v8':                  true
+	'vm':                  true
+	'wasi':                true
+	'worker_threads':      true
+	'zlib':                true
+}

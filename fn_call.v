@@ -140,7 +140,7 @@ fn (mut app App) selector_expr_fn_call(call CallExpr, sel SelectorExpr) {
 fn (mut app App) selector_xxx(sel SelectorExpr) {
 	app.expr(sel.x)
 	app.gen('.')
-	mut sel_name := sel.sel.name.to_lower()
+	mut sel_name := sel.sel.name //.to_lower()
 	if sel_name == 'string' {
 		sel_name = 'str'
 	}

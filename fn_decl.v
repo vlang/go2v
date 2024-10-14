@@ -30,6 +30,7 @@ fn (mut app App) func_decl(decl FuncDecl) {
 			app.gen('mut _ ')
 		} else {
 			recv_name := decl.recv.list[0].names[0].name
+			app.cur_fn_names[recv_name] = true // Register the receiver in this scope, since some people shadow receivers too!
 
 			app.gen(recv_name + ' ')
 		}
@@ -83,12 +84,20 @@ fn (mut app App) func_params(params FieldList) {
 	// app.gen(p)
 	// println(app.sb.str())
 	for i, param in params.list {
-		for j, name in param.names {
-			app.gen(name.name)
-			app.gen(' ')
+		// param names can be missing. V doesn't allow that, so use `_`
+		// param_names := if param.names.len > 0 { param.names } else { [Ident{name'_'] }
+		if param.names.len == 0 {
+			app.gen('_ ')
 			app.typ(param.typ)
-			if j < param.names.len - 1 {
-				app.gen(',')
+		} else {
+			for j, name in param.names {
+				app.gen(name.name)
+				app.gen(' ')
+				app.force_upper = true
+				app.typ(param.typ)
+				if j < param.names.len - 1 {
+					app.gen(',')
+				}
 			}
 		}
 		// app.gen(type_or_ident(param.typ))
@@ -109,7 +118,8 @@ fn (mut app App) comments(doc Doc) {
 }
 
 fn (mut app App) func_lit(node FuncLit) {
-	app.gen('fn')
+	app.gen('fn ')
 	app.func_params(node.typ.params)
+	// app.genln('/*params=${node.typ.params} */')
 	app.block_stmt(node.body)
 }

@@ -4,6 +4,7 @@
 fn (mut app App) expr(expr Expr) {
 	match expr {
 		InvalidExpr {
+			print_backtrace()
 			eprintln('> invalid expression encountered')
 		}
 		BasicLit {
@@ -54,6 +55,9 @@ fn (mut app App) expr(expr Expr) {
 		}
 		FuncType {
 			app.func_type(expr)
+		}
+		TypeAssertExpr {
+			app.type_assert_expr(expr)
 		}
 	}
 }
@@ -127,9 +131,14 @@ fn (mut app App) paren_expr(p ParenExpr) {
 	app.gen(')')
 }
 
+fn (mut app App) type_assert_expr(t TypeAssertExpr) {
+	// TODO more?
+	app.expr(t.x)
+}
+
 fn (mut app App) key_value_expr(expr KeyValueExpr) {
 	if expr.key is Ident {
-		app.gen('\t${expr.key.name}: ')
+		app.gen('\t${app.go2v_ident(expr.key.name)}: ')
 	} else {
 		app.expr(expr.key)
 		app.gen(': ')
@@ -178,8 +187,17 @@ fn (mut app App) map_type(node MapType) {
 	app.force_upper = false
 }
 
+fn (mut app App) chan_type(node ChanType) {
+	app.gen('chan ')
+	app.expr(node.value)
+}
+
 fn (mut app App) star_expr(node StarExpr) {
-	app.gen('&')
+	if app.no_star {
+		app.no_star = false
+	} else {
+		app.gen('&')
+	}
 	app.expr(node.x)
 }
 

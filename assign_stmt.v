@@ -1,6 +1,33 @@
 // Copyright (c) 2024 Alexander Medvednikov. All rights reserved.
 // Use of this source code is governed by a GPL license that can be found in the LICENSE file.
-import rand
+
+fn (mut app App) unique_name_anti_shadow(n string) string {
+	if n == '_' {
+		return '_'
+	}
+	if app.running_test {
+		return n
+	}
+	if n !in app.cur_fn_names {
+		return n
+	}
+	// Increase the i in `name_i` until it's unique.
+	mut i := 1
+	mut res := ''
+	for {
+		res = '${n}_${i}'
+
+		if res !in app.cur_fn_names {
+			break
+		}
+		i++
+		if i > 100 {
+			panic('100 levels of shadowing, that cannot be real!')
+		}
+	}
+	// res := n + rand.intn(10000) or { 0 }.str() // LOL fix this
+	return res
+}
 
 fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
 	for l_idx, lhs_expr in assign.lhs {
@@ -24,15 +51,20 @@ fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
 			// Handle shadowing
 			mut n := lhs_expr.name
 			if assign.tok == ':=' && n != '_' && n in app.cur_fn_names {
-				n += rand.intn(10000) or { 0 }.str() // LOL fix this
+				n = app.unique_name_anti_shadow(n)
 			}
-
 			app.cur_fn_names[n] = true
+
 			new_ident := Ident{
 				...lhs_expr
 				name: n
 			}
-			app.ident(new_ident) // lhs_expr)
+			// app.ident(app.go2v_ident(new_ident))
+			app.ident(new_ident)
+		} else if lhs_expr is StarExpr {
+			// Can't use star_expr(), since it generates &
+			app.gen('*')
+			app.expr(lhs_expr.x)
 		} else {
 			app.expr(lhs_expr)
 		}
@@ -43,7 +75,9 @@ fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
 	}
 	//
 	app.gen(assign.tok)
+	// app.gen('/*F*/')
 	for r_idx, rhs_expr in assign.rhs {
+		// app.genln('/* ${rhs_expr} */')
 		// app.gen('ridx=${r_idx}')
 		mut needs_close_paren := false
 		if r_idx == 0 {
@@ -73,12 +107,16 @@ fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
 }
 
 fn (mut app App) check_and_handle_append(assign AssignStmt) bool {
+	if assign.rhs.len == 0 {
+		app.genln('// append no rhs')
+		return false
+	}
 	first_rhs := assign.rhs[0]
 	if first_rhs is CallExpr {
 		fun := first_rhs.fun
 		if fun is Ident {
 			if fun.name == 'append' {
-				app.gen_append(first_rhs.args)
+				app.gen_append(first_rhs.args, assign.tok)
 				return true
 			}
 		}
@@ -86,7 +124,20 @@ fn (mut app App) check_and_handle_append(assign AssignStmt) bool {
 	return false
 }
 
-fn (mut app App) gen_append(args []Expr) {
+fn (mut app App) gen_append(args []Expr, assign_tok string) {
+	// Handle special case `mut x := arr.clone()`
+	// In Go it's
+	// `append([]Foo{}, foo...)`
+
+	arg0 := args[0]
+	if arg0 is CompositeLit && arg0.typ is ArrayType {
+		app.gen(' ${assign_tok} ')
+		app.expr(args[1])
+		app.gen('.')
+		app.genln('clone()')
+		return
+	}
+
 	app.gen(' << ')
 	if args.len == 2 {
 		app.expr(args[1])

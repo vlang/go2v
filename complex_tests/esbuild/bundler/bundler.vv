@@ -1,0 +1,2864 @@
+module bundler
+
+import bytes
+import encoding.base32
+import encoding.base64
+import math.rand
+import net.http
+import sort
+import sync
+import syscall
+import time
+import unicode
+import unicode.utf8
+import ast // local module
+import cache // local module
+import compat // local module
+import config // local module
+import css_parser // local module
+import fs // local module
+import graph // local module
+import helpers // local module
+import js_ast // local module
+import js_lexer // local module
+import js_parser // local module
+import logger // local module
+import resolver // local module
+import runtime // local module
+import sourcemap // local module
+import xxhash // local module
+
+struct scannerFile {
+pub mut:
+	// If "AbsMetadataFile" is present, this will be filled out with information
+	// about this file in JSON format. This is a partial JSON file that will be
+	// fully assembled later.
+	json_metadata_chunk string
+	plugin_data         voidptr
+	input_file          graph.InputFile
+}
+
+// This is data related to source maps. It's computed in parallel with linking
+// and must be ready by the time printing happens. This is beneficial because
+// it is somewhat expensive to produce.
+struct DataForSourceMap {
+pub mut:
+	// This data is for the printer. It maps from byte offsets in the file (which
+	// are stored at every AST node) to UTF-16 column offsets (required by source
+	// maps).
+	line_offset_tables []sourcemap.LineOffsetTable
+	// This contains the quoted contents of the original source file. It's what
+	// needs to be embedded in the "sourcesContent" array in the final source
+	// map. Quoting is precomputed because it's somewhat expensive.
+	quoted_contents [][]u8
+}
+
+struct Bundle {
+pub mut:
+	// The unique key prefix is a random string that is unique to every bundling
+	// operation. It is used as a prefix for the unique keys assigned to every
+	// chunk during linking. These unique keys are used to identify each chunk
+	// before the final output paths have been computed.
+	unique_key_prefix string
+	fs                fs.FS
+	res               &resolver.Resolver = unsafe { nil }
+	files             []scannerFile
+	entry_points      []graph.EntryPoint
+	options           config.Options
+}
+
+struct parseArgs {
+pub mut:
+	fs                fs.FS
+	log               logger.Log
+	res               &resolver.Resolver = unsafe { nil }
+	caches            &cache.CacheSet    = unsafe { nil }
+	pretty_path       string
+	import_source     &logger.Source          = unsafe { nil }
+	import_with       &ast.ImportAssertOrWith = unsafe { nil }
+	side_effects      graph.SideEffects
+	plugin_data       voidptr
+	results           chan ParseResult
+	inject            chan config.InjectedFile
+	unique_key_prefix string
+	key_path          logger.Path
+	options           config.Options
+	import_path_range logger.Range
+	source_index      u32
+	skip_resolve      bool
+}
+
+struct parseResult {
+pub mut:
+	resolve_results      []&resolver.ResolveResult
+	glob_resolve_results map[Uint32]GlobResolveResult
+	file                 scannerFile
+	tla_check            tlaCheck
+	ok                   bool
+}
+
+struct globResolveResult {
+pub mut:
+	resolve_results map[string]resolver.ResolveResult
+	abs_path        string
+	pretty_path     string
+	export_alias    string
+}
+
+struct tlaCheck {
+pub mut:
+	parent              ast.Index32
+	depth               u32
+	import_record_index u32
+}
+
+fn parse_file(args parseArgs) {
+	mut source := logger.Source{
+		Index:          args.source_index
+		KeyPath:        args.key_path
+		PrettyPath:     args.pretty_path
+		IdentifierName: js_ast.generate_non_unique_name_from_path(args.key_path.text)
+	}
+	mut loader := 0
+	mut absResolveDir := 0
+	mut pluginName := 0
+	mut pluginData := 0
+	mut stdin := args.options.stdin
+	if stdin != nil {
+		source.contents = stdin.contents
+		loader = stdin.loader
+		if loader == config.loader_none {
+			loader = config.loader_js
+		}
+		abs_resolve_dir = args.options.stdin.abs_resolve_dir
+	} else {
+		mut result, ok := run_on_load_plugins(args.options.plugins, args.fs, &args.caches.fsc_ache,
+			args.log, &source, args.import_source, args.import_path_range, args.plugin_data,
+			args.options.watch_mode)
+		if !ok {
+			if args.inject != nil {
+				// unhandled in stmt: unknown sum type value
+			}
+			if args.inject != nil {
+				// unhandled in stmt: unknown sum type value
+			}
+			return
+		}
+		loader = result.loader
+		abs_resolve_dir = result.abs_resolve_dir
+		plugin_name = result.plugin_name
+		plugin_data = result.plugin_data
+	}
+	_, base, ext := logger.platform_independent_path_dir_base_ext(source.key_path.text)
+	if loader == config.loader_default {
+		loader = loader_from_file_extension(args.options.extension_to_loader, base + ext)
+	}
+	if loader != config.loader_copy && plugin_name == '' {
+		for _, attr in source.key_path.import_attributes.decode_into_array() {
+			mut errorText := 0
+			mut errorRange := 0
+			if attr.key != 'type' {
+				error_text = strconv.v_sprintf('Importing with the %q attribute is not supported',
+					attr.key)
+				error_range = js_lexer.key_range
+			} else if attr.value == 'json' {
+				loader = config.loader_with_type_json
+				continue
+			} else {
+				error_text = strconv.v_sprintf('Importing with a type attribute of %q is not supported',
+					attr.value)
+				error_range = js_lexer.value_range
+			}
+			mut r := args.import_path_range
+			if args.import_with != nil {
+				r = js_lexer.range_of_import_assert_or_with(&args.import_source, &ast.find_assert_or_with_entry(args.import_with.entries,
+					attr.key), error_range)
+			}
+			mut tracker := logger.make_line_column_tracker(args.import_source)
+			args.log.add_error(&tracker, r, error_text)
+			if args.inject != nil {
+				// unhandled in stmt: unknown sum type value
+			}
+			if args.inject != nil {
+				// unhandled in stmt: unknown sum type value
+			}
+			return
+		}
+	}
+	if loader == config.loader_empty {
+		source.contents = ''
+	}
+	mut result2583 := ParseResult{
+		file: ScannerFile{
+			inputFile:  graph.InputFile{
+				Source:      source
+				Loader:      loader
+				SideEffects: args.side_effects
+			}
+			pluginData: plugin_data
+		}
+	}
+	defer {
+		mut r4742 := recover()
+		if r != nil {
+			args.log.add_error_with_notes(nil, logger.Range{}, strconv.v_sprintf('panic: %v (while parsing %q)',
+				r, source.pretty_path), [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+			])
+			args.log.add_error_with_notes(nil, logger.Range{}, strconv.v_sprintf('panic: %v (while parsing %q)',
+				r, source.pretty_path), [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+			])
+		}
+	}
+	match loader {
+		config.loader_js, config.loader_empty {
+			mut ast, ok8594 := args.caches.jsc_ache.parse(args.log, source, js_parser.options_from_config(&args.options))
+			if ast.parts.len <= 1 {
+				result.file.input_file.side_effects.kind = graph.no_side_effects_empty_ast
+			}
+			result.file.input_file.repr = &graph.JSRepr{
+				AST: ast
+			}
+			result.ok = ok
+		}
+		config.loader_jsx {
+			args.options.jsx.parse = true
+			mut ast3063, ok2644 := args.caches.jsc_ache.parse(args.log, source, js_parser.options_from_config(&args.options))
+			if ast.parts.len <= 1 {
+				result.file.input_file.side_effects.kind = graph.no_side_effects_empty_ast
+			}
+			result.file.input_file.repr = &graph.JSRepr{
+				AST: ast
+			}
+			result.ok = ok
+		}
+		config.loader_ts, config.loader_tsn_o_ambiguous_less_than {
+			args.options.ts.parse = true
+			args.options.ts.no_ambiguous_less_than = loader == config.loader_tsn_o_ambiguous_less_than
+			mut ast2289, ok7327 := args.caches.jsc_ache.parse(args.log, source, js_parser.options_from_config(&args.options))
+			if ast.parts.len <= 1 {
+				result.file.input_file.side_effects.kind = graph.no_side_effects_empty_ast
+			}
+			result.file.input_file.repr = &graph.JSRepr{
+				AST: ast
+			}
+			result.ok = ok
+		}
+		config.loader_tsx {
+			args.options.ts.parse = true
+			args.options.jsx.parse = true
+			mut ast5306, ok4536 := args.caches.jsc_ache.parse(args.log, source, js_parser.options_from_config(&args.options))
+			if ast.parts.len <= 1 {
+				result.file.input_file.side_effects.kind = graph.no_side_effects_empty_ast
+			}
+			result.file.input_file.repr = &graph.JSRepr{
+				AST: ast
+			}
+			result.ok = ok
+		}
+		config.loader_css, config.loader_global_css, config.loader_local_css {
+			mut ast2142 := args.caches.cssc_ache.parse(args.log, source, css_parser.options_from_config(loader,
+				&args.options))
+			result.file.input_file.repr = &graph.CSSRepr{
+				AST: ast
+			}
+			result.ok = true
+		}
+		config.loader_json, config.loader_with_type_json {
+			mut expr, ok684 := args.caches.jsonc_ache.parse(args.log, source, js_parser.JSONOptions{
+				UnsupportedJSFeatures: args.options.unsupported_jsf_eatures
+			})
+			mut ast3088 := js_parser.lazy_export_ast(args.log, source, js_parser.options_from_config(&args.options),
+				expr, '')
+			if loader == config.loader_with_type_json {
+				ast.exports_kind = js_ast.exports_esm
+			}
+			if plugin_name != '' {
+				result.file.input_file.side_effects.kind = graph.no_side_effects_pure_data_from_plugin
+			} else {
+				result.file.input_file.side_effects.kind = graph.no_side_effects_pure_data
+			}
+			result.file.input_file.repr = &graph.JSRepr{
+				AST: ast
+			}
+			result.ok = ok
+		}
+		config.loader_text {
+			println('LOL')
+			mut encoded := ''
+			mut expr805 := js_ast.Expr{
+				Data: &js_ast.EString{
+					Value: helpers.string_to_utf_16(source.contents)
+				}
+			}
+			mut ast2344 := js_parser.lazy_export_ast(args.log, source, js_parser.options_from_config(&args.options),
+				expr, '')
+			ast.urlf_or_css = 'data:text/plain;base64,' + encoded
+			if plugin_name != '' {
+				result.file.input_file.side_effects.kind = graph.no_side_effects_pure_data_from_plugin
+			} else {
+				result.file.input_file.side_effects.kind = graph.no_side_effects_pure_data
+			}
+			result.file.input_file.repr = &graph.JSRepr{
+				AST: ast
+			}
+			result.ok = true
+		}
+		config.loader_base64 {
+			mut mime_type := guess_mime_type(ext, source.contents)
+			mut encoded9491 := base64.std_encoding.encode_to_string(source.contents)
+			mut expr8212 := js_ast.Expr{
+				Data: &js_ast.EString{
+					Value: helpers.string_to_utf_16(encoded)
+				}
+			}
+			mut ast197 := js_parser.lazy_export_ast(args.log, source, js_parser.options_from_config(&args.options),
+				expr, '')
+			ast.urlf_or_css = 'data:' + mime_type + ';base64,' + encoded
+			if plugin_name != '' {
+				result.file.input_file.side_effects.kind = graph.no_side_effects_pure_data_from_plugin
+			} else {
+				result.file.input_file.side_effects.kind = graph.no_side_effects_pure_data
+			}
+			result.file.input_file.repr = &graph.JSRepr{
+				AST: ast
+			}
+			result.ok = true
+		}
+		config.loader_binary {
+			mut encoded7012 := base64.std_encoding.encode_to_string((source.contents))
+			mut expr8426 := js_ast.Expr{
+				Data: &js_ast.EString{
+					Value: helpers.string_to_utf_16(encoded)
+				}
+			}
+			mut helper := '__toBinary'
+			if args.options.platform == config.platform_node {
+				helper = '__toBinaryNode'
+			}
+			mut ast3301 := js_parser.lazy_export_ast(args.log, source, js_parser.options_from_config(&args.options),
+				expr, helper)
+			ast.urlf_or_css = 'data:application/octet-stream;base64,' + encoded
+			if plugin_name != '' {
+				result.file.input_file.side_effects.kind = graph.no_side_effects_pure_data_from_plugin
+			} else {
+				result.file.input_file.side_effects.kind = graph.no_side_effects_pure_data
+			}
+			result.file.input_file.repr = &graph.JSRepr{
+				AST: ast
+			}
+			result.ok = true
+		}
+		config.loader_data_url {
+			mut mime_type5625 := guess_mime_type(ext, source.contents)
+			mut url := helpers.encode_string_as_shortest_data_url(mime_type, source.contents)
+			mut expr7849 := js_ast.Expr{
+				Data: &js_ast.EString{
+					Value: helpers.string_to_utf_16(url)
+				}
+			}
+			mut ast42 := js_parser.lazy_export_ast(args.log, source, js_parser.options_from_config(&args.options),
+				expr, '')
+			ast.urlf_or_css = url
+			if plugin_name != '' {
+				result.file.input_file.side_effects.kind = graph.no_side_effects_pure_data_from_plugin
+			} else {
+				result.file.input_file.side_effects.kind = graph.no_side_effects_pure_data
+			}
+			result.file.input_file.repr = &graph.JSRepr{
+				AST: ast
+			}
+			result.ok = true
+		}
+		config.loader_file {
+			mut unique_key := strconv.v_sprintf('%sA%08d', args.unique_key_prefix, args.source_index)
+			mut unique_key_path := unique_key + source.key_path.ignored_suffix
+			mut expr6392 := js_ast.Expr{
+				Data: &js_ast.EString{
+					Value:             helpers.string_to_utf_16(unique_key_path)
+					ContainsUniqueKey: true
+				}
+			}
+			mut ast5486 := js_parser.lazy_export_ast(args.log, source, js_parser.options_from_config(&args.options),
+				expr, '')
+			ast.urlf_or_css = unique_key_path
+			if plugin_name != '' {
+				result.file.input_file.side_effects.kind = graph.no_side_effects_pure_data_from_plugin
+			} else {
+				result.file.input_file.side_effects.kind = graph.no_side_effects_pure_data
+			}
+			result.file.input_file.repr = &graph.JSRepr{
+				AST: ast
+			}
+			result.ok = true
+			result.file.input_file.unique_key_for_additional_file = unique_key
+		}
+		config.loader_copy {
+			mut unique_key5592 := strconv.v_sprintf('%sA%08d', args.unique_key_prefix,
+				args.source_index)
+			mut unique_key_path9100 := unique_key + source.key_path.ignored_suffix
+			result.file.input_file.repr = &graph.CopyRepr{
+				URLForCode: unique_key_path
+			}
+			result.ok = true
+			result.file.input_file.unique_key_for_additional_file = unique_key
+		}
+		else {
+			mut message := 0
+			if source.key_path.namespace == 'file' && ext != '' {
+				message = strconv.v_sprintf('No loader is configured for %q files: %s',
+					ext, source.pretty_path)
+			} else {
+				message = strconv.v_sprintf('Do not know how to load path: %s', source.pretty_path)
+			}
+			mut tracker7189 := logger.make_line_column_tracker(args.import_source)
+			args.log.add_error(&tracker, args.import_path_range, message)
+		}
+	}
+	if result.ok {
+		mut records_ptr := result.file.input_file.repr.import_records()
+		if args.options.mode == config.mode_bundle && !args.skip_resolve && records_ptr != nil {
+			mut records := &records_ptr.clone()
+			*records_ptr = records
+			result.resolve_results = []&resolver.ResolveResult{len: records.len}
+			if records.len > 0 {
+				mut resolver_cache := map[CacheKey]CacheEntry{}
+				mut tracker2841 := logger.make_line_column_tracker(&source)
+				for import_record_index, _ in records {
+					mut record := &records[import_record_index]
+					if record.source_index.is_valid() {
+						continue
+					}
+					mut attrs := 0
+					if record.assert_or_with != nil && record.assert_or_with.keyword == ast.with_keyword {
+						mut data := {
+							len: record.assert_or_with.entries.len
+						}
+						for _, entry in record.assert_or_with.entries {
+							data[helpers.utf_16_to_string(entry.key)] = helpers.utf_16_to_string(entry.value)
+						}
+						attrs = logger.encode_import_attributes(data)
+					}
+					if record.glob_pattern != nil {
+						mut pretty_path := helpers.glob_pattern_to_string(record.glob_pattern.parts)
+						match record.glob_pattern.kind {
+							ast.import_require {
+								pretty_path = strconv.v_sprintf('require(%q)', pretty_path)
+							}
+							ast.import_dynamic {
+								pretty_path = strconv.v_sprintf('import(%q)', pretty_path)
+							}
+						}
+						mut results, msg := args.res.resolve_glob(abs_resolve_dir, record.glob_pattern.parts,
+							record.glob_pattern.kind, pretty_path)
+						if results != nil {
+							if msg != nil {
+								args.log.add_id(msg.id, msg.kind, &tracker, record.range,
+									msg.data.text)
+							}
+							if result.glob_resolve_results == nil {
+								result.glob_resolve_results = map[Uint32]GlobResolveResult{}
+							}
+							for key, result in results {
+								result.path_pair.primary.import_attributes = attrs
+								if result.path_pair.has_secondary() {
+									result.path_pair.secondary.import_attributes = attrs
+								}
+								results[key] = result
+							}
+							result.glob_resolve_results[u32(import_record_index)] = GlobResolveResult{
+								resolveResults: results
+								absPath:        args.fs.join(abs_resolve_dir, '(glob)')
+								prettyPath:     strconv.v_sprintf('%s in %s', pretty_path,
+									result.file.input_file.source.pretty_path)
+								exportAlias:    record.glob_pattern.export_alias
+							}
+						} else {
+							args.log.add_error(&tracker, record.range, strconv.v_sprintf('Could not resolve %s',
+								pretty_path))
+						}
+						continue
+					}
+					if record.flags.has(ast.is_unused) {
+						continue
+					}
+					mut cache_key := CacheKey{
+						kind:  record.kind
+						path:  record.path.text
+						attrs: attrs
+					}
+					mut entry, ok9525 := resolver_cache[cache_key]
+					if ok {
+						result.resolve_results[import_record_index] = entry.resolve_result
+					} else {
+						mut resolve_result, did_log_error, debug := run_on_resolve_plugins(args.options.plugins,
+							args.res, args.log, args.fs, &args.caches.fsc_ache, &source,
+							record.range, source.key_path, record.path.text, attrs, record.kind,
+							abs_resolve_dir, plugin_data)
+						if resolve_result != nil {
+							resolve_result.path_pair.primary.import_attributes = attrs
+							if resolve_result.path_pair.has_secondary() {
+								resolve_result.path_pair.secondary.import_attributes = attrs
+							}
+						}
+						entry = CacheEntry{
+							resolveResult: resolve_result
+							debug:         debug
+							didLogError:   did_log_error
+						}
+						resolver_cache[cache_key] = entry
+						if record.kind == ast.import_require_resolve {
+							if resolve_result != nil && resolve_result.path_pair.is_external {
+								result.resolve_results[import_record_index] = resolve_result
+							} else if !record.flags.has(ast.handles_import_errors) {
+								args.log.add_id(logger.msg_id_bundler_require_resolve_not_external,
+									logger.warning, &tracker, record.range, strconv.v_sprintf('%q should be marked as external for use with "require.resolve"',
+									record.path.text))
+							}
+							continue
+						}
+					}
+					if entry.resolve_result == nil {
+						if !entry.did_log_error && !record.flags.has(ast.handles_import_errors) {
+							mut text, suggestion, notes := resolve_failure_error_text_suggestion_notes(args.res,
+								record.path.text, record.kind, plugin_name, args.fs, abs_resolve_dir,
+								args.options.platform, source.pretty_path, entry.debug.modified_import_path)
+							entry.debug.log_error_msg(args.log, &source, record.range,
+								text, suggestion, notes)
+							entry.did_log_error = true
+							resolver_cache[cache_key] = entry
+						} else if !entry.did_log_error && record.flags.has(ast.handles_import_errors) {
+							args.log.add_idw_ith_notes(logger.msg_id_bundler_ignored_dynamic_import,
+								logger.debug, &tracker, record.range, strconv.v_sprintf('Importing %q was allowed even though it could not be resolved because dynamic import failures appear to be handled here:',
+								record.path.text), [
+								tracker.msg_data(js_lexer.range_of_identifier(source,
+									record.error_handler_loc), 'The handler for dynamic import failures is here:'),
+							])
+						}
+						continue
+					}
+					result.resolve_results[import_record_index] = entry.resolve_result
+				}
+			}
+		}
+		if loader.can_have_source_map() && args.options.source_map != config.source_map_none {
+			mut sourceMapComment := 0
+			mut repr := result.file.input_file.repr
+			match repr {
+				graph.JSRepr {
+					source_map_comment = repr.ast.source_map_comment
+				}
+				graph.CSSRepr {
+					source_map_comment = repr.ast.source_map_comment
+				}
+			}
+			if source_map_comment.text != '' {
+				mut tracker5510 := logger.make_line_column_tracker(&source)
+				mut path, contents := extract_source_map_from_comment(args.log, args.fs,
+					&args.caches.fsc_ache, &source, &tracker, source_map_comment, abs_resolve_dir)
+				if contents != nil {
+					mut pretty_path6206 := resolver.pretty_path(args.fs, path)
+					mut log := logger.new_defer_log(logger.defer_log_no_verbose_or_debug,
+						args.log.overrides)
+					mut source_map := js_parser.parse_source_map(log, logger.Source{
+						KeyPath:    path
+						PrettyPath: pretty_path
+						Contents:   &contents
+					})
+					mut msgs := log.done()
+					if msgs.len > 0 {
+						mut text := 0
+						if path.namespace == 'file' {
+							text = strconv.v_sprintf('The source map %q was referenced by the file %q here:',
+								pretty_path, args.pretty_path)
+						} else {
+							text = strconv.v_sprintf('This source map came from the file %q here:',
+								args.pretty_path)
+						}
+						mut note := tracker.msg_data(source_map_comment.range, text)
+						for _, msg in msgs {
+							msg.notes << note
+							args.log.add_msg(msg)
+						}
+					}
+					if source_map != nil && !args.options.exclude_sources_content {
+						if source_map.sources_content.len < source_map.sources.len {
+							mut slice := []sourcemap.SourceContent{len: source_map.sources.len}
+							copy(slice, source_map.sources_content)
+							source_map.sources_content = slice
+						}
+						for i, source2 in source_map.sources {
+							if source_map.sources_content[i].value == nil {
+								mut absPath := 0
+								if args.fs.is_abs(source) {
+									abs_path = source
+								} else if path.namespace == 'file' {
+									abs_path = args.fs.join(args.fs.dir(path.text), source)
+								} else {
+									continue
+								}
+								mut contents5075, err, _ := args.caches.fsc_ache.read_file(args.fs,
+									abs_path)
+								if err == nil {
+									source_map.sources_content[i].value = helpers.string_to_utf_16(contents)
+								}
+							}
+						}
+					}
+					result.file.input_file.input_source_map = source_map
+				}
+			}
+		}
+	}
+	if args.inject != nil {
+		mut exports := []config.InjectableExport{}
+		mut repr6633, ok7107 := result.file.input_file.repr
+		if ok {
+			mut aliases := []string{len: 0, cap: repr.ast.NamedExports.len}
+			for alias, _ in repr.ast.named_exports {
+				aliases << alias
+			}
+			sort.strings(aliases)
+			exports = []config.InjectableExport{len: aliases.len}
+			for i, alias in aliases {
+				exports[i] = config.InjectableExport{
+					Alias: alias
+					Loc:   repr.ast.named_exports[alias].alias_loc
+				}
+			}
+		}
+		mut is_copy_loader := loader == config.loader_copy
+		if is_copy_loader && args.skip_resolve {
+			args.log.add_error(nil, logger.Range{}, strconv.v_sprintf('Cannot inject %q with the "copy" loader without bundling enabled',
+				source.pretty_path))
+		}
+		if is_copy_loader && args.skip_resolve {
+			args.log.add_error(nil, logger.Range{}, strconv.v_sprintf('Cannot inject %q with the "copy" loader without bundling enabled',
+				source.pretty_path))
+		}
+	}
+	if args.inject != nil {
+		mut exports := []config.InjectableExport{}
+		mut repr9474, ok5204 := result.file.input_file.repr
+		if ok {
+			mut aliases728 := []string{len: 0, cap: repr.ast.NamedExports.len}
+			for alias, _ in repr.ast.named_exports {
+				aliases << alias
+			}
+			sort.strings(aliases)
+			exports = []config.InjectableExport{len: aliases.len}
+			for i, alias in aliases {
+				exports[i] = config.InjectableExport{
+					Alias: alias
+					Loc:   repr.ast.named_exports[alias].alias_loc
+				}
+			}
+		}
+		mut is_copy_loader9204 := loader == config.loader_copy
+		if is_copy_loader && args.skip_resolve {
+			args.log.add_error(nil, logger.Range{}, strconv.v_sprintf('Cannot inject %q with the "copy" loader without bundling enabled',
+				source.pretty_path))
+		}
+		if is_copy_loader && args.skip_resolve {
+			args.log.add_error(nil, logger.Range{}, strconv.v_sprintf('Cannot inject %q with the "copy" loader without bundling enabled',
+				source.pretty_path))
+		}
+	}
+}
+
+pub fn resolve_failure_error_text_suggestion_notes(res &resolver.Resolver, path string, kind ast.ImportKind, pluginName string, fs fs.FS, absResolveDir string, platform config.Platform, originatingFilePath string, modifiedImportPath string) (string, string, []logger.MsgData) {
+	if modified_import_path != '' {
+		text = strconv.v_sprintf('Could not resolve %q (originally %q)', modified_import_path,
+			path)
+		notes << logger.MsgData{
+			Text: strconv.v_sprintf(
+				"The path %q was remapped to %q using the alias feature, which then couldn't be resolved. " +
+				'Keep in mind that import path aliases are resolved in the current working directory.',
+				path, modified_import_path)
+		}
+		path = modified_import_path
+	} else {
+		text = strconv.v_sprintf('Could not resolve %q', path)
+	}
+	mut hint := ''
+	if resolver.is_package_path(path) && !fs.is_abs(path) {
+		hint = strconv.v_sprintf('You can mark the path %q as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle.',
+			path)
+		if kind == ast.import_require {
+			hint += ' You can also surround this "require" call with a try/catch block to handle this failure at run-time instead of bundle-time.'
+		} else if kind == ast.import_dynamic {
+			hint += ' You can also add ".catch()" here to handle this failure at run-time instead of bundle-time.'
+		}
+		if plugin_name == '' && !fs.is_abs(path) {
+			mut query, _ := res.probe_resolve_package_as_relative(abs_resolve_dir, path,
+				kind)
+			if query != nil {
+				hint = strconv.v_sprintf('Use the relative path %q to reference the file %q. ' +
+					'Without the leading "./", the path %q is being interpreted as a package path instead.',
+					'./' + path, resolver.pretty_path(fs, query.path_pair.primary), path)
+				suggestion = helpers.quote_for_json('./' + path, false).str()
+			}
+		}
+	}
+	if platform != config.platform_node {
+		mut pkg := path.trim_prefix('node:')
+		if resolver.built_in_node_modules[pkg] {
+			mut how := 0
+			match logger.api {
+				logger.cliapi {
+					how = '--platform=node'
+				}
+				logger.jsapi {
+					how = "platform: 'node'"
+				}
+				logger.go_api {
+					how = 'Platform: api.PlatformNode'
+				}
+			}
+			hint = strconv.v_sprintf(
+				"The package %q wasn't found on the file system but is built into node. " +
+				'Are you trying to bundle for node? You can use %q to do that, which will remove this error.',
+				path, how)
+		}
+	}
+	if abs_resolve_dir == '' && plugin_name != '' {
+		mut where := ''
+		if originating_file_path != '' {
+			where = strconv.v_sprintf(' for the file %q', originating_file_path)
+		}
+		hint = strconv.v_sprintf("The plugin %q didn't set a resolve directory%s, " +
+			'so esbuild did not search for %q on the file system.', plugin_name, where,
+			path)
+	}
+	if hint != '' {
+		if modified_import_path != '' {
+			notes << logger.MsgData{}
+			suggestion = ''
+		}
+		notes << logger.MsgData{
+			Text: hint
+		}
+	}
+	return
+}
+
+fn is_asciio_nly(text string) bool {
+	for _, c in text {
+		if c < 0x20 || c > 0x7E {
+			return false
+		}
+	}
+	return true
+}
+
+fn guess_mime_type(extension string, contents string) string {
+	mut mime_type := helpers.mime_type_by_extension(extension)
+	if mime_type == '' {
+		mime_type = http.detect_content_type(contents)
+	}
+	return mime_type.replace_all('; ', ';')
+}
+
+fn extract_source_map_from_comment(log logger.Log, fs fs.FS, fsCache &cache.FSCache, source &logger.Source, tracker &logger.LineColumnTracker, comment logger.Span, absResolveDir string) (logger.Path, &string) {
+	mut parsed, ok := resolver.parse_data_url(comment.text)
+	if ok {
+		mut contents, err := parsed.decode_data()
+		if err == nil {
+			return logger.Path{
+				Text:          source.pretty_path
+				IgnoredSuffix: '#sourceMappingURL'
+			}, &contents
+		} else {
+			log.add_id(logger.msg_id_source_map_unsupported_source_map_comment, logger.warning,
+				tracker, comment.range, strconv.v_sprintf('Unsupported source map comment: %s',
+				err.error()))
+			return logger.Path{}, nil
+		}
+	}
+	if abs_resolve_dir != '' {
+		mut abs_path := fs.join(abs_resolve_dir, comment.text)
+		mut path := logger.Path{
+			Text:      abs_path
+			Namespace: 'file'
+		}
+		mut contents6847, err338, original_error := fs_cache.read_file(fs, abs_path)
+		if log.level <= logger.level_debug && original_error != nil {
+			log.add_id(logger.msg_id_none, logger.debug, tracker, comment.range, strconv.v_sprintf('Failed to read file %q: %s',
+				resolver.pretty_path(fs, path), original_error.error()))
+		}
+		if err != nil {
+			mut kind := logger.warning
+			if err == syscall.enoent {
+				kind = logger.debug
+			}
+			log.add_id(logger.msg_id_source_map_missing_source_map, kind, tracker, comment.range,
+				strconv.v_sprintf('Cannot read file %q: %s', resolver.pretty_path(fs,
+				path), err.error()))
+			return logger.Path{}, nil
+		}
+		return path, &contents
+	}
+	return logger.Path{}, nil
+}
+
+fn sanitize_location(fs fs.FS, loc &logger.MsgLocation) {
+	if loc != nil {
+		if loc.namespace == '' {
+			loc.namespace = 'file'
+		}
+		if loc.file != '' {
+			loc.file = resolver.pretty_path(fs, logger.Path{
+				Text:      loc.file
+				Namespace: loc.namespace
+			})
+		}
+	}
+}
+
+fn log_plugin_messages(fs fs.FS, log logger.Log, name string, msgs []logger.Msg, thrown error, importSource &logger.Source, importPathRange logger.Range) bool {
+	mut did_log_error := false
+	mut tracker := logger.make_line_column_tracker(import_source)
+	for _, msg in msgs {
+		if msg.plugin_name == '' {
+			msg.plugin_name = name
+		}
+		if msg.kind == logger.error {
+			did_log_error = true
+		}
+		for _, note in msg.notes {
+			sanitize_location(fs, note.location)
+		}
+		if msg.data.location == nil {
+			msg.data.location = tracker.msg_location_or_nil(import_path_range)
+		} else {
+			sanitize_location(fs, msg.data.location)
+			if import_source != nil {
+				if msg.data.location.file == '' {
+					msg.data.location.file = import_source.pretty_path
+				}
+				msg.notes << tracker.msg_data(import_path_range, strconv.v_sprintf('The plugin %q was triggered by this import',
+					name))
+			}
+		}
+		log.add_msg(msg)
+	}
+	if thrown != nil {
+		did_log_error = true
+		mut text := thrown.error()
+		log.add_msg(logger.Msg{
+			PluginName: name
+			Kind:       logger.error
+			Data:       logger.MsgData{
+				Text:       text
+				Location:   tracker.msg_location_or_nil(import_path_range)
+				UserDetail: thrown
+			}
+		})
+	}
+	return did_log_error
+}
+
+pub fn run_on_resolve_plugins(plugins []config.Plugin, res &resolver.Resolver, log logger.Log, fs fs.FS, fsCache &cache.FSCache, importSource &logger.Source, importPathRange logger.Range, importer logger.Path, path string, importAttributes logger.ImportAttributes, kind ast.ImportKind, absResolveDir string, pluginData voidptr) (&resolver.ResolveResult, bool, resolver.DebugMeta) {
+	mut resolver_args := config.OnResolveArgs{
+		Path:       path
+		ResolveDir: abs_resolve_dir
+		Kind:       kind
+		PluginData: plugin_data
+		Importer:   importer
+		With:       import_attributes
+	}
+	mut apply_path := logger.Path{
+		Text:      path
+		Namespace: importer.namespace
+	}
+	mut tracker := logger.make_line_column_tracker(import_source)
+	for _, plugin in plugins {
+		for _, on_resolve in plugin.on_resolve {
+			if !config.plugin_applies_to_path(apply_path, on_resolve.filter, on_resolve.namespace) {
+				continue
+			}
+			mut result := on_resolve.callback(resolver_args)
+			mut plugin_name := result.plugin_name
+			if plugin_name == '' {
+				plugin_name = plugin.name
+			}
+			mut did_log_error := log_plugin_messages(fs, log, plugin_name, result.msgs,
+				result.thrown_error, import_source, import_path_range)
+			for _, file in result.abs_watch_files {
+				fs_cache.read_file(fs, file)
+			}
+			for _, dir in result.abs_watch_dirs {
+				mut entries, err, _ := fs.read_directory(dir)
+				if err == nil {
+					entries.sorted_keys()
+				}
+			}
+			if did_log_error {
+				return nil, true, resolver.DebugMeta{}
+			}
+			mut ns_from_plugin := result.path.namespace
+			if result.path.namespace == '' && !result.external {
+				result.path.namespace = 'file'
+			}
+			if result.path.text == '' {
+				if result.external {
+					result.path = logger.Path{
+						Text: path
+					}
+				} else {
+					continue
+				}
+			}
+			if result.path.namespace == 'file' && !fs.is_abs(result.path.text) {
+				if ns_from_plugin == 'file' {
+					log.add_error(&tracker, import_path_range, strconv.v_sprintf('Plugin %q returned a path in the "file" namespace that is not an absolute path: %s',
+						plugin_name, result.path.text))
+				} else {
+					log.add_error(&tracker, import_path_range, strconv.v_sprintf('Plugin %q returned a non-absolute path: %s (set a namespace if this is not a file path)',
+						plugin_name, result.path.text))
+				}
+				return nil, true, resolver.DebugMeta{}
+			}
+			mut sideEffectsData := 0
+			if result.is_side_effect_free {
+				side_effects_data = &resolver.SideEffectsData{
+					PluginName: plugin_name
+				}
+			}
+			return &resolver.ResolveResult{
+				PathPair:               resolver.PathPair{
+					Primary:    result.path
+					IsExternal: result.external
+				}
+				PluginData:             result.plugin_data
+				PrimarySideEffectsData: side_effects_data
+			}, false, resolver.DebugMeta{}
+		}
+	}
+	mut result5066, debug := res.resolve(abs_resolve_dir, path, kind)
+	if result != nil && result.different_case != nil
+		&& !helpers.is_inside_node_modules(abs_resolve_dir) {
+		mut diff_case := &result.different_case
+		log.add_id(logger.msg_id_bundler_different_path_case, logger.warning, &tracker,
+			import_path_range, strconv.v_sprintf('Use %q instead of %q to avoid issues with case-sensitive file systems',
+			resolver.pretty_path(fs, logger.Path{
+			Text:      fs.join(diff_case.dir, diff_case.actual)
+			Namespace: 'file'
+		}), resolver.pretty_path(fs, logger.Path{
+			Text:      fs.join(diff_case.dir, diff_case.query)
+			Namespace: 'file'
+		})))
+	}
+	return result, false, debug
+}
+
+struct loaderPluginResult {
+pub mut:
+	plugin_data     voidptr
+	abs_resolve_dir string
+	plugin_name     string
+	loader          config.Loader
+}
+
+fn run_on_load_plugins(plugins []config.Plugin, fs fs.FS, fsCache &cache.FSCache, log logger.Log, source &logger.Source, importSource &logger.Source, importPathRange logger.Range, pluginData voidptr, isWatchMode bool) (loaderPluginResult, bool) {
+	mut loader_args := config.OnLoadArgs{
+		Path:       source.key_path
+		PluginData: plugin_data
+	}
+	mut tracker := logger.make_line_column_tracker(import_source)
+	for _, plugin in plugins {
+		for _, on_load in plugin.on_load {
+			if !config.plugin_applies_to_path(source.key_path, on_load.filter, on_load.namespace) {
+				continue
+			}
+			mut result := on_load.callback(loader_args)
+			mut plugin_name := result.plugin_name
+			if plugin_name == '' {
+				plugin_name = plugin.name
+			}
+			mut did_log_error := log_plugin_messages(fs, log, plugin_name, result.msgs,
+				result.thrown_error, import_source, import_path_range)
+			for _, file in result.abs_watch_files {
+				fs_cache.read_file(fs, file)
+			}
+			for _, dir in result.abs_watch_dirs {
+				mut entries, err, _ := fs.read_directory(dir)
+				if err == nil {
+					entries.sorted_keys()
+				}
+			}
+			if did_log_error {
+				if is_watch_mode && source.key_path.namespace == 'file' {
+					fs_cache.read_file(fs, source.key_path.text)
+				}
+				return LoaderPluginResult{}, false
+			}
+			if result.contents == nil {
+				continue
+			}
+			source.contents = &result.contents
+			mut loader := result.loader
+			if loader == config.loader_none {
+				loader = config.loader_js
+			}
+			if result.abs_resolve_dir == '' && source.key_path.namespace == 'file' {
+				result.abs_resolve_dir = fs.dir(source.key_path.text)
+			}
+			if is_watch_mode && source.key_path.namespace == 'file' {
+				fs_cache.read_file(fs, source.key_path.text)
+			}
+			return LoaderPluginResult{
+				loader:        loader
+				absResolveDir: result.abs_resolve_dir
+				pluginName:    plugin_name
+				pluginData:    result.plugin_data
+			}, true
+		}
+	}
+	if source.key_path.is_disabled() {
+		return LoaderPluginResult{
+			loader: config.loader_empty
+		}, true
+	}
+	if source.key_path.namespace == 'file' {
+		mut contents, err1238, original_error := fs_cache.read_file(fs, source.key_path.text)
+		if err == nil {
+			source.contents = contents
+			return LoaderPluginResult{
+				loader:        config.loader_default
+				absResolveDir: fs.dir(source.key_path.text)
+			}, true
+		} else {
+			if log.level <= logger.level_debug && original_error != nil {
+				log.add_id(logger.msg_id_none, logger.debug, nil, logger.Range{}, strconv.v_sprintf('Failed to read file %q: %s',
+					source.key_path.text, original_error.error()))
+			}
+			if err == syscall.enoent {
+				log.add_error(&tracker, import_path_range, strconv.v_sprintf('Could not read from file: %s',
+					source.key_path.text))
+				return LoaderPluginResult{}, false
+			} else {
+				log.add_error(&tracker, import_path_range, strconv.v_sprintf('Cannot read file %q: %s',
+					resolver.pretty_path(fs, source.key_path), err.error()))
+				return LoaderPluginResult{}, false
+			}
+		}
+	}
+	if source.key_path.namespace == 'dataurl' {
+		mut parsed, ok := resolver.parse_data_url(source.key_path.text)
+		if ok {
+			mut contents1664, err1374 := parsed.decode_data()
+			if err != nil {
+				log.add_error(&tracker, import_path_range, strconv.v_sprintf('Could not load data URL: %s',
+					err.error()))
+				return LoaderPluginResult{
+					loader: config.loader_none
+				}, true
+			} else {
+				source.contents = contents
+				mut mime_type := parsed.decode_mimet_ype()
+				if mime_type != resolver.mimet_ype_unsupported {
+					match mime_type {
+						resolver.mimet_ype_text_css {
+							return LoaderPluginResult{
+								loader: config.loader_css
+							}, true
+						}
+						resolver.mimet_ype_text_java_script {
+							return LoaderPluginResult{
+								loader: config.loader_js
+							}, true
+						}
+						resolver.mimet_ype_application_json {
+							return LoaderPluginResult{
+								loader: config.loader_json
+							}, true
+						}
+					}
+				}
+			}
+		}
+	}
+	return LoaderPluginResult{
+		loader: config.loader_none
+	}, true
+}
+
+fn loader_from_file_extension(extensionToLoader map[string]config.Loader, base string) config.Loader {
+	mut i := base.index_byte(`.`)
+	if i != -1 {
+		for {
+			mut loader, ok := extension_to_loader[base[i..]]
+			if ok {
+				return loader
+			}
+			base = base[i + 1..]
+			i = base.index_byte(`.`)
+			if i == -1 {
+				break
+			}
+		}
+	} else {
+		mut loader3070, ok7955 := extension_to_loader['']
+		if ok {
+			return loader
+		}
+	}
+	return config.loader_none
+}
+
+// Identify the path by its lowercase absolute path name with Windows-specific
+// slashes substituted for standard slashes. This should hopefully avoid path
+// issues on Windows where multiple different paths can refer to the same
+// underlying file.
+fn canonical_file_system_path_for_windows(absPath string) string {
+	return abs_path.to_lower().replace_all('\\', '/')
+}
+
+pub fn hash_for_file_name(hashBytes []u8) string {
+	return base32.std_encoding.encode_to_string(hash_bytes)[..8]
+}
+
+struct scanner {
+pub mut:
+	log               logger.Log
+	fs                fs.FS
+	res               &resolver.Resolver = unsafe { nil }
+	caches            &cache.CacheSet    = unsafe { nil }
+	timer             &helpers.Timer     = unsafe { nil }
+	unique_key_prefix string
+	// These are not guarded by a mutex because it's only ever modified by a single
+	// thread. Note that not all results in the "results" array are necessarily
+	// valid. Make sure to check the "ok" flag before using them.
+	results        []parseResult
+	visited        map[logger.Path]VisitedFile
+	result_channel chan ParseResult
+	options        config.Options
+	// Also not guarded by a mutex for the same reason
+	remaining isize
+}
+
+struct visitedFile {
+pub mut:
+	source_index u32
+}
+
+struct EntryPoint {
+pub mut:
+	input_path                   string
+	output_path                  string
+	input_path_in_file_namespace bool
+}
+
+fn generate_unique_key_prefix() (string, error) {
+	mut data := []u8{}
+	rand.seed(time.now().unix_nano())
+	_, err := rand.read(data[..])
+	if err != nil {
+		return '', err
+	}
+	return base64.urle_ncoding.encode_to_string(data[..]), nil
+}
+
+// This creates a bundle by scanning over the whole module graph starting from
+// the entry points until all modules are reached. Each module has some number
+// of import paths which are resolved to module identifiers (i.e. "onResolve"
+// in the plugin API). Each unique module identifier is loaded once (i.e.
+// "onLoad" in the plugin API).
+pub fn scan_bundle(call config.APICall, log logger.Log, fs fs.FS, caches &cache.CacheSet, entryPoints []EntryPoint, options config.Options, timer &helpers.Timer) Bundle {
+	timer.begin('Scan phase')
+	defer {
+		timer.end('Scan phase')
+	}
+	apply_option_defaults(&options)
+	timer.begin('On-start callbacks')
+	mut on_start_wait_group := sync.WaitGroup{}
+	for _, plugin in options.plugins {
+		for _, on_start in plugin.on_start {
+			on_start_wait_group.add(1)
+			go fn (plugin config.Plugin, onStart config.OnStart) {
+				mut result := on_start.callback()
+				log_plugin_messages(fs, log, plugin.name, result.msgs, result.thrown_error,
+					nil, logger.Range{})
+				on_start_wait_group.done()
+			}(plugin, on_start)
+		}
+	}
+	mut unique_key_prefix, err := generate_unique_key_prefix()
+	if err != nil {
+		log.add_error(nil, logger.Range{}, strconv.v_sprintf('Failed to read from randomness source: %s',
+			err.error()))
+	}
+	mut res := resolver.new_resolver(call, fs, log, caches, &options)
+	mut s := Scanner{
+		log:             log
+		fs:              fs
+		res:             res
+		caches:          caches
+		options:         options
+		timer:           timer
+		results:         []parseResult{len: 0, cap: caches.SourceIndexCache.len_hint()}
+		visited:         map[logger.Path]VisitedFile{}
+		resultChannel:   map[logger.Path]VisitedFile{}
+		uniqueKeyPrefix: unique_key_prefix
+	}
+	s.results << ParseResult{}
+	s.remaining++
+	go fn () {
+		mut source, ast, ok := global_runtime_cache.parse_runtime(&options)
+		mut source1334, ast4588, ok4806 := global_runtime_cache.parse_runtime(&options)
+	}()
+	on_start_wait_group.wait()
+	timer.end('On-start callbacks')
+	if options.cancel_flag.did_cancel() {
+		return Bundle{
+			options: options
+		}
+	}
+	s.preprocess_injected_files()
+	if options.cancel_flag.did_cancel() {
+		return Bundle{
+			options: options
+		}
+	}
+	mut entry_point_meta := s.add_entry_points(entry_points)
+	if options.cancel_flag.did_cancel() {
+		return Bundle{
+			options: options
+		}
+	}
+	s.scan_all_dependencies()
+	if options.cancel_flag.did_cancel() {
+		return Bundle{
+			options: options
+		}
+	}
+	mut files := s.process_scanned_files(entry_point_meta)
+	if options.cancel_flag.did_cancel() {
+		return Bundle{
+			options: options
+		}
+	}
+	return Bundle{
+		fs:              fs
+		res:             s.res
+		files:           files
+		entryPoints:     entry_point_meta
+		uniqueKeyPrefix: unique_key_prefix
+		options:         s.options
+	}
+}
+
+type inputKind = u8
+
+enum inputKind {
+	input_kind_normal
+	input_kind_entry_point
+	input_kind_stdin
+}
+
+// This returns the source index of the resulting file
+fn (s &Scanner) maybe_parse_file(resolveResult resolver.ResolveResult, prettyPath string, importSource &logger.Source, importPathRange logger.Range, importWith &ast.ImportAssertOrWith, kind inputKind, inject chan config.InjectedFile) u32 {
+	mut path := resolve_result.path_pair.primary
+	mut visited_key := path
+	if visited_key.namespace == 'file' {
+		visited_key.text = canonical_file_system_path_for_windows(visited_key.text)
+	}
+	mut visited, ok := s.visited[visited_key]
+	if ok {
+		if inject != nil {
+			// unhandled in stmt: unknown sum type value
+		}
+		return visited.source_index
+	}
+	visited = VisitedFile{
+		sourceIndex: s.allocate_source_index(visited_key, cache.source_index_normal)
+	}
+	s.visited[visited_key] = visited
+	s.remaining++
+	mut options_clone := s.options
+	if kind != input_kind_stdin {
+		options_clone.stdin = nil
+	}
+	resolve_result.tsc_onfig_jsx.apply_to(&options_clone.jsx)
+	if resolve_result.tsc_onfig != nil {
+		options_clone.ts.config = &resolve_result.tsc_onfig
+	}
+	if resolve_result.tsa_lways_strict != nil {
+		options_clone.tsa_lways_strict = resolve_result.tsa_lways_strict
+	}
+	if path.text.has_suffix('.mjs') {
+		options_clone.module_type_data.type = js_ast.module_esm_mjs
+	} else if path.text.has_suffix('.mts') {
+		options_clone.module_type_data.type = js_ast.module_esm_mts
+	} else if path.text.has_suffix('.cjs') {
+		options_clone.module_type_data.type = js_ast.module_common_js_cjs
+	} else if path.text.has_suffix('.cts') {
+		options_clone.module_type_data.type = js_ast.module_common_js_cts
+	} else if path.text.has_suffix('.js') || path.text.has_suffix('.jsx')
+		|| path.text.has_suffix('.ts') || path.text.has_suffix('.tsx') {
+		options_clone.module_type_data = resolve_result.module_type_data
+	} else {
+		options_clone.module_type_data.type = js_ast.module_unknown
+	}
+	mut skip_resolve := false
+	if inject != nil && options_clone.mode != config.mode_bundle {
+		options_clone.mode = config.mode_bundle
+		skip_resolve = true
+	}
+	if path.namespace == 'dataurl' {
+		_, ok431 := resolver.parse_data_url(path.text)
+		if ok {
+			pretty_path = path.text
+			if pretty_path.len > 65 {
+				pretty_path = pretty_path[..65]
+			}
+			pretty_path = pretty_path.replace_all('\n', '\\n')
+			if pretty_path.len > 64 {
+				pretty_path = pretty_path[..64] + '...'
+			}
+			pretty_path = strconv.v_sprintf('<%s>', pretty_path)
+		}
+	}
+	mut sideEffects := 0
+	if resolve_result.primary_side_effects_data != nil {
+		side_effects.kind = graph.no_side_effects_package_json
+		side_effects.data = resolve_result.primary_side_effects_data
+	}
+	go parse_file(ParseArgs{
+		fs:              s.fs
+		log:             s.log
+		res:             s.res
+		caches:          s.caches
+		keyPath:         path
+		prettyPath:      pretty_path
+		sourceIndex:     visited.source_index
+		importSource:    import_source
+		sideEffects:     side_effects
+		importPathRange: import_path_range
+		importWith:      import_with
+		pluginData:      resolve_result.plugin_data
+		options:         options_clone
+		results:         s.result_channel
+		inject:          inject
+		skipResolve:     skip_resolve
+		uniqueKeyPrefix: s.unique_key_prefix
+	})
+	return visited.source_index
+}
+
+fn (s &Scanner) allocate_source_index(path logger.Path, kind cache.SourceIndexKind) u32 {
+	mut source_index := s.caches.source_index_cache.get(path, kind)
+	mut new_len := isize(source_index) + 1
+	if s.results.len < new_len {
+		if s.results.cap < new_len {
+			s.results << s.results
+		}
+		s.results = s.results[..new_len]
+	}
+	return source_index
+}
+
+fn (s &Scanner) allocate_glob_source_index(parentSourceIndex u32, globIndex u32) u32 {
+	mut source_index := s.caches.source_index_cache.get_glob(parent_source_index, glob_index)
+	mut new_len := isize(source_index) + 1
+	if s.results.len < new_len {
+		if s.results.cap < new_len {
+			s.results << s.results
+		}
+		s.results = s.results[..new_len]
+	}
+	return source_index
+}
+
+fn (s &Scanner) preprocess_injected_files() {
+	s.timer.begin('Preprocess injected files')
+	defer {
+		s.timer.end('Preprocess injected files')
+	}
+	mut injected_files := []config.InjectedFile{len: 0, cap: s.options.injected_defines.len +
+		s.options.inject_paths.len}
+	for _, define in s.options.injected_defines {
+		mut visited_key := logger.Path{
+			Text: strconv.v_sprintf('<define:%s>', define.name)
+		}
+		mut source_index := s.allocate_source_index(visited_key, cache.source_index_normal)
+		s.visited[visited_key] = VisitedFile{
+			sourceIndex: source_index
+		}
+		mut source := logger.Source{
+			Index:          source_index
+			KeyPath:        visited_key
+			PrettyPath:     resolver.pretty_path(s.fs, visited_key)
+			IdentifierName: js_ast.ensure_valid_identifier(visited_key.text)
+		}
+		injected_files << config.InjectedFile{
+			Source:     source
+			DefineName: define.name
+		}
+		mut expr := js_ast.Expr{
+			Data: define.data
+		}
+		mut ast := js_parser.lazy_export_ast(s.log, source, js_parser.options_from_config(&s.options),
+			expr, '')
+		mut result := ParseResult{
+			ok:   true
+			file: ScannerFile{
+				inputFile: graph.InputFile{
+					Source:      source
+					Repr:        &graph.JSRepr{
+						AST: ast
+					}
+					Loader:      config.loader_json
+					SideEffects: graph.SideEffects{
+						Kind: graph.no_side_effects_pure_data
+					}
+				}
+			}
+		}
+		s.remaining++
+		go fn () {
+			// unhandled in stmt: unknown sum type value
+		}()
+	}
+	mut inject_resolve_results := []&resolver.ResolveResult{len: s.options.inject_paths.len}
+	mut inject_abs_resolve_dir := s.fs.cwd()
+	mut inject_resolve_wait_group := sync.WaitGroup{}
+	inject_resolve_wait_group.add(s.options.inject_paths.len)
+	for i, import_path in s.options.inject_paths {
+		go fn (i isize, importPath string) {
+			mut importer := 0
+			mut abs_path := import_path
+			if !s.fs.is_abs(abs_path) {
+				abs_path = s.fs.join(inject_abs_resolve_dir, abs_path)
+			}
+			mut dir := s.fs.dir(abs_path)
+			mut base := s.fs.base(abs_path)
+			mut entries, err, original_error := s.fs.read_directory(dir)
+			if err == nil {
+				mut entry, _ := entries.get(base)
+				if entry != nil && entry.kind(s.fs) == fs.file_entry {
+					importer.namespace = 'file'
+					if !s.fs.is_abs(import_path) && resolver.is_package_path(import_path) {
+						import_path = './' + import_path
+					}
+				}
+			} else if s.log.level <= logger.level_debug && original_error != nil {
+				s.log.add_id(logger.msg_id_none, logger.debug, nil, logger.Range{}, strconv.v_sprintf('Failed to read directory %q: %s',
+					abs_path, original_error.error()))
+			}
+			mut resolve_result, did_log_error, debug := run_on_resolve_plugins(s.options.plugins,
+				s.res, s.log, s.fs, &s.caches.fsc_ache, nil, logger.Range{}, importer,
+				import_path, logger.ImportAttributes{}, ast.import_entry_point, inject_abs_resolve_dir,
+				nil)
+			if resolve_result != nil {
+				if resolve_result.path_pair.is_external {
+					s.log.add_error(nil, logger.Range{}, strconv.v_sprintf('The injected path %q cannot be marked as external',
+						import_path))
+				} else {
+					inject_resolve_results[i] = resolve_result
+				}
+			} else if !did_log_error {
+				debug.log_error_msg(s.log, nil, logger.Range{}, strconv.v_sprintf('Could not resolve %q',
+					import_path), '', nil)
+			}
+			inject_resolve_wait_group.done()
+		}(i, import_path)
+	}
+	inject_resolve_wait_group.wait()
+	if s.options.cancel_flag.did_cancel() {
+		return
+	}
+	mut results := []config.InjectedFile{len: s.options.inject_paths.len}
+	mut j := isize(0)
+	mut injectWaitGroup := 0
+	for _, resolve_result in inject_resolve_results {
+		if resolve_result != nil {
+			mut channel := {
+				len: 1
+			}
+			S.maybe_parse_file(&resolve_result, resolver.pretty_path(s.fs, resolve_result.path_pair.primary),
+				nil, logger.Range{}, nil, input_kind_normal, channel)
+			inject_wait_group.add(1)
+			go fn (i isize) {
+				results[i] = <-channel
+				inject_wait_group.done()
+			}(j)
+			j++
+		}
+	}
+	inject_wait_group.wait()
+	injected_files << results[..j]
+	s.options.injected_files = injected_files
+}
+
+fn (s &Scanner) add_entry_points(entryPoints []EntryPoint) []graph.EntryPoint {
+	s.timer.begin('Add entry points')
+	defer {
+		s.timer.end('Add entry points')
+	}
+	mut entry_metas := []graph.EntryPoint{len: 0, cap: entry_points.len + 1}
+	mut stdin := s.options.stdin
+	if stdin != nil {
+		mut stdin_path := logger.Path{
+			Text: '<stdin>'
+		}
+		if stdin.source_file != '' {
+			if stdin.abs_resolve_dir == '' {
+				stdin_path = logger.Path{
+					Text: stdin.source_file
+				}
+			} else if s.fs.is_abs(stdin.source_file) {
+				stdin_path = logger.Path{
+					Text:      stdin.source_file
+					Namespace: 'file'
+				}
+			} else {
+				stdin_path = logger.Path{
+					Text:      s.fs.join(stdin.abs_resolve_dir, stdin.source_file)
+					Namespace: 'file'
+				}
+			}
+		}
+		mut resolve_result := resolver.ResolveResult{
+			PathPair: resolver.PathPair{
+				Primary: stdin_path
+			}
+		}
+		mut source_index := s.maybe_parse_file(resolve_result, resolver.pretty_path(s.fs,
+			stdin_path), nil, logger.Range{}, nil, input_kind_stdin, nil)
+		entry_metas << graph.EntryPoint{
+			OutputPath:  'stdin'
+			SourceIndex: source_index
+		}
+	}
+	if s.options.cancel_flag.did_cancel() {
+		return nil
+	}
+	mut entry_point_abs_resolve_dir := s.fs.cwd()
+	for i, _ in entry_points {
+		mut entry_point := &entry_points[i]
+		mut abs_path := entry_point.input_path
+		if abs_path.contains_rune(`*`) {
+			continue
+		}
+		if !s.fs.is_abs(abs_path) {
+			abs_path = s.fs.join(entry_point_abs_resolve_dir, abs_path)
+		}
+		mut dir := s.fs.dir(abs_path)
+		mut base := s.fs.base(abs_path)
+		mut entries, err, original_error := s.fs.read_directory(dir)
+		if err == nil {
+			mut entry, _ := entries.get(base)
+			if entry != nil && entry.kind(s.fs) == fs.file_entry {
+				entry_point.input_path_in_file_namespace = true
+				if !s.fs.is_abs(entry_point.input_path) && resolver.is_package_path(entry_point.input_path) {
+					entry_point.input_path = './' + entry_point.input_path
+				}
+			}
+		} else if s.log.level <= logger.level_debug && original_error != nil {
+			s.log.add_id(logger.msg_id_none, logger.debug, nil, logger.Range{}, strconv.v_sprintf('Failed to read directory %q: %s',
+				abs_path, original_error.error()))
+		}
+	}
+	if s.options.cancel_flag.did_cancel() {
+		return nil
+	}
+
+	mut entry_point_infos := []entryPointInfo{len: EntryPoints.len}
+	mut entry_point_wait_group := sync.WaitGroup{}
+	entry_point_wait_group.add(entry_points.len)
+	for i, entry_point in entry_points {
+		go fn (i isize, entryPoint EntryPoint) {
+			mut importer := 0
+			if entry_point.input_path_in_file_namespace {
+				importer.namespace = 'file'
+			}
+			if entry_point.input_path.contains_rune(`*`) {
+				mut pattern := helpers.parse_glob_pattern(entry_point.input_path)
+				if pattern.len > 1 {
+					mut pretty_pattern := strconv.v_sprintf('%q', entry_point.input_path)
+					mut results, msg := s.res.resolve_glob(entry_point_abs_resolve_dir,
+						pattern, ast.import_entry_point, pretty_pattern)
+					if results != nil {
+						mut keys := []string{len: 0, cap: Results.len}
+						for key, _ in results {
+							keys << key
+						}
+						sort.strings(keys)
+						mut info := EntryPointInfo{
+							isGlob: true
+						}
+						for _, key in keys {
+							info.results << results[key]
+						}
+						entry_point_infos[i] = info
+						if msg != nil {
+							s.log.add_id(msg.id, msg.kind, nil, logger.Range{}, msg.data.text)
+						}
+					} else {
+						s.log.add_error(nil, logger.Range{}, strconv.v_sprintf('Could not resolve %q',
+							entry_point.input_path))
+					}
+					entry_point_wait_group.done()
+					return
+				}
+			}
+			mut resolve_result1146, did_log_error, debug := run_on_resolve_plugins(s.options.plugins,
+				s.res, s.log, s.fs, &s.caches.fsc_ache, nil, logger.Range{}, importer,
+				entry_point.input_path, logger.ImportAttributes{}, ast.import_entry_point,
+				entry_point_abs_resolve_dir, nil)
+			if resolve_result != nil {
+				if resolve_result.path_pair.is_external {
+					s.log.add_error(nil, logger.Range{}, strconv.v_sprintf('The entry point %q cannot be marked as external',
+						entry_point.input_path))
+				} else {
+					entry_point_infos[i] = EntryPointInfo{
+						results: [&resolve_result]
+					}
+				}
+			} else if !did_log_error {
+				mut notes := []logger.MsgData{}
+				if !s.fs.is_abs(entry_point.input_path) {
+					mut query, _ := s.res.probe_resolve_package_as_relative(entry_point_abs_resolve_dir,
+						entry_point.input_path, ast.import_entry_point)
+					if query != nil {
+						notes << logger.MsgData{
+							Text: strconv.v_sprintf(
+								'Use the relative path %q to reference the file %q. ' +
+								'Without the leading "./", the path %q is being interpreted as a package path instead.',
+								'./' + entry_point.input_path, resolver.pretty_path(s.fs,
+								query.path_pair.primary), entry_point.input_path)
+						}
+					}
+				}
+				debug.log_error_msg(s.log, nil, logger.Range{}, strconv.v_sprintf('Could not resolve %q',
+					entry_point.input_path), '', notes)
+			}
+			entry_point_wait_group.done()
+		}(i, entry_point)
+	}
+	entry_point_wait_group.wait()
+	if s.options.cancel_flag.did_cancel() {
+		return nil
+	}
+	for i, info in entry_point_infos {
+		if info.results == nil {
+			continue
+		}
+		for _, resolve_result in info.results {
+			mut pretty_path := resolver.pretty_path(s.fs, resolve_result.path_pair.primary)
+			mut source_index7734 := s.maybe_parse_file(resolve_result, pretty_path, nil,
+				logger.Range{}, nil, input_kind_entry_point, nil)
+			mut output_path := entry_points[i].output_path
+			mut output_path_was_auto_generated := false
+			if output_path == '' {
+				if info.is_glob {
+					output_path = pretty_path
+				} else {
+					output_path = entry_points[i].input_path
+				}
+				mut windows_volume_label := ''
+				if s.fs.is_abs(output_path) && output_path.len >= 3 && output_path[1] == `:` {
+					mut c := output_path[0]
+					if c >= `a` && c <= `z` || c >= `A` && c <= `Z` {
+						mut c4449 := output_path[2]
+						if c == `/` || c == `\\` {
+							windows_volume_label = output_path[..3]
+							output_path = output_path[3..]
+						}
+					}
+				}
+				output_path = sanitize_file_path_for_virtual_module_path(output_path)
+				if windows_volume_label != '' {
+					output_path = windows_volume_label + output_path
+				}
+				output_path_was_auto_generated = true
+			}
+			entry_metas << graph.EntryPoint{
+				OutputPath:                 output_path
+				SourceIndex:                source_index
+				OutputPathWasAutoGenerated: output_path_was_auto_generated
+			}
+		}
+	}
+	for i, _ in entry_metas {
+		mut entry_point8012 := &entry_metas[i]
+		if entry_point.output_path_was_auto_generated && !s.fs.is_abs(entry_point.output_path) {
+			entry_point.output_path = s.fs.join(entry_point_abs_resolve_dir, entry_point.output_path)
+		}
+	}
+	if s.options.abs_output_base == '' {
+		s.options.abs_output_base = lowest_common_ancestor_directory(s.fs, entry_metas)
+		if s.options.abs_output_base == '' {
+			s.options.abs_output_base = entry_point_abs_resolve_dir
+		}
+	}
+	for i, _ in entry_metas {
+		mut entry_point1432 := &entry_metas[i]
+		if s.fs.is_abs(entry_point.output_path) {
+			if !entry_point.output_path_was_auto_generated {
+				mut rel_path, ok := s.fs.rel(s.options.abs_output_dir, entry_point.output_path)
+				if ok {
+					entry_point.output_path = rel_path
+				}
+			} else {
+				mut rel_path3579, ok7602 := s.fs.rel(s.options.abs_output_base, entry_point.output_path)
+				if ok {
+					entry_point.output_path = rel_path
+				}
+				mut last := entry_point.output_path.last_index_any('/.\\')
+				if last != -1 && entry_point.output_path[last] == `.` {
+					entry_point.output_path = entry_point.output_path[..last]
+				}
+			}
+		}
+	}
+	return entry_metas
+}
+
+fn lowest_common_ancestor_directory(fs fs.FS, entryPoints []graph.EntryPoint) string {
+	mut abs_paths := []string{len: 0, cap: EntryPoints.len}
+	for _, entry_point in entry_points {
+		if entry_point.output_path_was_auto_generated {
+			abs_paths << entry_point.output_path
+		}
+	}
+	if abs_paths.len == 0 {
+		return ''
+	}
+	mut lowest_abs_dir := fs.dir(abs_paths[0])
+	for _, abs_path in abs_paths[1..] {
+		mut abs_dir := fs.dir(abs_path)
+		mut last_slash := isize(0)
+		mut a := isize(0)
+		mut b := isize(0)
+		for {
+			mut rune_a, width_a := utf8.decode_rune_in_string(abs_dir[a..])
+			mut rune_b, width_b := utf8.decode_rune_in_string(lowest_abs_dir[b..])
+			mut boundary_a := width_a == 0 || rune_a == `/` || rune_a == `\\`
+			mut boundary_b := width_b == 0 || rune_b == `/` || rune_b == `\\`
+			if boundary_a && boundary_b {
+				if width_a == 0 || width_b == 0 {
+					lowest_abs_dir = abs_dir[..a]
+					break
+				} else {
+					last_slash = a
+				}
+			} else if boundary_a != boundary_b
+				|| unicode.to_lower(rune_a) != unicode.to_lower(rune_b) {
+				if last_slash < abs_dir.len && !abs_dir[..last_slash].contains_any('\\/') {
+					last_slash++
+				}
+				lowest_abs_dir = abs_dir[..last_slash]
+				break
+			}
+			a += width_a
+			b += width_b
+		}
+	}
+	return lowest_abs_dir
+}
+
+fn (s &Scanner) scan_all_dependencies() {
+	s.timer.begin('Scan all dependencies')
+	defer {
+		s.timer.end('Scan all dependencies')
+	}
+	for s.remaining > 0 {
+		if s.options.cancel_flag.did_cancel() {
+			return
+		}
+		mut result := <-s.result_channel
+		s.remaining--
+		if !result.ok {
+			continue
+		}
+		mut records_ptr := result.file.input_file.repr.import_records()
+		if s.options.mode == config.mode_bundle && records_ptr != nil {
+			mut records := &records_ptr
+			for import_record_index, _ in records {
+				mut record := &records[import_record_index]
+				mut with := 0
+				if record.assert_or_with != nil && record.assert_or_with.keyword == ast.with_keyword {
+					with = record.assert_or_with
+				}
+				mut resolve_result := result.resolve_results[import_record_index]
+				if resolve_result == nil {
+					mut glob_results := result.glob_resolve_results[u32(import_record_index)]
+					if glob_results.resolve_results != nil {
+						mut source_index := s.allocate_glob_source_index(result.file.input_file.source.index,
+							u32(import_record_index))
+						record.source_index = ast.make_index32(source_index)
+						s.results[source_index] = s.generate_result_for_glob_resolve(source_index,
+							glob_results.abs_path, &result.file.input_file.source, record.range,
+							with, record.glob_pattern.kind, glob_results, record.assert_or_with)
+					}
+					continue
+				}
+				mut path := resolve_result.path_pair.primary
+				if !resolve_result.path_pair.is_external {
+					mut source_index9504 := s.maybe_parse_file(&resolve_result, resolver.pretty_path(s.fs,
+						path), &result.file.input_file.source, record.range, with, input_kind_normal,
+						nil)
+					record.source_index = ast.make_index32(source_index)
+				} else {
+					if resolve_result.primary_side_effects_data != nil {
+						record.flags |= ast.is_external_without_side_effects
+					}
+					if path.namespace == 'file' {
+						mut rel_path, ok := s.fs.rel(s.options.abs_output_dir, path.text)
+						if ok {
+							rel_path = rel_path.replace_all('\\', '/')
+							if resolver.is_package_path(rel_path) {
+								rel_path = './' + rel_path
+							}
+							record.path.text = rel_path
+						} else {
+							record.path = path
+						}
+					} else {
+						record.path = path
+					}
+				}
+			}
+		}
+		s.results[result.file.input_file.source.index] = result
+	}
+}
+
+fn (s &Scanner) generate_result_for_glob_resolve(sourceIndex u32, fakeSourcePath string, importSource &logger.Source, importRange logger.Range, importWith &ast.ImportAssertOrWith, kind ast.ImportKind, result globResolveResult, assertions &ast.ImportAssertOrWith) parseResult {
+	mut keys := []string{len: 0, cap: result.ResolveResults.len}
+	for key, _ in result.resolve_results {
+		keys << key
+	}
+	sort.strings(keys)
+	mut object := js_ast.EObject{
+		Properties: []js_ast.Property{len: 0, cap: result.resolve_results.len}
+	}
+	mut import_records := []ast.ImportRecord{len: 0, cap: result.resolve_results.len}
+	mut resolve_results := []&resolver.ResolveResult{len: 0, cap: result.resolve_results.len}
+	for _, key in keys {
+		mut resolve_result := result.resolve_results[key]
+		mut value := 0
+		mut import_record_index := u32(import_records.len)
+		mut sourceIndex2 := 0
+		if !resolve_result.path_pair.is_external {
+			source_index = ast.make_index32(s.maybe_parse_file(resolve_result, resolver.pretty_path(s.fs,
+				resolve_result.path_pair.primary), import_source, import_range, import_with,
+				input_kind_normal, nil))
+		}
+		mut path := resolve_result.path_pair.primary
+		if path.namespace == 'file' {
+			mut rel_path, ok := s.fs.rel(s.options.abs_output_dir, path.text)
+			if ok {
+				rel_path = rel_path.replace_all('\\', '/')
+				if resolver.is_package_path(rel_path) {
+					rel_path = './' + rel_path
+				}
+				path.text = rel_path
+			}
+		}
+		resolve_results << &resolve_result
+		import_records << ast.ImportRecord{
+			Path:         path
+			SourceIndex:  source_index
+			AssertOrWith: assertions
+			Kind:         kind
+		}
+		match kind {
+			ast.import_dynamic {
+				value.data = &js_ast.EImportString{
+					ImportRecordIndex: import_record_index
+				}
+			}
+			ast.import_require {
+				value.data = &js_ast.ERequireString{
+					ImportRecordIndex: import_record_index
+				}
+			}
+			else {
+				panic('Internal error')
+			}
+		}
+		object.properties << js_ast.Property{
+			Key:        js_ast.Expr{
+				Data: &js_ast.EString{
+					Value: helpers.string_to_utf_16(key)
+				}
+			}
+			ValueOrNil: js_ast.Expr{
+				Data: &js_ast.EArrow{
+					Body:       js_ast.FnBody{
+						Block: js_ast.SBlock{
+							Stmts: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+							]
+						}
+					}
+					PreferExpr: true
+				}
+			}
+		}
+	}
+	mut source := logger.Source{
+		KeyPath:    logger.Path{
+			Text:      fake_source_path
+			Namespace: 'file'
+		}
+		PrettyPath: result.pretty_path
+		Index:      source_index
+	}
+	mut ast := js_parser.glob_resolve_ast(s.log, source, import_records, &object, result.export_alias)
+	for resolve_results.len < ast.import_records.len {
+		resolve_results << nil
+	}
+	return ParseResult{
+		resolveResults: resolve_results
+		file:           ScannerFile{
+			inputFile: graph.InputFile{
+				Source:                        source
+				Repr:                          &graph.JSRepr{
+					AST: ast
+				}
+				OmitFromSourceMapsAndMetafile: true
+			}
+		}
+		ok:             true
+	}
+}
+
+fn (s &Scanner) process_scanned_files(entryPointMeta []graph.EntryPoint) []scannerFile {
+	s.timer.begin('Process scanned files')
+	defer {
+		s.timer.end('Process scanned files')
+	}
+	mut entry_point_source_index_to_meta_index := {
+		len: entry_point_meta.len
+	}
+	for i, meta in entry_point_meta {
+		entry_point_source_index_to_meta_index[meta.source_index] = u32(i)
+	}
+	mut import_attribute_name_collisions := map[string][]u32{}
+	for source_index, _ in s.results {
+		mut result := &s.results[source_index]
+		if result.ok {
+			mut pretty_path := result.file.input_file.source.pretty_path
+			import_attribute_name_collisions[pretty_path] << u32(source_index)
+		}
+	}
+	for _, source_indices in import_attribute_name_collisions {
+		if source_indices.len == 1 {
+			continue
+		}
+		for _, source_index in source_indices {
+			mut source := &s.results[source_index].file.input_file.source
+			mut attrs := source.key_path.import_attributes.decode_into_array()
+			if attrs.len == 0 {
+				continue
+			}
+			mut sb := 0
+			sb.write_string(' with {')
+			for i, attr in attrs {
+				if i > 0 {
+					sb.write_byte(`,`)
+				}
+				sb.write_byte(` `)
+				if js_ast.is_identifier(attr.key) {
+					sb.write_string(attr.key)
+				} else {
+					sb.write(helpers.quote_single(attr.key, false))
+				}
+				sb.write_string(': ')
+				sb.write(helpers.quote_single(attr.value, false))
+			}
+			sb.write_string(' }')
+			source.pretty_path += sb.string()
+		}
+	}
+	for source_index, result in s.results {
+		if !result.ok {
+			continue
+		}
+		mut sb := strings.Builder
+		{
+		}
+		mut is_first_import := true
+		if s.options.needs_metafile {
+			sb.write(helpers.quote_for_json(result.file.input_file.source.pretty_path,
+				s.options.asciio_nly))
+			sb.write_string(strconv.v_sprintf(': {\n      "bytes": %d,\n      "imports": [',
+				result.file.input_file.source.contents.len))
+		}
+		mut records_ptr := result.file.input_file.repr.import_records()
+		if s.options.mode == config.mode_bundle && records_ptr != nil {
+			mut records := &records_ptr
+			mut tracker := logger.make_line_column_tracker(&result.file.input_file.source)
+			for import_record_index, _ in records {
+				mut record := &records[import_record_index]
+				mut metafileWith := 0
+				if s.options.needs_metafile {
+					mut with := record.assert_or_with
+					if with != nil && with.keyword == ast.with_keyword && with.entries.len > 0 {
+						mut data := strings.Builder
+						{
+						}
+						data.write_string(',\n          "with": {')
+						for i, entry in with.entries {
+							if i > 0 {
+								data.write_byte(`,`)
+							}
+							data.write_string('\n            ')
+							data.write(helpers.quote_for_json(helpers.utf_16_to_string(entry.key),
+								s.options.asciio_nly))
+							data.write_string(': ')
+							data.write(helpers.quote_for_json(helpers.utf_16_to_string(entry.value),
+								s.options.asciio_nly))
+						}
+						data.write_string('\n          }')
+						metafile_with = data.string()
+					}
+				}
+				mut resolve_result := result.resolve_results[import_record_index]
+				if resolve_result == nil || !record.source_index.is_valid() {
+					if s.options.needs_metafile {
+						if is_first_import {
+							is_first_import = false
+							sb.write_string('\n        ')
+						} else {
+							sb.write_string(',\n        ')
+						}
+						sb.write_string(strconv.v_sprintf('{\n          "path": %s,\n          "kind": %s,\n          "external": true%s\n        }',
+							helpers.quote_for_json(record.path.text, s.options.asciio_nly),
+							helpers.quote_for_json(record.kind.string_for_metafile(),
+							s.options.asciio_nly), metafile_with))
+					}
+					continue
+				}
+				if resolve_result.path_pair.has_secondary() {
+					mut secondary_key := resolve_result.path_pair.secondary
+					if secondary_key.namespace == 'file' {
+						secondary_key.text = canonical_file_system_path_for_windows(secondary_key.text)
+					}
+					mut secondary_visited, ok := s.visited[secondary_key]
+					if ok {
+						record.source_index = ast.make_index32(secondary_visited.source_index)
+					}
+				}
+				mut other_result := &s.results[record.source_index.get_index()]
+				mut other_file := &other_result.file
+				if s.options.needs_metafile {
+					if is_first_import {
+						is_first_import = false
+						sb.write_string('\n        ')
+					} else {
+						sb.write_string(',\n        ')
+					}
+					sb.write_string(strconv.v_sprintf('{\n          "path": %s,\n          "kind": %s,\n          "original": %s%s\n        }',
+						helpers.quote_for_json(other_file.input_file.source.pretty_path,
+						s.options.asciio_nly), helpers.quote_for_json(record.kind.string_for_metafile(),
+						s.options.asciio_nly), helpers.quote_for_json(record.path.text,
+						s.options.asciio_nly), metafile_with))
+				}
+				if record.flags.has(ast.assert_type_json) && other_result.ok && other_file.input_file.loader != config.loader_json && other_file.input_file.loader != config.loader_copy {
+					s.log.add_error_with_notes(&tracker, record.range, strconv.v_sprintf('The file %q was loaded with the %q loader',
+						other_file.input_file.source.pretty_path, config.loader_to_string[other_file.input_file.loader]),
+						[
+						tracker.msg_data(js_lexer.range_of_import_assert_or_with(result.file.input_file.source,
+							&ast.find_assert_or_with_entry(record.assert_or_with.entries,
+							'type'), js_lexer.key_and_value_range), 'This import assertion requires the loader to be "json" instead:'), // UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+					])
+				}
+				match record.kind {
+					ast.import_composes_from {
+						_, ok4512 := other_file.input_file.repr
+						if ok && other_file.input_file.loader != config.loader_empty {
+							s.log.add_error_with_notes(&tracker, record.range, strconv.v_sprintf('Cannot use "composes" with %q',
+								other_file.input_file.source.pretty_path), [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+							])
+						}
+					}
+					ast.import_at {
+						_, ok7665 := other_file.input_file.repr
+						if ok && other_file.input_file.loader != config.loader_empty {
+							s.log.add_error_with_notes(&tracker, record.range, strconv.v_sprintf('Cannot import %q into a CSS file',
+								other_file.input_file.source.pretty_path), [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+							])
+						}
+					}
+					ast.import_url {
+						mut other_repr := other_file.input_file.repr
+						match other_repr {
+							graph.CSSRepr {
+								s.log.add_error_with_notes(&tracker, record.range, strconv.v_sprintf('Cannot use %q as a URL',
+									other_file.input_file.source.pretty_path), [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+								])
+							}
+							graph.JSRepr {
+								if other_repr.ast.urlf_or_css == '' && other_file.input_file.loader != config.loader_empty {
+									s.log.add_error_with_notes(&tracker, record.range,
+										strconv.v_sprintf('Cannot use %q as a URL', other_file.input_file.source.pretty_path),
+										[// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+									])
+								}
+							}
+						}
+					}
+				}
+				_, ok7250 := other_file.input_file.repr
+				if ok {
+					record.copy_source_index = record.source_index
+					record.source_index = ast.Index32{}
+					continue
+				}
+				_, ok1139 := result.file.input_file.repr
+				if ok {
+					mut css, ok3839 := other_file.input_file.repr
+					if ok {
+						if s.options.write_to_stdout {
+							s.log.add_error(&tracker, record.range, strconv.v_sprintf('Cannot import %q into a JavaScript file without an output path configured',
+								other_file.input_file.source.pretty_path))
+						} else if !css.jss_ource_index.is_valid() {
+							mut stub_key := other_file.input_file.source.key_path
+							if stub_key.namespace == 'file' {
+								stub_key.text = canonical_file_system_path_for_windows(stub_key.text)
+							}
+							mut source_index2 := s.allocate_source_index(stub_key, cache.source_index_jss_tub_for_css)
+							mut source7204 := other_file.input_file.source
+							source.index = source_index
+							s.results[source_index] = ParseResult{
+								file: ScannerFile{
+									inputFile: graph.InputFile{
+										Source: source
+										Loader: other_file.input_file.loader
+										Repr:   &graph.JSRepr{
+											AST:            js_parser.lazy_export_ast(s.log,
+												source, js_parser.options_from_config(&s.options),
+												js_ast.Expr{
+												Data: js_ast.en_ull_shared
+											}, '')
+											CSSSourceIndex: ast.make_index32(record.source_index.get_index())
+										}
+									}
+								}
+								ok:   true
+							}
+							css.jss_ource_index = ast.make_index32(source_index)
+						}
+						record.source_index = css.jss_ource_index
+						if !css.jss_ource_index.is_valid() {
+							continue
+						}
+					}
+				}
+				if record.flags.has(ast.was_originally_bare_import)
+					&& !s.options.ignore_dcea_nnotations
+					&& !helpers.is_inside_node_modules(result.file.input_file.source.key_path.text) {
+					mut other_module := &s.results[record.source_index.get_index()].file.input_file
+					if other_module.side_effects.kind != graph.has_side_effects && other_module.side_effects.kind != graph.no_side_effects_pure_data_from_plugin && other_module.side_effects.kind != graph.no_side_effects_empty_ast {
+						mut notes := []logger.MsgData{}
+						mut by := 0
+						mut data5227 := other_module.side_effects.data
+						if data != nil {
+							if data.plugin_name != '' {
+								by = strconv.v_sprintf(' by plugin %q', data.plugin_name)
+							} else {
+								mut text := 0
+								if data.is_side_effects_array_in_json {
+									text = 'It was excluded from the "sideEffects" array in the enclosing "package.json" file:'
+								} else {
+									text = '"sideEffects" is false in the enclosing "package.json" file:'
+								}
+								mut tracker3656 := logger.make_line_column_tracker(data.source)
+								notes << tracker.msg_data(data.range, text)
+							}
+						}
+						s.log.add_idw_ith_notes(logger.msg_id_bundler_ignored_bare_import,
+							logger.warning, &tracker, record.range, strconv.v_sprintf('Ignoring this import because %q was marked as having no side effects%s',
+							other_module.source.pretty_path, by), notes)
+					}
+				}
+			}
+		}
+		if s.options.needs_metafile {
+			if !is_first_import {
+				sb.write_string('\n      ')
+			}
+			mut repr, ok6265 := result.file.input_file.repr
+			if ok && (repr.ast.exports_kind == js_ast.exports_common_js
+				|| repr.ast.exports_kind == js_ast.exports_esm) {
+				mut format := 'cjs'
+				if repr.ast.exports_kind == js_ast.exports_esm {
+					format = 'esm'
+				}
+				sb.write_string(strconv.v_sprintf('],\n      "format": %q', format))
+			} else {
+				sb.write_string(']')
+			}
+			mut attrs4960 := result.file.input_file.source.key_path.import_attributes.decode_into_array()
+			if attrs.len > 0 {
+				sb.write_string(',\n      "with": {')
+				for i, attr in attrs {
+					if i > 0 {
+						sb.write_byte(`,`)
+					}
+					sb.write_string(strconv.v_sprintf('\n        %s: %s', helpers.quote_for_json(attr.key,
+						s.options.asciio_nly), helpers.quote_for_json(attr.value, s.options.asciio_nly)))
+				}
+				sb.write_string('\n      }')
+			}
+			sb.write_string('\n    }')
+		}
+		result.file.json_metadata_chunk = sb.string()
+		if result.file.input_file.unique_key_for_additional_file != '' {
+			mut bytes := (result.file.input_file.source.contents)
+			mut template := s.options.asset_path_template
+			mut custom_file_path := ''
+			mut use_output_file := false
+			if result.file.input_file.loader == config.loader_copy {
+				mut meta_index, ok2407 := entry_point_source_index_to_meta_index[u32(source_index)]
+				if ok {
+					template = s.options.entry_path_template
+					custom_file_path = entry_point_meta[meta_index].output_path
+					use_output_file = s.options.abs_output_file != ''
+				}
+			}
+			mut hash := 0
+			if config.has_placeholder(template, config.hash_placeholder) {
+				mut h := xxhash.new()
+				h.write(bytes)
+				hash = hash_for_file_name(h.sum(nil))
+			}
+			mut dir := 0
+			if use_output_file {
+				dir = '/'
+				base = s.fs.base(s.options.abs_output_file)
+				ext = s.fs.ext(base)
+				base = base[..base.len - ext.len]
+			} else {
+				_, _, original_ext := logger.platform_independent_path_dir_base_ext(result.file.input_file.source.key_path.text)
+				dir, base = path_relative_to_outbase(&result.file.input_file, &s.options,
+					s.fs, false, custom_file_path)
+				ext = original_ext
+			}
+			mut template_ext := ext.trim_prefix('.')
+			mut rel_path := config.template_to_string(config.substitute_template(template, config.PathPlaceholders{
+				Dir:  &dir
+				Name: &base
+				Hash: &hash
+				Ext:  &template_ext
+			})) + ext
+			mut jsonMetadataChunk := 0
+			if s.options.needs_metafile {
+				mut inputs := strconv.v_sprintf('{\n        %s: {\n          "bytesInOutput": %d\n        }\n      }',
+					helpers.quote_for_json(result.file.input_file.source.pretty_path,
+					s.options.asciio_nly), bytes.len)
+				json_metadata_chunk = strconv.v_sprintf('{\n      "imports": [],\n      "exports": [],\n      "inputs": %s,\n      "bytes": %d\n    }',
+					inputs, bytes.len)
+			}
+			result.file.input_file.additional_files = [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+			]
+		}
+		s.results[source_index] = result
+	}
+	mut files := []scannerFile{len: s.Results.len}
+	for source_index, _ in s.results {
+		mut result1771 := &s.results[source_index]
+		if result.ok {
+			s.validate_tla(u32(source_index))
+			files[source_index] = result.file
+		}
+	}
+	return files
+}
+
+fn (s &Scanner) validate_tla(sourceIndex u32) tlaCheck {
+	mut result := &s.results[source_index]
+	if result.ok && result.tla_check.depth == 0 {
+		mut repr, ok := result.file.input_file.repr
+		if ok {
+			result.tla_check.depth = isize(1)
+			if repr.ast.live_top_level_await_keyword.len > 0 {
+				result.tla_check.parent = ast.make_index32(source_index)
+			}
+			for import_record_index, record in repr.ast.import_records {
+				if record.source_index.is_valid() && (record.kind == ast.import_require
+					|| record.kind == ast.import_stmt) {
+					mut parent := s.validate_tla(record.source_index.get_index())
+					if !parent.parent.is_valid() {
+						continue
+					}
+					if record.kind == ast.import_stmt && (!result.tla_check.parent.is_valid()
+						|| parent.depth < result.tla_check.depth) {
+						result.tla_check.depth = parent.depth + 1
+						result.tla_check.parent = record.source_index
+						result.tla_check.import_record_index = u32(import_record_index)
+						continue
+					}
+					if record.kind == ast.import_require {
+						mut notes := []logger.MsgData{}
+						mut tlaPrettyPath := 0
+						mut other_source_index := record.source_index.get_index()
+						for {
+							mut parent_result := &s.results[other_source_index]
+							mut parent_repr := parent_result.file.input_file.repr
+							if parent_repr.ast.live_top_level_await_keyword.len > 0 {
+								tla_pretty_path = parent_result.file.input_file.source.pretty_path
+								mut tracker := logger.make_line_column_tracker(&parent_result.file.input_file.source)
+								notes << tracker.msg_data(parent_repr.ast.live_top_level_await_keyword,
+									strconv.v_sprintf('The top-level await in %q is here:',
+									tla_pretty_path))
+								break
+							}
+							if !parent_result.tla_check.parent.is_valid() {
+								notes << logger.MsgData{
+									Text: 'unexpected invalid index'
+								}
+								break
+							}
+							other_source_index = parent_result.tla_check.parent.get_index()
+							mut tracker356 := logger.make_line_column_tracker(&parent_result.file.input_file.source)
+							notes << tracker.msg_data(parent_repr.ast.import_records[parent_result.tla_check.import_record_index].range,
+								strconv.v_sprintf('The file %q imports the file %q here:',
+								parent_result.file.input_file.source.pretty_path, s.results[other_source_index].file.input_file.source.pretty_path))
+						}
+						mut text := 0
+						mut imported_pretty_path := s.results[record.source_index.get_index()].file.input_file.source.pretty_path
+						if imported_pretty_path == tla_pretty_path {
+							text = strconv.v_sprintf('This require call is not allowed because the imported file %q contains a top-level await',
+								imported_pretty_path)
+						} else {
+							text = strconv.v_sprintf('This require call is not allowed because the transitive dependency %q contains a top-level await',
+								tla_pretty_path)
+						}
+						mut tracker4621 := logger.make_line_column_tracker(&result.file.input_file.source)
+						s.log.add_error_with_notes(&tracker, record.range, text, notes)
+					}
+				}
+			}
+			if result.tla_check.parent.is_valid() {
+				repr.meta.is_async_or_has_async_dependency = true
+			}
+		}
+	}
+	return result.tla_check
+}
+
+pub fn default_extension_to_loader_map() map[string]config.Loader {
+	return {
+		'':            config.loader_js
+		'.js':         config.loader_js
+		'.mjs':        config.loader_js
+		'.cjs':        config.loader_js
+		'.jsx':        config.loader_jsx
+		'.ts':         config.loader_ts
+		'.cts':        config.loader_tsn_o_ambiguous_less_than
+		'.mts':        config.loader_tsn_o_ambiguous_less_than
+		'.tsx':        config.loader_tsx
+		'.css':        config.loader_css
+		'.module.css': config.loader_local_css
+		'.json':       config.loader_json
+		'.txt':        config.loader_text
+	}
+}
+
+fn apply_option_defaults(options &config.Options) {
+	if options.extension_to_loader == nil {
+		options.extension_to_loader = default_extension_to_loader_map()
+	}
+	if options.output_extension_js == '' {
+		options.output_extension_js = '.js'
+	}
+	if options.output_extension_css == '' {
+		options.output_extension_css = '.css'
+	}
+	if options.entry_path_template.len == 0 {
+		options.entry_path_template = [
+			config.PathTemplate{
+				Data:        './'
+				Placeholder: config.dir_placeholder
+			},
+			config.PathTemplate{
+				Data:        '/'
+				Placeholder: config.name_placeholder
+			},
+		]
+	}
+	if options.chunk_path_template.len == 0 {
+		options.chunk_path_template = [
+			config.PathTemplate{
+				Data:        './'
+				Placeholder: config.name_placeholder
+			},
+			config.PathTemplate{
+				Data:        '-'
+				Placeholder: config.hash_placeholder
+			},
+		]
+	}
+	if options.asset_path_template.len == 0 {
+		options.asset_path_template = [
+			config.PathTemplate{
+				Data:        './'
+				Placeholder: config.name_placeholder
+			},
+			config.PathTemplate{
+				Data:        '-'
+				Placeholder: config.hash_placeholder
+			},
+		]
+	}
+	options.profiler_names = !options.minify_identifiers
+	fix_invalid_unsupported_jsf_eature_overrides(options, compat.async_await, compat.async_generator | compat.for_await | compat.top_level_await)
+	fix_invalid_unsupported_jsf_eature_overrides(options, compat.generator, compat.async_generator)
+	fix_invalid_unsupported_jsf_eature_overrides(options, compat.object_accessors, compat.class_private_accessor | compat.class_private_static_accessor)
+	fix_invalid_unsupported_jsf_eature_overrides(options, compat.class_field, compat.class_private_field)
+	fix_invalid_unsupported_jsf_eature_overrides(options, compat.class_static_field, compat.class_private_static_field)
+	fix_invalid_unsupported_jsf_eature_overrides(options, compat.class, compat.class_field | compat.class_private_accessor | compat.class_private_brand_check | compat.class_private_field | compat.class_private_method | compat.class_private_static_accessor | compat.class_private_static_field | compat.class_private_static_method | compat.class_static_blocks | compat.class_static_field)
+	if options.platform != config.platform_browser {
+		if !options.unsupported_jsf_eature_overrides_mask.has(compat.inline_script) {
+			options.unsupported_jsf_eatures |= compat.inline_script
+		}
+		if !options.unsupported_cssf_eature_overrides_mask.has(compat.inline_style) {
+			options.unsupported_cssf_eatures |= compat.inline_style
+		}
+	}
+}
+
+fn fix_invalid_unsupported_jsf_eature_overrides(options &config.Options, implies compat.JSFeature, implied compat.JSFeature) {
+	if options.unsupported_jsf_eature_overrides.has(implies) {
+		options.unsupported_jsf_eatures |= implied
+		options.unsupported_jsf_eature_overrides |= implied
+		options.unsupported_jsf_eature_overrides_mask |= implied
+	}
+}
+
+type Linker = fn (options &config.Options, timer &helpers.Timer, log logger.Log, fs fs.FS, res &resolver.Resolver, inputFiles []graph.InputFile, entryPoints []graph.EntryPoint, uniqueKeyPrefix string, reachableFiles []u32, dataForSourceMaps fn () []DataForSourceMap) []graph.OutputFile
+
+pub fn (b &Bundle) compile(log logger.Log, timer &helpers.Timer, mangleCache map[string]string, link Linker) ([]graph.OutputFile, string) {
+	timer.begin('Compile phase')
+	defer {
+		timer.end('Compile phase')
+	}
+	if b.options.cancel_flag.did_cancel() {
+		return nil, ''
+	}
+	mut options := b.options
+	mut css_used_local_names := map[string]Bool{}
+	options.exclusive_mangle_cache_update = fn (cb fn (mangleCache map[string]string, cssUsedLocalNames map[string]Bool)) {
+		cb(mangle_cache, css_used_local_names)
+	}
+
+	mut files := []graph.InputFile{len: b.files.len}
+	for i, file in b.files {
+		files[i] = file.input_file
+	}
+	mut all_reachable_files := find_reachable_files(files, b.entry_points)
+	timer.begin('Spawn source map tasks')
+	mut data_for_source_maps := b.compute_data_for_source_maps_in_parallel(&options, all_reachable_files)
+	timer.end('Spawn source map tasks')
+	mut resultGroups := [][]graph.OutputFile{}
+	if options.code_splitting || b.entry_points.len == 1 {
+		result_groups = [
+			link(&options, timer, log, b.fs, b.res, files, b.entry_points, b.unique_key_prefix,
+				all_reachable_files, data_for_source_maps),
+		]
+	} else {
+		mut wait_group := sync.WaitGroup{}
+		result_groups = [][]graph.OutputFile{len: b.entry_points.len}
+		mut serializer := helpers.make_serializer(b.entry_points.len)
+		for i, entry_point in b.entry_points {
+			wait_group.add(1)
+			go fn (i isize, entryPoint graph.EntryPoint) {
+				mut entry_points := [entry_point]
+				mut forked := timer.fork()
+				mut options_clone := options
+				options_clone.exclusive_mangle_cache_update = fn (cb fn (mangleCache map[string]string, cssUsedLocalNames map[string]Bool)) {
+					serializer.enter(i)
+					defer {
+						serializer.leave(i)
+					}
+					cb(mangle_cache, css_used_local_names)
+				}
+
+				result_groups[i] = link(&options_clone, forked, log, b.fs, b.res, files,
+					entry_points, b.unique_key_prefix, find_reachable_files(files, entry_points),
+					data_for_source_maps)
+				timer.join(forked)
+				wait_group.done()
+			}(i, entry_point)
+		}
+		wait_group.wait()
+	}
+	mut outputFiles := []graph.OutputFile{}
+	for _, group in result_groups {
+		output_files << group
+	}
+	mut metafileJSON := 0
+	if options.needs_metafile {
+		timer.begin('Generate metadata JSON')
+		metafile_json = b.generate_metadata_json(output_files, all_reachable_files, options.asciio_nly)
+		timer.end('Generate metadata JSON')
+	}
+	if !options.write_to_stdout {
+		if !options.allow_overwrite {
+			mut source_abs_paths := map[string]Uint32{}
+			for _, source_index in all_reachable_files {
+				mut key_path := b.files[source_index].input_file.source.key_path
+				if key_path.namespace == 'file' {
+					mut abs_path_key := canonical_file_system_path_for_windows(key_path.text)
+					source_abs_paths[abs_path_key] = source_index
+				}
+			}
+			for _, output_file in output_files {
+				mut abs_path_key789 := canonical_file_system_path_for_windows(output_file.abs_path)
+				mut source_index, ok := source_abs_paths[abs_path_key]
+				if ok {
+					mut hint := ''
+					match logger.api {
+						logger.cliapi {
+							hint = ' (use "--allow-overwrite" to allow this)'
+						}
+						logger.jsapi {
+							hint = ' (use "allowOverwrite: true" to allow this)'
+						}
+						logger.go_api {
+							hint = ' (use "AllowOverwrite: true" to allow this)'
+						}
+					}
+					log.add_error(nil, logger.Range{}, strconv.v_sprintf('Refusing to overwrite input file %q%s',
+						b.files[source_index].input_file.source.pretty_path, hint))
+				}
+			}
+		}
+		mut output_file_map := map[string][]u8{}
+		mut end := isize(0)
+		for _, output_file in output_files {
+			mut abs_path_key2417 := canonical_file_system_path_for_windows(output_file.abs_path)
+			mut contents, ok2313 := output_file_map[abs_path_key]
+			if !ok {
+				output_file_map[abs_path_key] = output_file.contents
+				output_files[end] = output_file
+				end++
+				continue
+			}
+			if bytes.equal(contents, output_file.contents) {
+				continue
+			}
+			mut output_path := output_file.abs_path
+			mut rel_path, ok9999 := b.fs.rel(b.fs.cwd(), output_path)
+			if ok {
+				output_path = rel_path
+			}
+			log.add_error(nil, logger.Range{},
+				'Two output files share the same path but have different contents: ' + output_path)
+		}
+		output_files = output_files[..end]
+	}
+	return output_files, metafile_json
+}
+
+// Find all files reachable from all entry points. This order should be
+// deterministic given that the entry point order is deterministic, since the
+// returned order is the postorder of the graph traversal and import record
+// order within a given file is deterministic.
+fn find_reachable_files(files []graph.InputFile, entryPoints []graph.EntryPoint) []u32 {
+	mut visited := map[Uint32]Bool{}
+	mut order := []u32{}
+	mut visit := 0
+	visit = fn (sourceIndex u32) {
+		if !visited[source_index] {
+			visited[source_index] = true
+			mut file := &files[source_index]
+			mut repr, ok := file.repr
+			if ok && repr.csss_ource_index.is_valid() {
+				visit(repr.csss_ource_index.get_index())
+			}
+			mut records_ptr := file.repr.import_records()
+			if records_ptr != nil {
+				for _, record in &records_ptr {
+					if record.source_index.is_valid() {
+						visit(record.source_index.get_index())
+					} else if record.copy_source_index.is_valid() {
+						visit(record.copy_source_index.get_index())
+					}
+				}
+			}
+			order << source_index
+		}
+	}
+
+	visit(runtime.source_index)
+	for _, entry_point in entry_points {
+		visit(entry_point.source_index)
+	}
+	return order
+}
+
+// This is done in parallel with linking because linking is a mostly serial
+// phase and there are extra resources for parallelism. This could also be done
+// during parsing but that would slow down parsing and delay the start of the
+// linking phase, which then delays the whole bundling process.
+//
+// However, doing this during parsing would allow it to be cached along with
+// the parsed ASTs which would then speed up incremental builds. In the future
+// it could be good to optionally have this be computed during the parsing
+// phase when incremental builds are active but otherwise still have it be
+// computed during linking for optimal speed during non-incremental builds.
+fn (b &Bundle) compute_data_for_source_maps_in_parallel(options &config.Options, reachableFiles []u32) fn () []DataForSourceMap {
+	if options.source_map == config.source_map_none {
+		return fn () {
+			return nil
+		}
+	}
+	mut waitGroup := 0
+	mut results := []DataForSourceMap{len: b.Files.len}
+	for _, source_index in reachable_files {
+		mut f := &b.files[source_index]
+		if f.input_file.loader.can_have_source_map() {
+			mut approximateLineCount := 0
+			mut repr := f.input_file.repr
+			match repr {
+				graph.JSRepr {
+					approximate_line_count = repr.ast.approximate_line_count
+				}
+				graph.CSSRepr {
+					approximate_line_count = repr.ast.approximate_line_count
+				}
+			}
+			wait_group.add(1)
+			go fn (sourceIndex u32, f &ScannerFile, approximateLineCount i32) {
+				mut result := &results[source_index]
+				result.line_offset_tables = sourcemap.generate_line_offset_tables(f.input_file.source.contents,
+					approximate_line_count)
+				mut sm := f.input_file.input_source_map
+				if !options.exclude_sources_content {
+					if sm == nil {
+						result.quoted_contents = [
+							helpers.quote_for_json(f.input_file.source.contents, options.asciio_nly),
+						]
+					} else {
+						result.quoted_contents = [][]u8{len: sm.Sources.len}
+						mut null_contents := 'null'.bytes()
+						for i, _ in sm.sources {
+							mut quoted_contents := null_contents
+							if i < sm.sources_content.len {
+								mut value := sm.sources_content[i]
+								if value.quoted != '' && (!options.asciio_nly
+									|| !is_asciio_nly(value.quoted)) {
+									quoted_contents = value.quoted.bytes()
+								} else if value.value != nil {
+									quoted_contents = helpers.quote_for_json(helpers.utf_16_to_string(value.value),
+										options.asciio_nly)
+								}
+							}
+							result.quoted_contents[i] = quoted_contents
+						}
+					}
+				}
+				wait_group.done()
+			}(source_index, f, approximate_line_count)
+		}
+	}
+	return fn () {
+		wait_group.wait()
+		return results
+	}
+}
+
+fn (b &Bundle) generate_metadata_json(results []graph.OutputFile, allReachableFiles []u32, asciiOnly bool) string {
+	mut sb := strings.Builder
+	{
+	}
+	sb.write_string('{\n  "inputs": {')
+	mut is_first := true
+	for _, source_index in all_reachable_files {
+		if b.files[source_index].input_file.omit_from_source_maps_and_metafile {
+			continue
+		}
+		mut file := &b.files[source_index]
+		if file.json_metadata_chunk.len > 0 {
+			if is_first {
+				is_first = false
+				sb.write_string('\n    ')
+			} else {
+				sb.write_string(',\n    ')
+			}
+			sb.write_string(file.json_metadata_chunk)
+		}
+	}
+	sb.write_string('\n  },\n  "outputs": {')
+	is_first = true
+	mut paths := map[string]Bool{}
+	for _, result in results {
+		if result.jsonm_etadata_chunk.len > 0 {
+			mut path := resolver.pretty_path(b.fs, logger.Path{
+				Text:      result.abs_path
+				Namespace: 'file'
+			})
+			if paths[path] {
+				continue
+			}
+			if is_first {
+				is_first = false
+				sb.write_string('\n    ')
+			} else {
+				sb.write_string(',\n    ')
+			}
+			paths[path] = true
+			sb.write_string(strconv.v_sprintf('%s: ', helpers.quote_for_json(path, ascii_only)))
+			sb.write_string(result.jsonm_etadata_chunk)
+		}
+	}
+	sb.write_string('\n  }\n}\n')
+	return sb.string()
+}
+
+struct runtimeCacheKey {
+pub mut:
+	unsupported_jsf_eatures compat.JSFeature
+	minify_syntax           bool
+	minify_identifiers      bool
+}
+
+struct runtimeCache {
+pub mut:
+	ast_map   map[RuntimeCacheKey]js_ast.AST
+	ast_mutex sync.Mutex
+}
+
+__global globalRuntimeCache runtimeCache
+
+fn (cache &RuntimeCache) parse_runtime(options &config.Options) (logger.Source, js_ast.AST, bool) {
+	mut key := RuntimeCacheKey{
+		unsupportedJSFeatures: options.unsupported_jsf_eatures
+		minifySyntax:          options.minify_syntax
+		minifyIdentifiers:     options.minify_identifiers
+	}
+	source = runtime.source(key.unsupported_jsf_eatures)
+
+	fn () {
+		cache.ast_mutex.lock_()
+		defer {
+			cache.ast_mutex.unlock
+		}
+		if cache.ast_map != nil {
+			runtime_ast, ok = cache.ast_map[key]
+		}
+	}()
+	if ok {
+		return
+	}
+	mut log := logger.new_defer_log(logger.defer_log_all, nil)
+	runtime_ast, ok = js_parser.parse(log, source, js_parser.options_from_config(&config.Options{
+		UnsupportedJSFeatures: key.unsupported_jsf_eatures
+		MinifySyntax:          key.minify_syntax
+		MinifyIdentifiers:     key.minify_identifiers
+		TreeShaking:           true
+	}))
+	if log.has_errors() {
+		mut msgs := 'Internal error: failed to parse runtime:\n'
+		for _, msg in log.done() {
+			msgs += msg.string(logger.OutputOptions{
+				IncludeSource: true
+			}, logger.TerminalInfo{})
+		}
+		panic(msgs[..msgs.len - 1])
+	}
+	if ok {
+		cache.ast_mutex.lock_()
+		defer {
+			cache.ast_mutex.unlock
+		}
+		if cache.ast_map == nil {
+			cache.ast_map = map[RuntimeCacheKey]js_ast.AST{}
+		}
+		cache.ast_map[key] = runtime_ast
+	}
+	return
+}
+
+// Returns the path of this file relative to "outbase", which is then ready to
+// be joined with the absolute output directory path. The directory and name
+// components are returned separately for convenience.
+pub fn path_relative_to_outbase(inputFile &graph.InputFile, options &config.Options, fs fs.FS, avoidIndex bool, customFilePath string) (string, string) {
+	rel_dir = '/'
+	mut abs_path := input_file.source.key_path.text
+	if custom_file_path != '' {
+		abs_path = custom_file_path
+		if !fs.is_abs(abs_path) {
+			abs_path = fs.join(options.abs_output_base, abs_path)
+		}
+	} else if input_file.source.key_path.namespace != 'file' {
+		mut dir, base, _ := logger.platform_independent_path_dir_base_ext(abs_path)
+		if avoid_index && base == 'index' {
+			_, base, _ = logger.platform_independent_path_dir_base_ext(dir)
+		}
+		base_name = sanitize_file_path_for_virtual_module_path(base)
+		return
+	} else {
+		if avoid_index {
+			mut base1660 := fs.base(abs_path)
+			base = base[..base.len - fs.ext(base).len]
+			if base == 'index' {
+				abs_path = fs.dir(abs_path)
+			}
+		}
+	}
+	mut rel_path, ok := fs.rel(options.abs_output_base, abs_path)
+	if !ok {
+		base_name = fs.base(abs_path)
+	} else {
+		rel_dir = fs.dir(rel_path) + '/'
+		base_name = fs.base(rel_path)
+		rel_dir = rel_dir.replace_all('\\', '/')
+		mut dot_dot_count := isize(0)
+		for rel_dir[dot_dot_count * 3..].has_prefix('../') {
+			dot_dot_count++
+		}
+		if dot_dot_count > 0 {
+			rel_dir = '_.._/'.repeat(dot_dot_count) + rel_dir[dot_dot_count * 3..]
+		}
+		for rel_dir.has_suffix('/') {
+			rel_dir = rel_dir[..rel_dir.len - 1]
+		}
+		rel_dir = '/' + rel_dir
+		if rel_dir.has_suffix('/.') {
+			rel_dir = rel_dir[..rel_dir.len - 1]
+		}
+	}
+	if custom_file_path == '' {
+		mut ext := fs.ext(base_name)
+		base_name = base_name[..base_name.len - ext.len]
+	}
+	return
+}
+
+fn sanitize_file_path_for_virtual_module_path(path string) string {
+	mut sb := strings.Builder
+	{
+	}
+	mut needs_gap := false
+	for _, c in path {
+		match c {
+			0 {}
+			`<`, `>`, `:`, `"`, `|`, `?`, `*` {}
+			else {
+				if c < 0x20 {
+					break
+				}
+				if needs_gap {
+					sb.write_byte(`_`)
+					needs_gap = false
+				}
+				sb.write_rune(c)
+				continue
+			}
+		}
+		if sb.len() > 0 {
+			needs_gap = true
+		}
+	}
+	if sb.len() == 0 {
+		return '_'
+	}
+	return sb.string()
+}

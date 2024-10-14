@@ -42,6 +42,7 @@ jobs:
       - name: Run tests
         run: v -g test .
 
-      - name: Run copmplex tests
+      - name: Run complex tests
         run: |
           v run . complex_tests/esbuild/api_impl
+          v run . complex_tests/esbuild/resolver

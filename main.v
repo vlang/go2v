@@ -15,10 +15,12 @@ mut:
 	tests_ok       bool = true
 	skip_first_arg bool // for `strings.Replace(s...)` => `s.replace(...)`
 	force_upper    bool // for `field Type` in struct decl, `mod.UpperCase` types etc
+	no_star        bool // To skip & in StarExpr in type matches  (interfaces)
 	type_decl_name string
 	is_enum_decl   bool
 	is_mut_recv    bool            // so that `mut f Foo` is generated instead of `mut f &Foo`
 	cur_fn_names   map[string]bool // for fixing shadowing
+	running_test   bool            // disables shadowing for now
 }
 
 fn (mut app App) genln(s string) {
@@ -54,6 +56,9 @@ fn (mut app App) typ(t Type) {
 		ArrayType {
 			app.array_type(t)
 			// app.gen('[]${t.elt.name}')
+		}
+		ChanType {
+			app.chan_type(t)
 		}
 		MapType {
 			app.map_type(t)
@@ -132,6 +137,7 @@ fn (mut app App) translate_file(go_file_path string) {
 }
 
 fn (mut app App) run_test(subdir string, test_name string) ! {
+	app.running_test = true
 	go_file_path := '${subdir}/${test_name}/${test_name}.go.json'
 	expected_v_code_path := '${subdir}/${test_name}/${test_name}.vv'
 

@@ -2,4 +2,8 @@
 - Fix `else if x := .... ; x {`
 - Implement `if obj, ok := json.Data.(*js_ast.EObject); ok {`
 - []u8(byteptr) cast ???
+- `for x := ` variable shadowing
+- `x := struct{}{}`
+- `^uint32(chunkIndex)`
+- `[]sourcemap.SourceMapShift{{}}`
 

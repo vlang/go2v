@@ -23,8 +23,10 @@ type Expr = InvalidExpr
 	| SliceExpr
 	| StarExpr
 	| UnaryExpr
+	| TypeAssertExpr
 
-type Stmt = AssignStmt
+type Stmt = InvalidStmt
+	| AssignStmt
 	| BlockStmt
 	| BranchStmt
 	| CaseClause
@@ -37,9 +39,12 @@ type Stmt = AssignStmt
 	| RangeStmt
 	| ReturnStmt
 	| SwitchStmt
+	| TypeSwitchStmt
 	| GoStmt
 
 struct InvalidExpr {}
+
+struct InvalidStmt {}
 
 type Specs = ImportSpec | TypeSpec | ValueSpec
 
@@ -52,6 +57,7 @@ type Type = InvalidExpr
 	| Ident
 	| StarExpr
 	| SelectorExpr
+	| ChanType
 
 struct GoFile {
 	package_name Ident   @[json: 'Name']
@@ -105,6 +111,12 @@ struct MapType {
 	val       Expr   @[json: 'Value']
 }
 
+struct ChanType {
+	node_type string @[json: '_type']
+	dir       string @[json: 'Dir']
+	value     Expr   @[json: 'Value']
+}
+
 struct Ellipsis {
 	node_type string @[json: '_type']
 	elt       Ident  @[json: 'Elt']
@@ -138,6 +150,13 @@ struct SwitchStmt {
 	init      AssignStmt @[json: 'Init']
 	tag       Expr       @[json: 'Tag']
 	body      BlockStmt  @[json: 'Body']
+}
+
+struct TypeSwitchStmt {
+	node_type string     @[json: '_type']
+	assign    AssignStmt @[json: 'Assign']
+	// tag       Expr       @[json: 'Tag']
+	body BlockStmt @[json: 'Body']
 }
 
 struct CaseClause {
@@ -278,6 +297,12 @@ struct SliceExpr {
 	high      Expr   @[json: 'High']
 }
 
+struct TypeAssertExpr {
+	node_type string @[json: '_type']
+	x         Expr   @[json: 'X']
+	typ       Type   @[json: 'Type']
+}
+
 struct StarExpr {
 	node_type string @[json: '_type']
 	x         Expr   @[json: 'X']
@@ -335,6 +360,7 @@ fn (e Expr) node_type() string {
 		SliceExpr { return e.node_type }
 		UnaryExpr { return e.node_type }
 		FuncType { return e.node_type }
+		TypeAssertExpr { return e.node_type }
 	}
 	return 'unknown node type'
 }

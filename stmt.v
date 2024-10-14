@@ -3,6 +3,7 @@
 
 fn (mut app App) stmt_list(list []Stmt) {
 	for stmt in list {
+		app.force_upper = false
 		app.stmt(stmt)
 	}
 }
@@ -29,6 +30,9 @@ fn (mut app App) stmt(stmt Stmt) {
 		}
 		SwitchStmt {
 			app.switch_stmt(stmt)
+		}
+		TypeSwitchStmt {
+			app.type_switch_stmt(stmt)
 		}
 		IfStmt {
 			app.if_stmt(stmt)
@@ -83,6 +87,7 @@ fn (mut app App) if_stmt(node IfStmt) {
 	}
 
 	app.gen('if ')
+	// app.genln('/*forceu=${app.force_upper}*/')
 	app.expr(node.cond)
 	app.block_stmt(node.body)
 	// else if ... {
@@ -104,7 +109,7 @@ fn (mut app App) for_stmt(f ForStmt) {
 	// if f.cond == unsafe { nil } {
 	//}
 
-	init_empty := f.init.node_type == ''
+	init_empty := f.init.node_type == '' // f.init is InvalidStmt // f.init.node_type == ''
 	cond_empty := f.cond.node_type() == ''
 
 	if init_empty && cond_empty {
@@ -134,12 +139,18 @@ fn (mut app App) range_stmt(node RangeStmt) {
 	if node.key.name == '' {
 		app.gen('_ ')
 	} else {
-		app.gen(app.go2v_ident(node.key.name))
+		key_name := app.unique_name_anti_shadow(app.go2v_ident(node.key.name))
+		// app.gen(app.go2v_ident(node.key.name))
+		app.gen(key_name)
+		app.cur_fn_names[key_name] = true
 		app.gen(', ')
 		if node.value.name == '' {
 			app.gen(' _ ')
 		} else {
-			app.gen(app.go2v_ident(node.value.name))
+			value_name := app.unique_name_anti_shadow(app.go2v_ident(node.value.name))
+			// app.gen(app.go2v_ident(node.value.name))
+			app.gen(value_name)
+			app.cur_fn_names[value_name] = true
 		}
 	}
 	app.gen(' in ')
@@ -154,19 +165,34 @@ fn (mut app App) inc_dec_stmt(i IncDecStmt) {
 }
 
 fn (mut app App) decl_stmt(d DeclStmt) {
+	// app.genln('//decl_stmt')
 	match d.decl {
 		GenDecl {
 			if d.decl.tok == 'var' {
 				for spec in d.decl.specs {
 					match spec {
 						ValueSpec {
+							n := spec.names[0].name
+							if app.cur_fn_names[n] {
+								println('${n} already declared in cur fn. skipping. (why does this happen?)')
+								return
+							}
+							// app.genln('// value spec')
 							app.gen('mut ')
-							app.gen(spec.names[0].name)
+							if n == 'layerDuplicates2' {
+								// app.genln('${d}')
+								println('=================')
+								print_backtrace()
+								println('1111111111111111111111')
+							}
+							app.gen(n)
 							app.gen(' := ')
+							app.cur_fn_names[n] = true
 							mut kind := 'int'
 							if spec.values.len == 0 {
 								// app.genln('NO SPEC VALUES')
 								// `var x int` declaration without initialization
+								app.force_upper = true
 								app.gen_zero_value(spec.typ)
 								continue
 							}
