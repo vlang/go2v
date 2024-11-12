@@ -133,7 +133,10 @@ fn (mut app App) translate_file(go_file_path string) {
 	v_path := go_file_path.replace('.go', '.v')
 	os.write_file(v_path, generated_v_code) or { panic(err) }
 	println('${v_path} has been successfully generated')
-	os.system('v -translated-go fmt -w ${v_path}')
+	res := os.system('v -translated-go fmt -w ${v_path}')
+	if res != 0 {
+		exit(1)
+	}
 }
 
 fn (mut app App) run_test(subdir string, test_name string) ! {
