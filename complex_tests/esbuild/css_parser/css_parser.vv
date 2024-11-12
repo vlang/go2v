@@ -1,0 +1,1426 @@
+module css_parser
+
+import ast // local module
+import compat // local module
+import config // local module
+import css_ast // local module
+import css_lexer // local module
+import logger // local module
+
+struct parser {
+pub mut:
+	log                 logger.Log
+	source              logger.Source
+	tokens              []css_lexer.Token
+	all_comments        []logger.Range
+	legal_comments      []css_lexer.Comment
+	stack               []css_lexer.T
+	import_records      []ast.ImportRecord
+	symbols             []ast.Symbol
+	composes            map[ast.Ref]&css_ast.Composes
+	local_symbols       []ast.LocRef
+	local_scope         map[string]ast.LocRef
+	global_scope        map[string]ast.LocRef
+	nesting_warnings    map[logger.Loc]logger.Loc
+	tracker             logger.LineColumnTracker
+	enclosing_at_media  [][]css_ast.Token
+	layers_pre_import   [][]string
+	layers_post_import  [][]string
+	enclosing_layer     []string
+	anon_layer_count    isize
+	index               isize
+	legal_comment_index isize
+	in_selector_subtree isize
+	prev_error          logger.Loc
+	options             Options
+	nesting_is_present  bool
+	make_local_symbols  bool
+	has_seen_at_import  bool
+}
+
+struct Options {
+pub mut:
+	css_prefix_data map[css_ast.D]compat.CSSPrefix
+	// This is an embedded struct. Always access these directly instead of off
+	// the name "optionsThatSupportStructuralEquality". This is only grouped like
+	// this to make the equality comparison easier and safer (and hopefully faster).
+}
+
+type symbolMode = u8
+
+enum symbolMode {
+	symbol_mode_disabled
+	symbol_mode_global
+	symbol_mode_local
+}
+
+struct optionsThatSupportStructuralEquality {
+pub mut:
+	original_target_env      string
+	unsupported_cssf_eatures compat.CSSFeature
+	minify_syntax            bool
+	minify_whitespace        bool
+	minify_identifiers       bool
+	symbol_mode              symbolMode
+}
+
+pub fn options_from_config(loader config.Loader, options &config.Options) Options {
+	mut symbolMode := 0
+	match loader {
+		config.loader_global_css {
+			symbol_mode = symbol_mode_global
+		}
+		config.loader_local_css {
+			symbol_mode = symbol_mode_local
+		}
+	}
+	return Options{
+		css_prefix_data:                          options.cssp_refix_data
+		options_that_support_structural_equality: OptionsThatSupportStructuralEquality{
+			minify_syntax:            options.minify_syntax
+			minify_whitespace:        options.minify_whitespace
+			minify_identifiers:       options.minify_identifiers
+			unsupported_cssf_eatures: options.unsupported_cssf_eatures
+			original_target_env:      options.original_target_env
+			symbol_mode:              symbol_mode
+		}
+	}
+}
+
+pub fn (a &Options) equal(b &Options) bool {
+	if a.options_that_support_structural_equality != b.options_that_support_structural_equality {
+		return false
+	}
+	if a.css_prefix_data.len != b.css_prefix_data.len {
+		return false
+	}
+	for k, va in a.css_prefix_data {
+		mut vb, ok := b.css_prefix_data[k]
+		if !ok || va != vb {
+			return false
+		}
+	}
+	for k_1, _ in b.css_prefix_data {
+		_, ok_1 := b.css_prefix_data[k]
+		if !ok {
+			return false
+		}
+	}
+	return true
+}
+
+pub fn parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
+	mut result := css_lexer.tokenize(log, source, css_lexer.Options{
+		record_all_comments: options.minify_identifiers
+	})
+	mut p := Parser{
+		log:                log
+		source:             source
+		tracker:            logger.make_line_column_tracker(&source)
+		options:            options
+		tokens:             result.tokens
+		all_comments:       result.all_comments
+		legal_comments:     result.legal_comments
+		prev_error:         logger.Loc{
+			start: -1
+		}
+		composes:           map[ast.Ref]&css_ast.Composes{}
+		local_scope:        map[string]ast.LocRef{}
+		global_scope:       map[string]ast.LocRef{}
+		make_local_symbols: options.symbol_mode == symbol_mode_local
+	}
+	mut rules := p.parse_list_of_rules(RuleContext{
+		is_top_level:    true
+		parse_selectors: true
+	})
+	p.expect(css_lexer.te_nd_of_file)
+	return css_ast.AST{
+		rules:                  rules
+		char_freq:              p.compute_character_frequency()
+		symbols:                p.symbols
+		import_records:         p.import_records
+		approximate_line_count: result.approximate_line_count
+		source_map_comment:     result.source_map_comment
+		local_symbols:          p.local_symbols
+		local_scope:            p.local_scope
+		global_scope:           p.global_scope
+		composes:               p.composes
+		layers_pre_import:      p.layers_pre_import
+		layers_post_import:     p.layers_post_import
+	}
+}
+
+// Compute a character frequency histogram for everything that's not a bound
+// symbol. This is used to modify how minified names are generated for slightly
+// better gzip compression. Even though it's a very small win, we still do it
+// because it's simple to do and very cheap to compute.
+fn (p &Parser) compute_character_frequency() &ast.CharFreq {
+	if !p.options.minify_identifiers {
+		return nil
+	}
+	mut char_freq := &ast.CharFreq{}
+	char_freq.scan(p.source.contents, 1)
+	for _, comment_range in p.all_comments {
+		char_freq.scan(p.source.text_for_range(comment_range), -1)
+	}
+	for _, record in p.import_records {
+		if !record.source_index.is_valid() {
+			char_freq.scan(record.path.text, -1)
+		}
+	}
+	for _, symbol in p.symbols {
+		if symbol.kind == ast.symbol_local_css {
+			char_freq.scan(symbol.original_name, -i32(symbol.use_count_estimate))
+		}
+	}
+	return char_freq
+}
+
+fn (p &Parser) advance() {
+	if p.index < p.tokens.len {
+		p.index++
+	}
+}
+
+fn (p &Parser) at(index isize) css_lexer.Token {
+	if index < p.tokens.len {
+		return p.tokens[index]
+	}
+	return css_lexer.Token{
+		kind:  css_lexer.te_nd_of_file
+		range: logger.Range{
+			loc: logger.Loc{
+				start: i32(p.source.contents.len)
+			}
+		}
+	}
+}
+
+fn (p &Parser) current() css_lexer.Token {
+	return p.at(p.index)
+}
+
+fn (p &Parser) next() css_lexer.Token {
+	return p.at(p.index + 1)
+}
+
+fn (p &Parser) raw() string {
+	mut t := p.current()
+	return p.source.contents[t.range.loc.start..t.range.end()]
+}
+
+fn (p &Parser) decoded() string {
+	return p.current().decoded_text(p.source.contents)
+}
+
+fn (p &Parser) peek(kind css_lexer.T) bool {
+	return kind == p.current().kind
+}
+
+fn (p &Parser) eat(kind css_lexer.T) bool {
+	if p.peek(kind) {
+		p.advance()
+		return true
+	}
+	return false
+}
+
+fn (p &Parser) expect(kind css_lexer.T) bool {
+	return p.expect_with_matching_loc(kind, logger.Loc{
+		start: -1
+	})
+}
+
+fn (p &Parser) expect_with_matching_loc(kind css_lexer.T, matchingLoc logger.Loc) bool {
+	if p.eat(kind) {
+		return true
+	}
+	mut t := p.current()
+	if (t.flags & css_lexer.did_warn_about_single_line_comment) != 0 {
+		return false
+	}
+	mut text := 0
+	mut suggestion := 0
+	mut notes := []logger.MsgData{}
+	mut expected := kind.string()
+	if expected.has_prefix('"') && expected.has_suffix('"') {
+		suggestion = expected[1..expected.len - 1]
+	}
+	if (kind == css_lexer.ts_emicolon || kind == css_lexer.tc_olon) && p.index > 0 && p.at(p.index - 1).kind == css_lexer.tw_hitespace {
+		text = strconv.v_sprintf('Expected %s', expected)
+		t = p.at(p.index - 1)
+	} else if (kind == css_lexer.tc_lose_brace || kind == css_lexer.tc_lose_bracket
+		|| kind == css_lexer.tc_lose_paren) && matching_loc.start !=
+		-1 && isize(matching_loc.start) + 1 <= p.source.contents.len {
+		mut c := p.source.contents[matching_loc.start..matching_loc.start + 1]
+		text = strconv.v_sprintf('Expected %s to go with %q', expected, c)
+		notes << p.tracker.msg_data(logger.Range{
+			loc: matching_loc
+			len: 1
+		}, strconv.v_sprintf('The unbalanced %q is here:', c))
+	} else {
+		match t.kind {
+			css_lexer.te_nd_of_file, css_lexer.tw_hitespace {
+				text = strconv.v_sprintf('Expected %s but found %s', expected, t.kind.string())
+				t.range.len = isize(0)
+			}
+			css_lexer.tb_ad_url, css_lexer.tu_nterminated_string {
+				text = strconv.v_sprintf('Expected %s but found %s', expected, t.kind.string())
+			}
+			else {
+				text = strconv.v_sprintf('Expected %s but found %q', expected, p.raw())
+			}
+		}
+	}
+	if t.range.loc.start > p.prev_error.start {
+		mut data := p.tracker.msg_data(t.range, text)
+		data.location.suggestion = suggestion
+		p.log.add_msg_id(logger.msg_id_css_csss_yntax_error, logger.Msg{
+			kind:  logger.warning
+			data:  data
+			notes: notes
+		})
+		p.prev_error = t.range.loc
+	}
+	return false
+}
+
+fn (p &Parser) unexpected() {
+	mut t := p.current()
+	if t.range.loc.start > p.prev_error.start && (t.flags & css_lexer.did_warn_about_single_line_comment) == 0 {
+		mut text := 0
+		match t.kind {
+			css_lexer.te_nd_of_file, css_lexer.tw_hitespace {
+				text = strconv.v_sprintf('Unexpected %s', t.kind.string())
+				t.range.len = isize(0)
+			}
+			css_lexer.tb_ad_url, css_lexer.tu_nterminated_string {
+				text = strconv.v_sprintf('Unexpected %s', t.kind.string())
+			}
+			else {
+				text = strconv.v_sprintf('Unexpected %q', p.raw())
+			}
+		}
+		p.log.add_id(logger.msg_id_css_csss_yntax_error, logger.warning, &p.tracker, t.range,
+			text)
+		p.prev_error = t.range.loc
+	}
+}
+
+fn (p &Parser) symbol_for_name(loc logger.Loc, name string) ast.LocRef {
+	mut kind := 0
+	mut scope := map[string]ast.LocRef{}
+	if p.make_local_symbols {
+		kind = ast.symbol_local_css
+		scope = p.local_scope
+	} else {
+		kind = ast.symbol_global_css
+		scope = p.global_scope
+	}
+	mut entry, ok := scope[name]
+	if !ok {
+		entry = ast.LocRef{
+			loc: loc
+			ref: ast.Ref{
+				source_index: p.source.index
+				inner_index:  u32(p.symbols.len)
+			}
+		}
+		p.symbols << ast.Symbol{
+			kind:          kind
+			original_name: name
+			link:          ast.invalid_ref
+		}
+		scope[name] = entry
+		if kind == ast.symbol_local_css {
+			p.local_symbols << entry
+		}
+	}
+	p.symbols[entry.ref.inner_index].use_count_estimate++
+	return entry
+}
+
+fn (p &Parser) record_at_layer_rule(layers [][]string) {
+	if p.anon_layer_count > 0 {
+		return
+	}
+	for _, layer in layers {
+		if p.enclosing_layer.len > 0 {
+			mut clone := []string{len: 0, cap: p.EnclosingLayer.len + layer.len}
+			layer << layer
+		}
+		p.layers_post_import << layer
+	}
+}
+
+struct ruleContext {
+pub mut:
+	is_top_level    bool
+	parse_selectors bool
+}
+
+fn (p &Parser) parse_list_of_rules(context ruleContext) []css_ast.Rule {
+	mut at_rule_context := AtRuleContext{}
+	if context.is_top_level {
+		at_rule_context.charset_validity = at_rule_valid
+		at_rule_context.import_validity = at_rule_valid
+		at_rule_context.is_top_level = true
+	}
+	mut rules := []
+	{
+	}
+	mut did_find_at_import := false
+	mut did_find_at_import_1 := false
+	if p.options.minify_syntax {
+		rules = p.mangle_rules(rules, context.is_top_level)
+	}
+	return rules
+}
+
+struct listOfDeclarationsOpts {
+pub mut:
+	composes_context         &ComposesContext = unsafe { nil }
+	can_inline_no_op_nesting bool
+}
+
+fn (p &Parser) parse_list_of_declarations(opts listOfDeclarationsOpts) []css_ast.Rule {
+	list = []
+	{
+	}
+	mut found_nesting := false
+	for {
+		match p.current().kind {
+			css_lexer.tw_hitespace, css_lexer.ts_emicolon {
+				p.advance()
+			}
+			css_lexer.te_nd_of_file, css_lexer.tc_lose_brace {
+				list = p.process_declarations(list, opts.composes_context)
+				if p.options.minify_syntax {
+					list = p.mangle_rules(list, false)
+					if opts.can_inline_no_op_nesting {
+						if found_nesting {
+							mut inlineDecls := []css_ast.Rule{}
+							mut n := isize(0)
+							for _, rule in list {
+								mut rule_1, ok := rule.data
+								if ok && rule.selectors.len == 1 {
+									mut sel := rule.selectors[0]
+									if sel.selectors.len == 1 && sel.selectors[0].is_single_ampersand() {
+										inline_decls << rule.rules
+										continue
+									}
+								}
+								list[n] = rule
+								n++
+							}
+							list << inline_decls
+						}
+					} else {
+					}
+				}
+				return
+			}
+			css_lexer.ta_t_keyword {
+				if p.in_selector_subtree > 0 {
+					p.nesting_is_present = true
+				}
+				list << p.parse_at_rule(AtRuleContext{
+					is_declaration_list:      true
+					can_inline_no_op_nesting: opts.can_inline_no_op_nesting
+				})
+			}
+			else {
+				mut scan, _ := p.scan_for_end_of_rule()
+				if scan == end_of_rule_open_brace {
+					p.nesting_is_present = true
+					found_nesting = true
+					mut rule_2 := p.parse_selector_rule(false, ParseSelectorOpts{
+						is_declaration_context: true
+						composes_context:       opts.composes_context
+					})
+					mut sel_1, ok_1 := rule.data
+					if ok && sel.selectors.len == 1 {
+						mut first := sel.selectors[0]
+						if first.selectors.len == 1 {
+							mut first_1 := first.selectors[0]
+							if first.was_empty_from_local_or_global && first.is_single_ampersand() {
+								list << sel.rules
+								continue
+							}
+						}
+					}
+					list << rule
+				} else {
+					list << p.parse_declaration()
+				}
+			}
+		}
+	}
+}
+
+fn (p &Parser) mangle_rules(rules []css_ast.Rule, isTopLevel bool) []css_ast.Rule {
+	mut mangled_rules := []css_ast.Rule{len: 0, cap: rules.len}
+	mut prevNonComment := 0
+	if !is_top_level {
+		mut remover := make_duplicate_rule_mangler(ast.SymbolMap{})
+		mangled_rules = remover.remove_duplicate_rules_in_place(p.source.index, mangled_rules,
+			p.import_records)
+	}
+	return mangled_rules
+}
+
+struct ruleEntry {
+pub mut:
+	data         css_ast.R
+	call_counter u32
+}
+
+struct hashEntry {
+pub mut:
+	rules []ruleEntry
+}
+
+struct callEntry {
+pub mut:
+	import_records []ast.ImportRecord
+	source_index   u32
+}
+
+struct DuplicateRuleRemover {
+pub mut:
+	entries map[Uint32]HashEntry
+	calls   []callEntry
+	check   css_ast.CrossFileEqualityCheck
+}
+
+pub fn make_duplicate_rule_mangler(symbols ast.SymbolMap) DuplicateRuleRemover {
+	return DuplicateRuleRemover{
+		entries: map[Uint32]HashEntry{}
+		check:   css_ast.CrossFileEqualityCheck{
+			symbols: symbols
+		}
+	}
+}
+
+pub fn (remover &DuplicateRuleRemover) remove_duplicate_rules_in_place(sourceIndex u32, rules []css_ast.Rule, importRecords []ast.ImportRecord) []css_ast.Rule {
+	mut call_counter := u32(remover.calls.len)
+	remover.calls << CallEntry{import_records, source_index}
+	mut n := rules.len
+	mut start := n
+	mut start_1 := n
+	return rules[start..]
+}
+
+// Reference: https://developer.mozilla.org/en-US/docs/Web/HTML/Element
+__global nonDeprecatedElementsSupportedByIE7 = {
+	'a':          true
+	'abbr':       true
+	'address':    true
+	'area':       true
+	'b':          true
+	'base':       true
+	'blockquote': true
+	'body':       true
+	'br':         true
+	'button':     true
+	'caption':    true
+	'cite':       true
+	'code':       true
+	'col':        true
+	'colgroup':   true
+	'dd':         true
+	'del':        true
+	'dfn':        true
+	'div':        true
+	'dl':         true
+	'dt':         true
+	'em':         true
+	'embed':      true
+	'fieldset':   true
+	'form':       true
+	'h1':         true
+	'h2':         true
+	'h3':         true
+	'h4':         true
+	'h5':         true
+	'h6':         true
+	'head':       true
+	'hr':         true
+	'html':       true
+	'i':          true
+	'iframe':     true
+	'img':        true
+	'input':      true
+	'ins':        true
+	'kbd':        true
+	'label':      true
+	'legend':     true
+	'li':         true
+	'link':       true
+	'map':        true
+	'menu':       true
+	'meta':       true
+	'noscript':   true
+	'object':     true
+	'ol':         true
+	'optgroup':   true
+	'option':     true
+	'p':          true
+	'param':      true
+	'pre':        true
+	'q':          true
+	'ruby':       true
+	's':          true
+	'samp':       true
+	'script':     true
+	'select':     true
+	'small':      true
+	'span':       true
+	'strong':     true
+	'style':      true
+	'sub':        true
+	'sup':        true
+	'table':      true
+	'tbody':      true
+	'td':         true
+	'textarea':   true
+	'tfoot':      true
+	'th':         true
+	'thead':      true
+	'title':      true
+	'tr':         true
+	'u':          true
+	'ul':         true
+	'var':        true
+}
+// This only returns true if all of these selectors are considered "safe" which
+// means that they are very likely to work in any browser a user might reasonably
+// be using. We do NOT want to merge adjacent qualified rules with the same body
+// if any of the selectors are unsafe, since then browsers which don't support
+// that particular feature would ignore the entire merged qualified rule:
+//
+//	Input:
+//	  a { color: red }
+//	  b { color: red }
+//	  input::-moz-placeholder { color: red }
+//
+//	Valid output:
+//	  a, b { color: red }
+//	  input::-moz-placeholder { color: red }
+//
+//	Invalid output:
+//	  a, b, input::-moz-placeholder { color: red }
+//
+// This considers IE 7 and above to be a browser that a user could possibly use.
+// Versions of IE less than 6 are not considered.
+fn is_safe_selectors(complexSelectors []css_ast.ComplexSelector) bool {
+	for _, complex in complex_selectors {
+		for _, compound in complex.selectors {
+			if compound.has_nesting_selector() {
+				return false
+			}
+			if compound.combinator.byte != 0 {
+				return false
+			}
+			if compound.type_selector != nil {
+				if compound.type_selector.namespace_prefix != nil {
+					return false
+				}
+				if compound.type_selector.name.kind == css_lexer.ti_dent
+					&& !non_deprecated_elements_supported_by_ie_7[compound.type_selector.name.text] {
+					return false
+				}
+			}
+			for _, ss in compound.subclass_selectors {
+				mut s := ss.data
+				match s {
+					css_ast.SSAttribute {
+						if s.matcher_modifier != 0 {
+							return false
+						}
+					}
+					css_ast.SSPseudoClass {
+						if s.args == nil && !s.is_element {
+							match s.name {
+								'active', 'first-child', 'hover', 'link', 'visited' {
+									continue
+								}
+							}
+						}
+						return false
+					}
+					css_ast.SSPseudoClassWithSelectorList {
+						return false
+					}
+				}
+			}
+		}
+	}
+	return true
+}
+
+fn (p &Parser) parse_urlo_r_string() (string, logger.Range, bool) {
+	mut t := p.current()
+	match t.kind {
+		css_lexer.ts_tring {
+			mut text := p.decoded()
+			p.advance()
+			return text, t.range, true
+		}
+		css_lexer.turl {
+			mut text_1 := p.decoded()
+			p.advance()
+			return text, t.range, true
+		}
+		css_lexer.tf_unction {
+			if p.decoded().equal_fold('url') {
+				mut matching_loc := logger.Loc{
+					start: p.current().range.end() - 1
+				}
+				mut i := p.index + 1
+				for p.at(i).kind == css_lexer.tw_hitespace {
+					i++
+				}
+				if p.at(i).kind == css_lexer.ts_tring {
+					mut string_index := i
+					i++
+					for p.at(i).kind == css_lexer.tw_hitespace {
+						i++
+					}
+					mut close := p.at(i).kind
+					if close == css_lexer.tc_lose_paren || close == css_lexer.te_nd_of_file {
+						mut t_1 := p.at(string_index)
+						mut text_2 := t.decoded_text(p.source.contents)
+						p.index = i
+						p.expect_with_matching_loc(css_lexer.tc_lose_paren, matching_loc)
+						return text, t.range, true
+					}
+				}
+			}
+		}
+	}
+	return '', logger.Range{}, false
+}
+
+fn (p &Parser) expect_urlo_r_string() (string, logger.Range, bool) {
+	url, r, ok = p.parse_urlo_r_string()
+	if !ok {
+		p.expect(css_lexer.turl)
+	}
+	return
+}
+
+type atRuleKind = u8
+
+enum atRuleKind {
+	at_rule_unknown
+	at_rule_declarations
+	at_rule_inherit_context
+	at_rule_qualified_or_empty
+	at_rule_empty
+}
+
+__global specialAtRules = {
+	'media':               at_rule_inherit_context
+	'supports':            at_rule_inherit_context
+	'font-face':           at_rule_declarations
+	'page':                at_rule_declarations
+	'bottom-center':       at_rule_declarations
+	'bottom-left-corner':  at_rule_declarations
+	'bottom-left':         at_rule_declarations
+	'bottom-right-corner': at_rule_declarations
+	'bottom-right':        at_rule_declarations
+	'left-bottom':         at_rule_declarations
+	'left-middle':         at_rule_declarations
+	'left-top':            at_rule_declarations
+	'right-bottom':        at_rule_declarations
+	'right-middle':        at_rule_declarations
+	'right-top':           at_rule_declarations
+	'top-center':          at_rule_declarations
+	'top-left-corner':     at_rule_declarations
+	'top-left':            at_rule_declarations
+	'top-right-corner':    at_rule_declarations
+	'top-right':           at_rule_declarations
+	'viewport':            at_rule_declarations
+	'-ms-viewport':        at_rule_declarations
+	'document':            at_rule_inherit_context
+	'-moz-document':       at_rule_inherit_context
+	'layer':               at_rule_qualified_or_empty
+	'scope':               at_rule_inherit_context
+	'font-palette-values': at_rule_declarations
+	'counter-style':       at_rule_declarations
+	'font-feature-values': at_rule_declarations
+	'annotation':          at_rule_declarations
+	'character-variant':   at_rule_declarations
+	'historical-forms':    at_rule_declarations
+	'ornaments':           at_rule_declarations
+	'styleset':            at_rule_declarations
+	'stylistic':           at_rule_declarations
+	'swash':               at_rule_declarations
+	'container':           at_rule_inherit_context
+	'starting-style':      at_rule_inherit_context
+	'position-try':        at_rule_declarations
+}
+__global atKnownRuleCanBeRemovedIfEmpty = {
+	'media':               true
+	'supports':            true
+	'font-face':           true
+	'page':                true
+	'bottom-center':       true
+	'bottom-left-corner':  true
+	'bottom-left':         true
+	'bottom-right-corner': true
+	'bottom-right':        true
+	'left-bottom':         true
+	'left-middle':         true
+	'left-top':            true
+	'right-bottom':        true
+	'right-middle':        true
+	'right-top':           true
+	'top-center':          true
+	'top-left-corner':     true
+	'top-left':            true
+	'top-right-corner':    true
+	'top-right':           true
+	'scope':               true
+	'font-palette-values': true
+	'container':           true
+}
+type atRuleValidity = u8
+
+enum atRuleValidity {
+	at_rule_invalid
+	at_rule_valid
+	at_rule_invalid_after
+}
+
+struct atRuleContext {
+pub mut:
+	after_loc                logger.Loc
+	charset_validity         atRuleValidity
+	import_validity          atRuleValidity
+	can_inline_no_op_nesting bool
+	is_declaration_list      bool
+	is_top_level             bool
+}
+
+fn (p &Parser) parse_at_rule(context atRuleContext) css_ast.Rule {
+	mut at_token := p.decoded()
+	mut at_range := p.current().range
+	mut lower_at_token := at_token.to_lower()
+	mut kind := special_at_rules[lower_at_token]
+	p.advance()
+	mut prelude_start := p.index
+	mut prelude_start_1 := p.index
+	mut prelude_start_2 := p.index
+	mut prelude := p.convert_tokens(p.tokens[prelude_start..p.index])
+	mut block_start := p.index
+	match kind {
+		at_rule_empty {
+			p.expect(css_lexer.ts_emicolon)
+			p.parse_block(css_lexer.to_pen_brace, css_lexer.tc_lose_brace)
+			mut block := p.convert_tokens(p.tokens[block_start..p.index])
+			return css_ast.Rule{
+				loc:  at_range.loc
+				data: &css_ast.RUnknownAt{
+					at_token: at_token
+					prelude:  prelude
+					block:    block
+				}
+			}
+		}
+		at_rule_declarations {
+			mut matching_loc := p.current().range.loc
+			p.expect(css_lexer.to_pen_brace)
+			mut rules := p.parse_list_of_declarations(ListOfDeclarationsOpts{})
+			mut close_brace_loc := p.current().range.loc
+			if !p.expect_with_matching_loc(css_lexer.tc_lose_brace, matching_loc) {
+				close_brace_loc = logger.Loc{}
+			}
+			if prelude.len == 1 && lower_at_token == 'counter-style' {
+				mut t := &prelude[0]
+				if t.kind == css_lexer.ti_dent {
+					t.kind = css_lexer.ts_ymbol
+					t.payload_index = p.symbol_for_name(t.loc, t.text).ref.inner_index
+				}
+			}
+			return css_ast.Rule{
+				loc:  at_range.loc
+				data: &css_ast.RKnownAt{
+					at_token:        at_token
+					prelude:         prelude
+					rules:           rules
+					close_brace_loc: close_brace_loc
+				}
+			}
+		}
+		at_rule_inherit_context {
+			mut matching_loc_1 := p.current().range.loc
+			p.expect(css_lexer.to_pen_brace)
+			mut is_at_media := lower_at_token == 'media'
+			if is_at_media {
+				p.enclosing_at_media << prelude
+			}
+			if context.is_declaration_list {
+				rules = p.parse_list_of_declarations(ListOfDeclarationsOpts{
+					can_inline_no_op_nesting: context.can_inline_no_op_nesting
+				})
+			} else {
+				rules = p.parse_list_of_rules(RuleContext{
+					parse_selectors: true
+				})
+			}
+			if is_at_media {
+				p.enclosing_at_media = p.enclosing_at_media[..p.enclosing_at_media.len - 1]
+			}
+			mut close_brace_loc_1 := p.current().range.loc
+			if !p.expect_with_matching_loc(css_lexer.tc_lose_brace, matching_loc) {
+				close_brace_loc = logger.Loc{}
+			}
+			if prelude.len >= 1 && lower_at_token == 'container' {
+				mut t_1 := &prelude[0]
+				if t.kind == css_lexer.ti_dent && t.text.to_lower() != 'not' {
+					t.kind = css_lexer.ts_ymbol
+					t.payload_index = p.symbol_for_name(t.loc, t.text).ref.inner_index
+				}
+			}
+			return css_ast.Rule{
+				loc:  at_range.loc
+				data: &css_ast.RKnownAt{
+					at_token:        at_token
+					prelude:         prelude
+					rules:           rules
+					close_brace_loc: close_brace_loc
+				}
+			}
+		}
+		at_rule_qualified_or_empty {
+			mut matching_loc_2 := p.current().range.loc
+			if p.eat(css_lexer.to_pen_brace) {
+				mut rules_1 := p.parse_list_of_rules(RuleContext{
+					parse_selectors: true
+				})
+				mut close_brace_loc_2 := p.current().range.loc
+				if !p.expect_with_matching_loc(css_lexer.tc_lose_brace, matching_loc) {
+					close_brace_loc = logger.Loc{}
+				}
+				return css_ast.Rule{
+					loc:  at_range.loc
+					data: &css_ast.RKnownAt{
+						at_token:        at_token
+						prelude:         prelude
+						rules:           rules
+						close_brace_loc: close_brace_loc
+					}
+				}
+			}
+			p.expect(css_lexer.ts_emicolon)
+			return css_ast.Rule{
+				loc:  at_range.loc
+				data: &css_ast.RKnownAt{
+					at_token: at_token
+					prelude:  prelude
+				}
+			}
+		}
+		else {
+			p.parse_block(css_lexer.to_pen_brace, css_lexer.tc_lose_brace)
+			mut block_1, _ := p.convert_tokens_helper(p.tokens[block_start..p.index],
+				css_lexer.te_nd_of_file, ConvertTokensOpts{
+				allow_imports: true
+			})
+			return css_ast.Rule{
+				loc:  at_range.loc
+				data: &css_ast.RUnknownAt{
+					at_token: at_token
+					prelude:  prelude
+					block:    block
+				}
+			}
+		}
+	}
+}
+
+fn (p &Parser) expect_valid_layer_name_ident() (string, bool) {
+	mut r := p.current().range
+	mut text := p.decoded()
+	if !p.expect(css_lexer.ti_dent) {
+		return '', false
+	}
+	match text {
+		'initial', 'inherit', 'unset' {
+			p.log.add_id(logger.msg_id_css_invalid_at_layer, logger.warning, &p.tracker,
+				r, strconv.v_sprintf('%q cannot be used as a layer name', text))
+			p.prev_error = r.loc
+			return '', false
+		}
+	}
+	return text, true
+}
+
+fn (p &Parser) convert_tokens(tokens []css_lexer.Token) []css_ast.Token {
+	mut result, _ := p.convert_tokens_helper(tokens, css_lexer.te_nd_of_file, ConvertTokensOpts{})
+	return result
+}
+
+struct convertTokensOpts {
+pub mut:
+	allow_imports           bool
+	verbatim_whitespace     bool
+	is_inside_calc_function bool
+}
+
+fn (p &Parser) convert_tokens_helper(tokens []css_lexer.Token, close css_lexer.T, opts convertTokensOpts) ([]css_ast.Token, []css_lexer.Token) {
+	mut result := []
+	{
+	}
+	mut nextWhitespace := 0
+	if !opts.verbatim_whitespace {
+		for i, t in tokens {
+			if t.kind == css_lexer.tw_hitespace {
+				continue
+			}
+			if t.kind == css_lexer.ti_dent && t.decoded_text(p.source.contents).has_prefix('--') {
+				for _, t_1 in tokens[i + 1..] {
+					if t.kind == css_lexer.tw_hitespace {
+						continue
+					}
+					if t.kind == css_lexer.tc_olon {
+						opts.verbatim_whitespace = true
+					}
+					break
+				}
+			}
+			break
+		}
+	}
+	if !opts.verbatim_whitespace {
+		for i_1, t_2 in tokens {
+			if t.kind == css_lexer.tw_hitespace {
+				continue
+			}
+			if t.kind == css_lexer.ti_dent && t.decoded_text(p.source.contents).has_prefix('--') {
+				for _, t_3 in tokens[i + 1..] {
+					if t.kind == css_lexer.tw_hitespace {
+						continue
+					}
+					if t.kind == css_lexer.tc_olon {
+						opts.verbatim_whitespace = true
+					}
+					break
+				}
+			}
+			break
+		}
+	}
+	if !opts.verbatim_whitespace {
+		for i_2, _ in result {
+			mut token := &result[i]
+			if i == 0 {
+				token.whitespace &= ~css_ast.whitespace_before
+			}
+			if i + 1 == result.len {
+				token.whitespace &= ~css_ast.whitespace_after
+			}
+			match token.kind {
+				css_lexer.tc_omma {
+					token.whitespace &= ~css_ast.whitespace_before
+					if i > 0 {
+						result[i - 1].whitespace &= ~css_ast.whitespace_after
+					}
+					if p.options.minify_whitespace {
+						token.whitespace &= ~css_ast.whitespace_after
+						if i + 1 < result.len {
+							result[i + 1].whitespace &= ~css_ast.whitespace_before
+						}
+					} else {
+						token.whitespace |= css_ast.whitespace_after
+						if i + 1 < result.len {
+							result[i + 1].whitespace |= css_ast.whitespace_before
+						}
+					}
+				}
+			}
+		}
+	}
+	if opts.verbatim_whitespace && result.len == 0 && next_whitespace == css_ast.whitespace_before {
+		result << css_ast.Token{
+			kind: css_lexer.tw_hitespace
+		}
+	}
+	return result, tokens
+}
+
+fn shift_dot(text string, dotOffset isize) (string, bool) {
+	if text.contains_any('eE') {
+		return '', false
+	}
+	mut sign := ''
+	if text.len > 0 && (text[0] == `-` || text[0] == `+`) {
+		sign = text[..1]
+		text = text[1..]
+	}
+	mut dot := text.index_byte(`.`)
+	if dot == -1 {
+		dot = text.len
+	} else {
+		text = text[..dot] + text[dot + 1..]
+	}
+	dot += dot_offset
+	for text.len > 0 && dot > 0 && text[0] == `0` {
+		text = text[1..]
+		dot--
+	}
+	for text.len > 0 && text.len > dot && text[text.len - 1] == `0` {
+		text = text[..text.len - 1]
+	}
+	if dot >= text.len {
+		mut trailing_zeros := '0'.repeat(dot - text.len)
+		return strconv.v_sprintf('%s%s%s', sign, text, trailing_zeros), true
+	}
+	if dot < 0 {
+		text = '0'.repeat(-dot) + text
+		dot = isize(0)
+	}
+	return strconv.v_sprintf('%s%s.%s', sign, text[..dot], text[dot..]), true
+}
+
+fn mangle_dimension(value string, unit string) (string, string, bool) {
+	if unit.equal_fold('ms') {
+		mut shifted, ok := shift_dot(value, -3)
+		if ok && shifted.len + s_len < value.len + ms_len {
+			return shifted, 's', true
+		}
+	}
+	if unit.equal_fold('s') {
+		mut shifted_1, ok_1 := shift_dot(value, 3)
+		if ok && shifted.len + ms_len < value.len + s_len {
+			return shifted, 'ms', true
+		}
+	}
+	return '', '', false
+}
+
+fn mangle_number(t string) (string, bool) {
+	mut original := t
+	mut dot := t.index_byte(`.`)
+	if dot != -1 {
+		for t.len > 0 && t[t.len - 1] == `0` {
+			t = t[..t.len - 1]
+		}
+		if dot + 1 == t.len {
+			t = t[..dot]
+			if t == '' || t == '+' || t == '-' {
+				t += '0'
+			}
+		} else {
+			if t.len >= 3 && t[0] == `0` && t[1] == `.` && t[2] >= `0` && t[2] <= `9` {
+				t = t[1..]
+			} else if t.len >= 4 && (t[0] == `+` || t[0] == `-`) && t[1] == `0` && t[2] == `.` && t[3] >= `0` && t[3] <= `9` {
+				t = t[0..1] + t[2..]
+			}
+		}
+	}
+	return t, t != original
+}
+
+fn (p &Parser) parse_selector_rule(isTopLevel bool, opts parseSelectorOpts) css_ast.Rule {
+	mut local := p.make_local_symbols
+	mut prelude_start := p.index
+	mut list, ok := p.parse_selector_list(opts)
+	if ok {
+		mut can_inline_no_op_nesting := true
+		for _, sel in list {
+			if sel.uses_pseudo_element() {
+				can_inline_no_op_nesting = false
+				break
+			}
+		}
+		mut selector := css_ast.RSelector{
+			selectors: list
+		}
+		mut matching_loc := p.current().range.loc
+		if p.expect(css_lexer.to_pen_brace) {
+			p.in_selector_subtree++
+			mut decl_opts := ListOfDeclarationsOpts{
+				can_inline_no_op_nesting: can_inline_no_op_nesting
+			}
+			if opts.composes_context != nil && list.len == 1 && list[0].selectors.len == 1 && list[0].selectors[0].is_single_ampersand() {
+				decl_opts.composes_context = opts.composes_context
+			} else {
+				mut composes_context := ComposesContext{
+					parent_range: list[0].selectors[0].range()
+				}
+				if opts.composes_context != nil {
+					composes_context.problem_range = opts.composes_context.parent_range
+				}
+				for _, sel_1 in list {
+					mut first := sel.selectors[0]
+					if first.combinator.byte != 0 {
+						composes_context.problem_range = logger.Range{
+							loc: first.combinator.loc
+							len: 1
+						}
+					} else if first.type_selector != nil {
+						composes_context.problem_range = first.type_selector.range()
+					} else if first.nesting_selector_loc.is_valid() {
+						composes_context.problem_range = logger.Range{
+							loc: logger.Loc{
+								start: i32(first.nesting_selector_loc.get_index())
+							}
+							len: 1
+						}
+					} else {
+						for i, ss in first.subclass_selectors {
+							mut class, ok_1 := ss.data
+							if i > 0 || !ok {
+								composes_context.problem_range = ss.range
+							} else {
+								composes_context.parent_refs << class.name.ref
+							}
+						}
+					}
+					if composes_context.problem_range.len > 0 {
+						break
+					}
+					if sel.selectors.len > 1 {
+						composes_context.problem_range = sel.selectors[1].range()
+						break
+					}
+				}
+				decl_opts.composes_context = &composes_context
+			}
+			selector.rules = p.parse_list_of_declarations(decl_opts)
+			p.in_selector_subtree--
+			mut close_brace_loc := p.current().range.loc
+			if p.expect_with_matching_loc(css_lexer.tc_lose_brace, matching_loc) {
+				selector.close_brace_loc = close_brace_loc
+			}
+			p.make_local_symbols = local
+			return css_ast.Rule{
+				loc:  p.tokens[prelude_start].range.loc
+				data: &selector
+			}
+		}
+	}
+	p.make_local_symbols = local
+	p.index = prelude_start
+	return p.parse_qualified_rule(ParseQualifiedRuleOpts{
+		is_already_invalid:     true
+		is_top_level:           is_top_level
+		is_declaration_context: opts.is_declaration_context
+	})
+}
+
+struct parseQualifiedRuleOpts {
+pub mut:
+	is_already_invalid     bool
+	is_top_level           bool
+	is_declaration_context bool
+}
+
+fn (p &Parser) parse_qualified_rule(opts parseQualifiedRuleOpts) css_ast.Rule {
+	mut prelude_start := p.index
+	mut prelude_loc := p.current().range.loc
+	mut prelude_loc_1 := p.current().range.loc
+	mut qualified := css_ast.RQualified{
+		prelude: p.convert_tokens(p.tokens[prelude_start..p.index])
+	}
+	mut matching_loc := p.current().range.loc
+	if p.eat(css_lexer.to_pen_brace) {
+		qualified.rules = p.parse_list_of_declarations(ListOfDeclarationsOpts{})
+		mut close_brace_loc := p.current().range.loc
+		if p.expect_with_matching_loc(css_lexer.tc_lose_brace, matching_loc) {
+			qualified.close_brace_loc = close_brace_loc
+		}
+	} else if !opts.is_already_invalid {
+		p.expect(css_lexer.to_pen_brace)
+	}
+	return css_ast.Rule{
+		loc:  prelude_loc
+		data: &qualified
+	}
+}
+
+type endOfRuleScan = u8
+
+enum endOfRuleScan {
+	end_of_rule_unknown
+	end_of_rule_semicolon
+	end_of_rule_open_brace
+}
+
+// Note: This was a late change to the CSS nesting syntax.
+// See also: https://github.com/w3c/csswg-drafts/issues/7961
+fn (p &Parser) scan_for_end_of_rule() (endOfRuleScan, isize) {
+	mut initialStack := []css_lexer.T{}
+	mut stack := initial_stack[..0]
+	for i, t in p.tokens[p.index..] {
+		match t.kind {
+			css_lexer.ts_emicolon {
+				if stack.len == 0 {
+					return end_of_rule_semicolon, p.index + i
+				}
+			}
+			css_lexer.tf_unction, css_lexer.to_pen_paren {
+				stack << css_lexer.tc_lose_paren
+			}
+			css_lexer.to_pen_bracket {
+				stack << css_lexer.tc_lose_bracket
+			}
+			css_lexer.to_pen_brace {
+				if stack.len == 0 {
+					return end_of_rule_open_brace, p.index + i
+				}
+				stack << css_lexer.tc_lose_brace
+			}
+			css_lexer.tc_lose_paren, css_lexer.tc_lose_bracket {
+				mut n := stack.len
+				if n > 0 && t.kind == stack[n - 1] {
+					stack = stack[..n - 1]
+				}
+			}
+			css_lexer.tc_lose_brace {
+				mut n_1 := stack.len
+				if n > 0 && t.kind == stack[n - 1] {
+					stack = stack[..n - 1]
+				} else {
+					return end_of_rule_unknown, -1
+				}
+			}
+		}
+	}
+	return end_of_rule_unknown, -1
+}
+
+fn (p &Parser) parse_declaration() css_ast.Rule {
+	mut key_start := p.index
+	mut key_range := p.tokens[key_start].range
+	mut key_is_ident := p.expect(css_lexer.ti_dent)
+	mut ok := false
+	if key_is_ident {
+		p.eat(css_lexer.tw_hitespace)
+		ok = p.eat(css_lexer.tc_olon)
+	}
+	mut value_start := p.index
+	mut value_start_1 := p.index
+	if !ok {
+		if key_is_ident {
+			mut end := key_range.end()
+			if end > p.prev_error.start {
+				p.prev_error.start = end
+				mut data := p.tracker.msg_data(logger.Range{
+					loc: logger.Loc{
+						start: end
+					}
+				}, 'Expected ":"')
+				data.location.suggestion = ':'
+				p.log.add_msg_id(logger.msg_id_css_csss_yntax_error, logger.Msg{
+					kind: logger.warning
+					data: data
+				})
+			}
+		}
+		return css_ast.Rule{
+			loc:  key_range.loc
+			data: &css_ast.RBadDeclaration{
+				tokens: p.convert_tokens(p.tokens[key_start..p.index])
+			}
+		}
+	}
+	mut key_token := p.tokens[key_start]
+	mut key_text := key_token.decoded_text(p.source.contents)
+	mut value := p.tokens[value_start..p.index]
+	mut verbatim_whitespace := key_text.has_prefix('--')
+	mut important := false
+	mut i := value.len - 1
+	if i >= 0 && value[i].kind == css_lexer.tw_hitespace {
+		i--
+	}
+	if i >= 0 && value[i].kind == css_lexer.ti_dent && value[i].decoded_text(p.source.contents).equal_fold('important') {
+		i--
+		if i >= 0 && value[i].kind == css_lexer.tw_hitespace {
+			i--
+		}
+		if i >= 0 && value[i].kind == css_lexer.td_elim_exclamation {
+			value = value[..i]
+			important = true
+		}
+	}
+	mut result, _ := p.convert_tokens_helper(value, css_lexer.te_nd_of_file, ConvertTokensOpts{
+		allow_imports:       true
+		verbatim_whitespace: verbatim_whitespace
+	})
+	if !verbatim_whitespace && result.len > 0 {
+		if p.options.minify_whitespace {
+			result[0].whitespace &= ~css_ast.whitespace_before
+		} else {
+			result[0].whitespace |= css_ast.whitespace_before
+		}
+	}
+	mut lower_key_text := key_text.to_lower()
+	mut key := css_ast.known_declarations[lower_key_text]
+	if key == css_ast.du_nknown {
+		mut corrected, ok_1 := css_ast.maybe_correct_declaration_typo(lower_key_text)
+		if ok {
+			mut data_1 := p.tracker.msg_data(key_token.range, strconv.v_sprintf('%q is not a known CSS property',
+				key_text))
+			data.location.suggestion = corrected
+			p.log.add_msg_id(logger.msg_id_css_unsupported_cssp_roperty, logger.Msg{
+				kind:  logger.warning
+				data:  data
+				notes: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+				]
+			})
+		}
+	}
+	return css_ast.Rule{
+		loc:  key_range.loc
+		data: &css_ast.RDeclaration{
+			key:       key
+			key_text:  key_text
+			key_range: key_token.range
+			value:     result
+			important: important
+		}
+	}
+}
+
+fn (p &Parser) parse_component_value() {
+	match p.current().kind {
+		css_lexer.tf_unction {
+			p.parse_block(css_lexer.tf_unction, css_lexer.tc_lose_paren)
+		}
+		css_lexer.to_pen_paren {
+			p.parse_block(css_lexer.to_pen_paren, css_lexer.tc_lose_paren)
+		}
+		css_lexer.to_pen_brace {
+			p.parse_block(css_lexer.to_pen_brace, css_lexer.tc_lose_brace)
+		}
+		css_lexer.to_pen_bracket {
+			p.parse_block(css_lexer.to_pen_bracket, css_lexer.tc_lose_bracket)
+		}
+		css_lexer.te_nd_of_file {
+			p.unexpected()
+		}
+		else {
+			p.advance()
+		}
+	}
+}
+
+fn (p &Parser) parse_block(open css_lexer.T, close css_lexer.T) {
+	mut current := p.current()
+	mut matching_start := current.range.end() - 1
+	if p.expect(open) {
+		for !p.eat(close) {
+			if p.peek(css_lexer.te_nd_of_file) {
+				p.expect_with_matching_loc(close, logger.Loc{
+					start: matching_start
+				})
+				return
+			}
+			p.parse_component_value()
+		}
+	}
+}
