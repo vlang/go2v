@@ -46,3 +46,5 @@ jobs:
         run: |
           v run . complex_tests/esbuild/api_impl
           v run . complex_tests/esbuild/resolver
+          v run . complex_tests/esbuild/linker
+          v run . complex_tests/esbuild/bundler
