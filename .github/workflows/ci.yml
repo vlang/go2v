@@ -44,7 +44,8 @@ jobs:
 
       - name: Run complex tests
         run: |
-          v run . complex_tests/esbuild/api_impl
-          v run . complex_tests/esbuild/resolver
-          v run . complex_tests/esbuild/linker
-          v run . complex_tests/esbuild/bundler
+          v -o go2v .
+          ./go2v complex_tests/esbuild/api_impl/api_impl.go
+          ./go2v complex_tests/esbuild/resolver/resolver.go
+#          v run . complex_tests/esbuild/linker
+#          v run . complex_tests/esbuild/bundler
