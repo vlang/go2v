@@ -119,7 +119,11 @@ fn (mut app App) binary_expr(b BinaryExpr) {
 }
 
 fn (mut app App) unary_expr(u UnaryExpr) {
-	if u.op != '+' {
+	if u.op == '^' {
+		// In Go bitwise NOT is ^x
+		// In V it's ~x, ^ is only used for XOR: x^b
+		app.gen('~')
+	} else if u.op != '+' {
 		app.gen(u.op)
 	}
 	app.expr(u.x)
