@@ -89,6 +89,11 @@ fn quoted_lit(s string, quote string) string {
 		prefix = 'r'
 	}
 
+	// Handle '`' => `\``
+	if go_quote == `'` {
+		no_quotes = no_quotes.replace('`', '\\`')
+	}
+
 	return '${prefix}${quote2}${no_quotes}${quote2}'
 }
 

@@ -50,3 +50,4 @@ jobs:
           ./go2v complex_tests/esbuild/linker/linker.go
           ./go2v complex_tests/esbuild/bundler/bundler.go
           ./go2v complex_tests/esbuild/css_parser/css_parser.go
+          ./go2v complex_tests/esbuild/js_parser/js_parser.go

@@ -91,13 +91,14 @@ fn (mut app App) func_params(params FieldList) {
 			app.typ(param.typ)
 		} else {
 			for j, name in param.names {
-				app.gen(name.name)
+				app.gen(app.go2v_ident(name.name))
 				app.gen(' ')
 				app.force_upper = true
 				app.typ(param.typ)
 				if j < param.names.len - 1 {
 					app.gen(',')
 				}
+				app.cur_fn_names[name.name] = true // Register the parameter in this scope to fix shadowin
 			}
 		}
 		// app.gen(type_or_ident(param.typ))

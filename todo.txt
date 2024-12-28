@@ -1,9 +1,11 @@
 - Fix shadowing ("redefinition of xxx")
 - Fix `else if x := .... ; x {`
 - Implement `if obj, ok := json.Data.(*js_ast.EObject); ok {`
+             if str, ok := b.Data.(*js_ast.EString); ok {
 - []u8(byteptr) cast ???
 - `for x := ` variable shadowing
 - `x := struct{}{}`
 - `^uint32(chunkIndex)`
 - `[]sourcemap.SourceMapShift{{}}`
+- `const x = 1 << iota`
 

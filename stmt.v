@@ -93,11 +93,22 @@ fn (mut app App) if_stmt(node IfStmt) {
 	// else if ... {
 	if node.else_ is IfStmt {
 		app.genln('else')
+		if node.else_.init.tok != '' {
+			// handle `else if x, ok := ...; ok {`  => `else { mut ok ... if ...  }`
+			app.genln('{')
+			// app.genln('//LOOL0')
+		}
 		app.if_stmt(node.else_)
+		if node.else_.init.tok != '' {
+			app.genln('}')
+		}
 	}
 	// else {
 	else if node.else_ is BlockStmt {
 		app.genln('else')
+		if node.else_.list.len > 0 && node.else_.list[0] is IfStmt {
+			app.genln('//LOOL')
+		}
 		app.block_stmt(node.else_)
 	}
 }

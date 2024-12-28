@@ -1895,21 +1895,23 @@ func (p *parser) logAssignToDefine(r logger.Range, name string, expr js_ast.Expr
 			if id, ok := expr.Data.(*js_ast.EIdentifier); ok {
 				parts = append(parts, p.loadNameFromRef(id.Ref))
 				break
-			} else if dot, ok := expr.Data.(*js_ast.EDot); ok {
-				parts = append(parts, dot.Name)
-				parts = append(parts, ".")
-				expr = dot.Target
-			} else if index, ok := expr.Data.(*js_ast.EIndex); ok {
-				if str, ok := index.Index.Data.(*js_ast.EString); ok {
-					parts = append(parts, "]")
-					parts = append(parts, string(helpers.QuoteSingle(helpers.UTF16ToString(str.Value), false)))
-					parts = append(parts, "[")
-					expr = index.Target
-				} else {
-					return
-				}
 			} else {
-				return
+				if dot, ok := expr.Data.(*js_ast.EDot); ok {
+					parts = append(parts, dot.Name)
+					parts = append(parts, ".")
+					expr = dot.Target
+				} else {
+					if index, ok := expr.Data.(*js_ast.EIndex); ok {
+						if str, ok := index.Index.Data.(*js_ast.EString); ok {
+							parts = append(parts, "]")
+							parts = append(parts, string(helpers.QuoteSingle(helpers.UTF16ToString(str.Value), false)))
+							parts = append(parts, "[")
+							expr = index.Target
+						} else {
+							return
+						}
+					}
+				}
 			}
 		}
 		for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
@@ -2069,7 +2071,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 		p.lexer.Next()
 
 	case js_lexer.TPrivateIdentifier:
-		if p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators == config.True && len(opts.decorators) > 0 {
+		if p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators == config.true_ && len(opts.decorators) > 0 {
 			p.log.AddError(&p.tracker, p.lexer.Range(), "TypeScript experimental decorators cannot be used on private identifiers")
 		} else if !opts.isClass {
 			p.lexer.Expected(js_lexer.TIdentifier)
@@ -2182,7 +2184,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 
 						if prop, ok := p.parseProperty(startLoc, kind, opts, nil); ok &&
 							prop.Kind == js_ast.PropertyField && prop.ValueOrNil.Data == nil &&
-							(p.options.ts.Config.ExperimentalDecorators == config.True && len(opts.decorators) > 0) {
+							(p.options.ts.Config.ExperimentalDecorators == config.true_ && len(opts.decorators) > 0) {
 							// If this is a well-formed class field with the "declare" keyword,
 							// only keep the declaration to preserve its side-effects when
 							// there are TypeScript experimental decorators present:
@@ -2219,7 +2221,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 
 						if prop, ok := p.parseProperty(startLoc, kind, opts, nil); ok &&
 							prop.Kind == js_ast.PropertyField && prop.ValueOrNil.Data == nil &&
-							(p.options.ts.Config.ExperimentalDecorators == config.True && len(opts.decorators) > 0) {
+							(p.options.ts.Config.ExperimentalDecorators == config.true_ && len(opts.decorators) > 0) {
 							// If this is a well-formed class field with the "abstract" keyword,
 							// only keep the declaration to preserve its side-effects when
 							// there are TypeScript experimental decorators present:
@@ -3318,8 +3320,8 @@ type exprFlag uint8
 
 const (
 	exprFlagDecorator exprFlag = 1 << iota
-	exprFlagForLoopInit
-	exprFlagForAwaitLoopInit
+	exprFlagForLoopInit = 2 << iota
+	exprFlagForAwaitLoopInit = 3 << iota
 )
 
 func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprFlag) js_ast.Expr {
@@ -5234,10 +5236,10 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 		case js_lexer.TStringLiteral:
 			if p.options.jsx.Preserve {
 				nullableChildren = append(nullableChildren, js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EJSXText{Raw: p.lexer.Raw()}})
-			} else if str := p.lexer.StringLiteral(); len(str) > 0 {
+			} else  {
+				if str := p.lexer.StringLiteral(); len(str) > 0 {
 				nullableChildren = append(nullableChildren, js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: str}})
-			} else {
-				// Skip this token if it turned out to be empty after trimming
+				}
 			}
 			p.lexer.NextJSXElementChild()
 
@@ -6381,7 +6383,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 	// Users that want the wrong behavior can either set "useDefineForClassFields"
 	// to false in "tsconfig.json" explicitly, or set TypeScript's "target" to
 	// "ES2021" or earlier in their in "tsconfig.json" file.
-	useDefineForClassFields := !p.options.ts.Parse || p.options.ts.Config.UseDefineForClassFields == config.True ||
+	useDefineForClassFields := !p.options.ts.Parse || p.options.ts.Config.UseDefineForClassFields == config.true_ ||
 		(p.options.ts.Config.UseDefineForClassFields == config.Unspecified && p.options.ts.Config.Target != config.TSTargetBelowES2022)
 
 	return js_ast.Class{
@@ -6399,7 +6401,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 		// class fields, and so we must lower decorators so they behave correctly.
 		ShouldLowerStandardDecorators: (len(classOpts.decorators) > 0 || hasPropertyDecorator) &&
 			((!p.options.ts.Parse && p.options.unsupportedJSFeatures.Has(compat.Decorators)) ||
-				(p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators != config.True &&
+				(p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators != config.true_ &&
 					(p.options.unsupportedJSFeatures.Has(compat.Decorators) || !useDefineForClassFields))),
 
 		UseDefineForClassFields: useDefineForClassFields,
@@ -6654,14 +6656,14 @@ type decoratorContextFlags uint8
 
 const (
 	decoratorBeforeClassExpr = 1 << iota
-	decoratorInClassExpr
-	decoratorInFnArgs
+	decoratorInClassExpr = 2 << iota
+	decoratorInFnArgs = 3 << iota
 )
 
 func (p *parser) parseDecorators(decoratorScope *js_ast.Scope, classKeyword logger.Range, context decoratorContextFlags) (decorators []js_ast.Decorator) {
 	if p.lexer.Token == js_lexer.TAt {
 		if p.options.ts.Parse {
-			if p.options.ts.Config.ExperimentalDecorators == config.True {
+			if p.options.ts.Config.ExperimentalDecorators == config.true_ {
 				if (context & decoratorInClassExpr) != 0 {
 					p.lexer.AddRangeErrorWithNotes(p.lexer.Range(), "TypeScript experimental decorators can only be used with class declarations",
 						[]logger.MsgData{p.tracker.MsgData(classKeyword, "This is a class expression, not a class declaration:")})
@@ -6669,7 +6671,7 @@ func (p *parser) parseDecorators(decoratorScope *js_ast.Scope, classKeyword logg
 					p.log.AddError(&p.tracker, p.lexer.Range(), "TypeScript experimental decorators cannot be used in expression position")
 				}
 			} else {
-				if (context&decoratorInFnArgs) != 0 && p.options.ts.Config.ExperimentalDecorators != config.True {
+				if (context&decoratorInFnArgs) != 0 && p.options.ts.Config.ExperimentalDecorators != config.True_ {
 					p.log.AddErrorWithNotes(&p.tracker, p.lexer.Range(), "Parameter decorators only work when experimental decorators are enabled", []logger.MsgData{{
 						Text: "You can enable experimental decorators by adding \"experimentalDecorators\": true to your \"tsconfig.json\" file.",
 					}})
@@ -6693,7 +6695,7 @@ func (p *parser) parseDecorators(decoratorScope *js_ast.Scope, classKeyword logg
 		p.lexer.Next()
 
 		var value js_ast.Expr
-		if p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators == config.True {
+		if p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators == config.True_ {
 			// TypeScript's experimental decorator syntax is more permissive than
 			// JavaScript. Parse a new/call expression with "exprFlagDecorator" so
 			// we ignore EIndex expressions, since they may be part of a computed
@@ -9085,10 +9087,12 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 						result[len(result)-1] = stmt
 						s.InitOrNil = js_ast.Stmt{Loc: prevStmt.Loc, Data: &js_ast.SExpr{Value: prevS.Value}}
 						continue
-					} else if s2, ok := s.InitOrNil.Data.(*js_ast.SExpr); ok {
+					} else { 
+						if s2, ok := s.InitOrNil.Data.(*js_ast.SExpr); ok {
 						result[len(result)-1] = stmt
 						s.InitOrNil = js_ast.Stmt{Loc: prevStmt.Loc, Data: &js_ast.SExpr{Value: js_ast.JoinWithComma(prevS.Value, s2.Value)}}
 						continue
+						}
 					}
 				} else {
 					// Insert the previous variable declaration into the for loop
@@ -9237,7 +9241,8 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 					break returnLoop
 				}
 			}
-		} else if lastThrow, ok := lastStmt.Data.(*js_ast.SThrow); ok {
+		} else  {
+			if lastThrow, ok := lastStmt.Data.(*js_ast.SThrow); ok {
 			// "if (a) throw b; if (c) throw d; throw e;" => "throw a ? b : c ? d : e;"
 		throwLoop:
 			for len(result) >= 2 {
@@ -9293,6 +9298,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 					break throwLoop
 				}
 			}
+		}
 		}
 	}
 
@@ -12108,6 +12114,7 @@ func (p *parser) warnAboutTypeofAndString(a js_ast.Expr, b js_ast.Expr, order ty
 		}
 	}
 
+/*
 	if typeof, ok := a.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
 		if str, ok := b.Data.(*js_ast.EString); ok {
 			value := helpers.UTF16ToString(str.Value)
@@ -12134,6 +12141,7 @@ func (p *parser) warnAboutTypeofAndString(a js_ast.Expr, b js_ast.Expr, order ty
 			}
 		}
 	}
+	*/
 }
 
 func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc logger.Loc) bool {
@@ -13308,17 +13316,17 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// "__source"
 					args = append(args, js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EObject{
 						Properties: []js_ast.Property{
-							{
+							js_ast.Property{
 								Kind:       js_ast.PropertyField,
 								Key:        js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16("fileName")}},
 								ValueOrNil: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(p.source.PrettyPath)}},
 							},
-							{
+							js_ast.Property{
 								Kind:       js_ast.PropertyField,
 								Key:        js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16("lineNumber")}},
 								ValueOrNil: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(jsxSourceLine + 1)}}, // 1-based lines
 							},
-							{
+							js_ast.Property{
 								Kind:       js_ast.PropertyField,
 								Key:        js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16("columnNumber")}},
 								ValueOrNil: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(jsxSourceColumn + 1)}}, // 1-based columns
@@ -13866,9 +13874,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			e.Value, _ = p.visitExprInOut(e.Value, exprIn{assignTarget: e.Op.UnaryAssignTarget()})
 
 			// Compile-time "typeof" evaluation
+			/*
+			// XTODO
 			if typeof, ok := js_ast.TypeofWithoutSideEffects(e.Value.Data); ok {
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(typeof)}}, exprOut{}
 			}
+			*/
 
 		case js_ast.UnOpDelete:
 			// Warn about code that tries to do "delete super.foo"
@@ -16981,7 +16992,7 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 	if len(options.dropLabels) > 0 {
 		p.dropLabelsMap = make(map[string]struct{})
 		for _, name := range options.dropLabels {
-			p.dropLabelsMap[name] = struct{}{}
+			//p.dropLabelsMap[name] = struct{}{}
 		}
 	}
 
