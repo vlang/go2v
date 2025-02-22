@@ -106,9 +106,6 @@ fn (mut app App) if_stmt(node IfStmt) {
 	// else {
 	else if node.else_ is BlockStmt {
 		app.genln('else')
-		if node.else_.list.len > 0 && node.else_.list[0] is IfStmt {
-			app.genln('//LOOL')
-		}
 		app.block_stmt(node.else_)
 	}
 }

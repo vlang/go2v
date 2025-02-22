@@ -18,4 +18,8 @@ z
 #Intellij IDEA
 .idea/
 *.iml
+#VSCode
+.vscode/
+
+#Temp conversion files
 **/*.json
