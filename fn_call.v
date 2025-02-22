@@ -8,7 +8,11 @@ fn (mut app App) call_expr(call CallExpr) {
 	// fmt.Println => println
 	fun := call.fun
 	if fun is SelectorExpr {
-		if fun.x is Ident {
+		if fun.sel.name == 'String' && fun.x is CallExpr {
+			app.expr(fun.x)
+			app.gen('.str()')
+			return
+		} else if fun.x is Ident {
 			if fun.x.name == 'fmt' && fun.sel.name in ['Println', 'Print'] {
 				fn_name = fun.sel.name.to_lower()
 				is_println = true
@@ -149,7 +153,6 @@ fn (mut app App) selector_xxx(sel SelectorExpr) {
 
 fn (mut app App) make_call(call CallExpr) {
 	// app.genln('//make ${call.fun.type_name()} ar0=${call.args[0].type_name()}')
-	app.force_upper = true
 	app.expr(call.args[0])
 	// len only
 	if call.args.len == 2 {
