@@ -12,21 +12,21 @@ jobs:
       matrix:
         os:
           - name: macos-latest
-# - name: ubuntu-latest
+          - name: ubuntu-latest
 #          - name: windows-latest
     runs-on: ${{ matrix.os.name }}
 
     steps:
       - name: Install Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
-          go-version: "^1.17.8"
+          go-version: '^1.20'
 
       - name: Install V
-        uses: vlang/setup-v@v1
+        uses: vlang/setup-v@v1.4
 
       - name: Get go2v
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Check GO env variables
         run: go env && v -e 'import os; os.getenv("PATH").split(os.path_delimiter).map(dump(it))'
@@ -39,15 +39,6 @@ jobs:
       - name: Build go2v
         run: v .
 
+# will run all tests, including complex
       - name: Run tests
         run: v -g test .
-
-      - name: Run complex tests
-        run: |
-          v -o go2v .
-          ./go2v complex_tests/esbuild/api_impl/api_impl.go
-          ./go2v complex_tests/esbuild/resolver/resolver.go
-          ./go2v complex_tests/esbuild/linker/linker.go
-          ./go2v complex_tests/esbuild/bundler/bundler.go
-          ./go2v complex_tests/esbuild/css_parser/css_parser.go
-          ./go2v complex_tests/esbuild/js_parser/js_parser.go
