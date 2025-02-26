@@ -21,7 +21,7 @@ mut:
 	is_mut_recv     bool            // so that `mut f Foo` is generated instead of `mut f &Foo`
 	cur_fn_names    map[string]bool // for fixing shadowing
 	running_test    bool            // disables shadowing for now
-	struct_or_alias []string       // skip camel_to_snake for these, but force capitalize
+	struct_or_alias []string        // skip camel_to_snake for these, but force capitalize
 }
 
 fn (mut app App) genln(s string) {
