@@ -157,13 +157,16 @@ fn (mut app App) key_value_expr(expr KeyValueExpr) {
 
 fn (mut app App) array_type(node ArrayType) {
 	match node.elt {
+		ArrayType {
+			app.gen('[]')
+			app.array_type(node.elt)
+		}
+		FuncType {
+			app.gen('[]')
+			app.func_type(node.elt)
+		}
 		Ident {
 			app.gen('[]${go2v_type(node.elt.name)}')
-		}
-		StarExpr {
-			app.gen('[]')
-			app.star_expr(node.elt)
-			// app.gen('[]&${node.elt.name}')
 		}
 		SelectorExpr {
 			app.gen('[]')
@@ -171,13 +174,9 @@ fn (mut app App) array_type(node ArrayType) {
 			app.selector_expr(node.elt)
 			app.force_upper = false
 		}
-		FuncType {
+		StarExpr {
 			app.gen('[]')
-			app.func_type(node.elt)
-		}
-		ArrayType {
-			app.gen('[]')
-			app.array_type(node.elt)
+			app.star_expr(node.elt)
 		}
 		else {
 			app.gen('UNKNOWN ELT ${node.elt.type_name()}')
@@ -186,14 +185,10 @@ fn (mut app App) array_type(node ArrayType) {
 }
 
 fn (mut app App) map_type(node MapType) {
-	app.force_upper = true
 	app.gen('map[')
-	app.force_upper = true
 	app.expr(node.key)
 	app.gen(']')
-	app.force_upper = true
 	app.expr(node.val)
-	app.force_upper = false
 }
 
 fn (mut app App) chan_type(node ChanType) {

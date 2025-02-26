@@ -2,8 +2,6 @@
 // Use of this source code is governed by a GPL license that can be found in the LICENSE file.
 
 fn (mut app App) gen_decl(decl GenDecl) {
-	// app.genln('// gen_decl')
-	// mut needs_closer := false
 	app.comments(decl.doc)
 	for spec in decl.specs {
 		match spec {
@@ -16,6 +14,7 @@ fn (mut app App) gen_decl(decl GenDecl) {
 						app.interface_decl(spec.name.name, spec.typ)
 					}
 					StructType {
+						app.struct_or_alias << spec.name.name
 						app.struct_decl(spec.name.name, spec.typ)
 					}
 					else {
@@ -51,7 +50,7 @@ fn (mut app App) type_decl(spec TypeSpec) {
 	// Remember the type name for the upcoming const (enum) handler if it's an enum
 	name := spec.name.name
 	app.type_decl_name = name
-	// TODO figure out how to diffirentiate between enums and type aliases
+	// TODO figure out how to differentiate between enums and type aliases
 	if name == 'EnumTest' {
 		return
 	}
@@ -172,10 +171,6 @@ fn (mut app App) interface_decl(interface_name string, spec InterfaceType) {
 // []int{1,2,3}
 // map[string]int{"foo":1}
 fn (mut app App) composite_lit(c CompositeLit) {
-	// if c.typ.name != '' {
-	// 	app.struct_init(c)
-	// 	return
-	// }
 	match c.typ {
 		ArrayType {
 			app.array_init(c)
@@ -193,7 +188,6 @@ fn (mut app App) composite_lit(c CompositeLit) {
 			app.map_init(c) // loops thru each key_value_expr TODO method needs renaming
 		}
 		else {
-			// app.gen('// UNHANDLED CompositeLit type ${typeof(c.typ).name}')
 			app.genln('// UNHANDLED CompositeLit type  ${c.typ.type_name()} strtyp="${c.typ}"')
 		}
 	}

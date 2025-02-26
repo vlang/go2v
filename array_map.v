@@ -82,6 +82,7 @@ fn (mut app App) array_init(c CompositeLit) {
 }
 
 fn (mut app App) map_init(node CompositeLit) {
+	app.expr(node.typ)
 	app.genln('{')
 	for elt in node.elts {
 		kv := elt as KeyValueExpr
