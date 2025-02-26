@@ -1,11 +1,12 @@
 module main
 
 struct Vertex {
-mut:
+pub mut:
 	lat  f64
 	long f64
 }
 
 fn main() {
-	mut l := map[string]Vertex{}
+	mut l := map[string]Vertex{
+	}
 }

@@ -10,17 +10,18 @@ import v.util.diff
 
 struct App {
 mut:
-	sb             strings.Builder
-	is_fn_call     bool // for lowercase idents
-	tests_ok       bool = true
-	skip_first_arg bool // for `strings.Replace(s...)` => `s.replace(...)`
-	force_upper    bool // for `field Type` in struct decl, `mod.UpperCase` types etc
-	no_star        bool // To skip & in StarExpr in type matches  (interfaces)
-	type_decl_name string
-	is_enum_decl   bool
-	is_mut_recv    bool            // so that `mut f Foo` is generated instead of `mut f &Foo`
-	cur_fn_names   map[string]bool // for fixing shadowing
-	running_test   bool            // disables shadowing for now
+	sb              strings.Builder
+	is_fn_call      bool // for lowercase idents
+	tests_ok        bool = true
+	skip_first_arg  bool // for `strings.Replace(s...)` => `s.replace(...)`
+	force_upper     bool // for `field Type` in struct decl, `mod.UpperCase` types etc
+	no_star         bool // To skip & in StarExpr in type matches  (interfaces)
+	type_decl_name  string
+	is_enum_decl    bool
+	is_mut_recv     bool            // so that `mut f Foo` is generated instead of `mut f &Foo`
+	cur_fn_names    map[string]bool // for fixing shadowing
+	running_test    bool            // disables shadowing for now
+	struct_or_alias []string        // skip camel_to_snake for these, but force capitalize
 }
 
 fn (mut app App) genln(s string) {

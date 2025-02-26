@@ -51,8 +51,7 @@ fn go2v_type(typ string) string {
 }
 
 fn (mut app App) go2v_ident(ident string) string {
-	// println('ident=${ident} force_upper=${app.force_upper}')
-	if app.force_upper {
+	if app.force_upper || ident in app.struct_or_alias {
 		app.force_upper = false
 		if ident in v_keywords_which_are_not_go_keywords {
 			return ident + '_'
@@ -63,14 +62,6 @@ fn (mut app App) go2v_ident(ident string) string {
 		return ident.capitalize()
 	}
 	return go2v_ident2(ident)
-	/*
-	return if ident[0].is_capital() {
-		// println('is cap')
-		ident
-	} else {
-		go2v_ident2(ident)
-	}
-	*/
 }
 
 const v_keywords_which_are_not_go_keywords = ['match', 'lock', 'fn', 'enum', 'in', 'as']

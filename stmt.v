@@ -9,39 +9,36 @@ fn (mut app App) stmt_list(list []Stmt) {
 }
 
 fn (mut app App) stmt(stmt Stmt) {
-	// app.genln('TYPE = ${stmt.node_type} ${stmt is ExprStmt}')
-	// println('FOR STMT')
-	// println(stmt)
 	match stmt {
 		AssignStmt {
 			// println('GOT A')
 			app.assign_stmt(stmt, false) // no_mut:false
 		}
-		// have to keep track of variable names which match outer scope, so they can be renamed in inner...
 		BlockStmt {
+			// have to keep track of variable names which match outer scope, so they can be renamed in inner...
 			app.block_stmt(stmt)
 		}
 		BranchStmt {
 			app.branch_stmt(stmt)
 		}
+		DeclStmt {
+			app.decl_stmt(stmt)
+		}
+		DeferStmt {
+			app.defer_stmt(stmt)
+		}
 		ExprStmt {
 			// app.genln('expr stmt')
 			app.expr_stmt(stmt)
 		}
-		SwitchStmt {
-			app.switch_stmt(stmt)
-		}
-		TypeSwitchStmt {
-			app.type_switch_stmt(stmt)
-		}
-		IfStmt {
-			app.if_stmt(stmt)
-		}
 		ForStmt {
 			app.for_stmt(stmt)
 		}
-		DeclStmt {
-			app.decl_stmt(stmt)
+		GoStmt {
+			app.go_stmt(stmt)
+		}
+		IfStmt {
+			app.if_stmt(stmt)
 		}
 		IncDecStmt {
 			app.inc_dec_stmt(stmt)
@@ -52,11 +49,11 @@ fn (mut app App) stmt(stmt Stmt) {
 		ReturnStmt {
 			app.return_stmt(stmt)
 		}
-		DeferStmt {
-			app.defer_stmt(stmt)
+		SwitchStmt {
+			app.switch_stmt(stmt)
 		}
-		GoStmt {
-			app.go_stmt(stmt)
+		TypeSwitchStmt {
+			app.type_switch_stmt(stmt)
 		}
 		else {
 			app.genln('\t// unhandled in stmt: ${stmt}')
@@ -75,8 +72,6 @@ fn (mut app App) go_stmt(stmt GoStmt) {
 
 fn (mut app App) block_stmt(body BlockStmt) {
 	app.genln('{')
-	// println('LIST=')
-	// println(body.list)
 	app.stmt_list(body.list)
 	app.genln('}')
 }
@@ -87,10 +82,8 @@ fn (mut app App) if_stmt(node IfStmt) {
 	}
 
 	app.gen('if ')
-	// app.genln('/*forceu=${app.force_upper}*/')
 	app.expr(node.cond)
 	app.block_stmt(node.body)
-	// else if ... {
 	if node.else_ is IfStmt {
 		app.genln('else')
 		if node.else_.init.tok != '' {
@@ -102,9 +95,7 @@ fn (mut app App) if_stmt(node IfStmt) {
 		if node.else_.init.tok != '' {
 			app.genln('}')
 		}
-	}
-	// else {
-	else if node.else_ is BlockStmt {
+	} else if node.else_ is BlockStmt {
 		app.genln('else')
 		app.block_stmt(node.else_)
 	}
@@ -112,10 +103,6 @@ fn (mut app App) if_stmt(node IfStmt) {
 
 fn (mut app App) for_stmt(f ForStmt) {
 	app.gen('for ')
-	// println(f)
-	// for {}
-	// if f.cond == unsafe { nil } {
-	//}
 
 	init_empty := f.init.node_type == '' // f.init is InvalidStmt // f.init.node_type == ''
 	cond_empty := f.cond.node_type() == ''
@@ -148,7 +135,6 @@ fn (mut app App) range_stmt(node RangeStmt) {
 		app.gen('_ ')
 	} else {
 		key_name := app.unique_name_anti_shadow(app.go2v_ident(node.key.name))
-		// app.gen(app.go2v_ident(node.key.name))
 		app.gen(key_name)
 		app.cur_fn_names[key_name] = true
 		app.gen(', ')
@@ -156,7 +142,6 @@ fn (mut app App) range_stmt(node RangeStmt) {
 			app.gen(' _ ')
 		} else {
 			value_name := app.unique_name_anti_shadow(app.go2v_ident(node.value.name))
-			// app.gen(app.go2v_ident(node.value.name))
 			app.gen(value_name)
 			app.cur_fn_names[value_name] = true
 		}
@@ -173,7 +158,6 @@ fn (mut app App) inc_dec_stmt(i IncDecStmt) {
 }
 
 fn (mut app App) decl_stmt(d DeclStmt) {
-	// app.genln('//decl_stmt')
 	match d.decl {
 		GenDecl {
 			if d.decl.tok == 'var' {
@@ -234,7 +218,6 @@ fn (mut app App) decl_stmt(d DeclStmt) {
 }
 
 fn (mut app App) defer_stmt(node DeferStmt) {
-	// print_backtrace()
 	app.gen('defer ')
 	// `defer fn() { ... } ()
 	// empty function, just generate `defer { ... }` in V
