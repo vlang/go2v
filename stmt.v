@@ -164,43 +164,56 @@ fn (mut app App) decl_stmt(d DeclStmt) {
 				for spec in d.decl.specs {
 					match spec {
 						ValueSpec {
-							n := spec.names[0].name
-							if app.cur_fn_names[n] {
-								println('${n} already declared in cur fn. skipping. (why does this happen?)')
-								return
-							}
-							// app.genln('// value spec')
 							app.gen('mut ')
-							if n == 'layerDuplicates2' {
-								// app.genln('${d}')
-								println('=================')
-								print_backtrace()
-								println('1111111111111111111111')
+							for idx in 0 .. spec.names.len {
+								if idx > 0 {
+									app.gen(',')
+								}
+								n := spec.names[idx].name
+								if app.cur_fn_names[n] {
+									println('${n} already declared in cur fn. skipping. (why does this happen?)')
+									return
+								}
+								if n == 'layerDuplicates2' {
+									// app.genln('${d}')
+									println('=================')
+									print_backtrace()
+									println('1111111111111111111111')
+								}
+								app.gen(n)
+								app.cur_fn_names[n] = true
 							}
-							app.gen(n)
 							app.gen(' := ')
-							app.cur_fn_names[n] = true
 							mut kind := 'int'
 							if spec.values.len == 0 {
-								// app.genln('NO SPEC VALUES')
-								// `var x int` declaration without initialization
 								app.force_upper = true
 								app.gen_zero_value(spec.typ)
 								continue
 							}
-							value := spec.values[0]
-							match value {
-								BasicLit {
-									kind = go2v_type(value.kind.to_lower())
-									if kind != 'int' {
-										app.gen('${kind}(')
-									}
+							mut needs_cast := false
+							for idx in 0 .. spec.values.len {
+								if idx > 0 {
+									app.gen(',')
 								}
-								else {}
-							}
-							app.expr(spec.values[0])
-							if kind != 'int' {
-								app.gen(')')
+								value := spec.values[idx]
+								match value {
+									BasicLit {
+										kind = go2v_type(value.kind.to_lower())
+										if kind != 'int' && kind != 'string'
+											&& value.kind.to_lower() != 'char' {
+											needs_cast = true
+										}
+										if needs_cast {
+											app.gen('${kind}(')
+										}
+									}
+									else {}
+								}
+								app.expr(spec.values[idx])
+								if needs_cast {
+									app.gen(')')
+								}
+								needs_cast = false
 							}
 						}
 						else {
