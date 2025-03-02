@@ -1,7 +1,7 @@
 module main
 
 struct Struct {
-mut:
+pub mut:
 	a isize
 	b isize
 }
