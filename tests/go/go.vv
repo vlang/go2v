@@ -1,0 +1,11 @@
+module main
+
+fn main() {
+	go fn () {
+		println('Hello World')
+	}()
+	go func_a()
+}
+
+fn func_a() {
+}
