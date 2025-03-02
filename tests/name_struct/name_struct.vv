@@ -1,11 +1,11 @@
 module main
 
 struct ClData {
-mut:
-	@module string
+pub mut:
+	module string
 }
 
 fn main() {
 	mut foo := ClData{}
-	foo.@module = 'hi'
+	foo.module = 'hi'
 }
