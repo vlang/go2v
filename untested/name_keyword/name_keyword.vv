@@ -2,19 +2,19 @@ module main
 
 struct Foo {
 mut:
-	@match bool
+	match bool
 }
 
-fn @match() {
+fn match() {
 	println('hey')
 }
 
-fn @fn() {
-	@match()
+fn fn() {
+	match()
 }
 
 fn main() {
-	@fn()
-	mut @match_1 := Foo{}
-	@match_1.@match = true
+	fn()
+	mut match_1 := Foo{}
+	match_1.match = true
 }

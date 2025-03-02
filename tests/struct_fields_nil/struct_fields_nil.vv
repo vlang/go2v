@@ -1,0 +1,15 @@
+module main
+
+struct Node {
+pub mut:
+	parent       &Node = unsafe { nil }
+	first_child  &Node = unsafe { nil }
+	last_child   &Node = unsafe { nil }
+	prev_sibling &Node = unsafe { nil }
+	next_sibling &Node = unsafe { nil }
+	type         string
+	data_atom    isize
+	data         string
+	namespace    string
+	attr         []Node
+}

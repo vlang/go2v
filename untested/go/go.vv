@@ -1,8 +1,0 @@
-module main
-
-fn func_a() {}
-
-fn main() {
-	go println('Hello World')
-	go func_a()
-}
