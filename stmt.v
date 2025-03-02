@@ -165,7 +165,7 @@ fn (mut app App) decl_stmt(d DeclStmt) {
 					match spec {
 						ValueSpec {
 							app.gen('mut ')
-							for idx in 0..spec.names.len {
+							for idx in 0 .. spec.names.len {
 								if idx > 0 {
 									app.gen(',')
 								}
@@ -191,7 +191,7 @@ fn (mut app App) decl_stmt(d DeclStmt) {
 								continue
 							}
 							mut needs_cast := false
-							for idx in 0..spec.values.len {
+							for idx in 0 .. spec.values.len {
 								if idx > 0 {
 									app.gen(',')
 								}
@@ -199,7 +199,8 @@ fn (mut app App) decl_stmt(d DeclStmt) {
 								match value {
 									BasicLit {
 										kind = go2v_type(value.kind.to_lower())
-										if kind != 'int' && kind != 'string' && value.kind.to_lower() != 'char' {
+										if kind != 'int' && kind != 'string'
+											&& value.kind.to_lower() != 'char' {
 											needs_cast = true
 										}
 										if needs_cast {
