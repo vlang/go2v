@@ -51,11 +51,11 @@ fn go2v_type(typ string) string {
 }
 
 fn (mut app App) go2v_ident(ident string) string {
+	if ident == 'nil' {
+		return 'unsafe { nil }'
+	}
 	if app.force_upper || ident in app.struct_or_alias {
 		app.force_upper = false
-		if ident in v_keywords_which_are_not_go_keywords {
-			return ident + '_'
-		}
 		if ident in ['string', 'int', 'float64'] {
 			return ident
 		}
@@ -64,12 +64,7 @@ fn (mut app App) go2v_ident(ident string) string {
 	return go2v_ident2(ident)
 }
 
-const v_keywords_which_are_not_go_keywords = ['match', 'lock', 'fn', 'enum', 'in', 'as']
-
 fn go2v_ident2(ident string) string {
 	x := ident.camel_to_snake() // to_lower()) // TODO ?
-	if x in v_keywords_which_are_not_go_keywords {
-		return x + '_'
-	}
 	return x
 }
