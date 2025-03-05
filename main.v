@@ -131,7 +131,7 @@ fn (mut app App) translate_file(go_file_path string) {
 		return
 	}
 	generated_v_code := app.generate_v_code(go_file)
-	v_path := go_file_path.replace('.go', '.v')
+	v_path := go_file_path.substr_ni(0, -3) + '.v'
 	os.write_file(v_path, generated_v_code) or { panic(err) }
 	println('${v_path} has been successfully generated')
 	res := os.system('v -translated-go fmt -w ${v_path}')
