@@ -5,6 +5,8 @@ import os
 
 type Decls = FuncDecl | GenDecl
 
+type MapVal = Ident | InterfaceType | SelectorExpr
+
 type Expr = InvalidExpr
 	| ArrayType
 	| FuncType
@@ -108,7 +110,7 @@ struct ArrayType {
 struct MapType {
 	node_type string @[json: '_type']
 	key       Expr   @[json: 'Key']
-	val       Expr   @[json: 'Value']
+	val       MapVal @[json: 'Value']
 }
 
 struct ChanType {

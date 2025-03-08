@@ -188,7 +188,14 @@ fn (mut app App) map_type(node MapType) {
 	app.gen('map[')
 	app.expr(node.key)
 	app.gen(']')
-	app.expr(node.val)
+	match node.val {
+		Ident, InterfaceType {
+			app.typ(node.val)
+		}
+		SelectorExpr {
+			app.expr(node.val)
+		}
+	}
 }
 
 fn (mut app App) chan_type(node ChanType) {
