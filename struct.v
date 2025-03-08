@@ -112,21 +112,32 @@ fn (mut app App) const_decl(spec ValueSpec) {
 const master_module_path = 'github.com.evanw.esbuild.internal' // TODO hardcoded
 
 fn (mut app App) import_spec(spec ImportSpec) {
-	name := spec.path.value.replace('"', '').replace('/', '.')
+	mut name := spec.path.value.replace('"', '').replace('/', '.')
 	// Skip modules that don't exist in V (fmt, strings etc)
 	if name in nonexistent_modules {
 		return
 	}
+	if name == 'archive.zip' {
+		name = 'compress.zip'
+	}
 	if name.starts_with(master_module_path) {
 		n := name.replace(master_module_path, '')
-		app.genln('import ${n[1..]} // local module')
+		app.gen('import ${n[1..]}')
+		if spec.name.name != '' {
+			app.gen(' as ${spec.name.name}')
+		}
+		app.genln(' // local module')
 		return
 	}
 	// TODO a temp hack
 	if name.starts_with('github') {
 		return
 	}
-	app.genln('import ${name}')
+	app.gen('import ${name}')
+	if spec.name.name != '' {
+		app.gen(' as ${spec.name.name}')
+	}
+	app.genln('')
 }
 
 fn (mut app App) struct_decl(struct_name string, spec StructType) {
