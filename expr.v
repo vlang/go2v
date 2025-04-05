@@ -123,11 +123,12 @@ fn (mut app App) binary_expr(b BinaryExpr) {
 			app.gen('${x.value}${b.op}${y.value}')
 		} else if x is BasicLit && y is Ident {
 			app.gen("'${x.value[1..x.value.len - 1]}\${${y.name}}'")
-		} else if x is Ident && y is BasicLit {
+		} else if x is Ident && y is BasicLit && y.kind == 'STRING' {
 			app.gen("'\${${x.name}}${y.value[1..y.value.len - 1]}'")
 		} else {
-			eprintln('Unknown BinaryExpr')
-			dump(b)
+			app.expr(x)
+			app.gen('+')
+			app.expr(y)
 		}
 	} else {
 		app.expr(b.x)
