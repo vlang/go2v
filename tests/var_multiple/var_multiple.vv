@@ -1,8 +1,8 @@
 module main
 
 fn main() {
-	mut a, b := isize(1), 2
-	a, b = isize(3), 4
+	mut a, b := isize(1), isize(2)
+	a, b = isize(3), isize(4)
 	a, b = b, a
 	mut c, d := 'ADSvvc', b
 	mut e, f := isize(4), `a`

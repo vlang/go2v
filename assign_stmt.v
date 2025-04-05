@@ -69,34 +69,35 @@ fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
 			app.expr(lhs_expr)
 		}
 	}
+
 	// Special case for 'append()' => '<<'
 	if app.check_and_handle_append(assign) {
 		return
 	}
-	//
+
 	app.gen(assign.tok)
-	// app.gen('/*F*/')
+
 	for r_idx, rhs_expr in assign.rhs {
-		// app.genln('/* ${rhs_expr} */')
-		// app.gen('ridx=${r_idx}')
 		mut needs_close_paren := false
-		if r_idx == 0 {
-			rhs := rhs_expr
-			match rhs {
-				BasicLit {
-					if rhs.kind.is_upper() {
-						v_kind := go2v_type(rhs.kind.to_lower())
-						if v_kind != 'int' && v_kind != 'string' {
-							app.gen('${v_kind}(')
-							needs_close_paren = true
-						}
-					}
-				}
-				else {}
-			}
-		}
 		if r_idx > 0 {
 			app.gen(', ')
+		}
+		match rhs_expr {
+			BasicLit {
+				v_kind := rhs_expr.kind.to_lower()
+				if v_kind != 'int' && v_kind != 'string' {
+					app.gen('${go2v_type(v_kind)}(')
+					needs_close_paren = true
+				} else {
+					v_type := go2v_type(v_kind)
+					if v_type != v_kind {
+						app.gen(go2v_type(v_kind))
+						app.gen('(')
+						needs_close_paren = true
+					}
+				}
+			}
+			else {}
 		}
 		app.expr(rhs_expr)
 		if needs_close_paren {

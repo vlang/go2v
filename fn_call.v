@@ -55,9 +55,18 @@ fn (mut app App) call_expr(call CallExpr) {
 			app.expr(call.args[0])
 			app.genln('.str()')
 			return
+		} else if fun.name != go2v_type(fun.name) {
+			app.gen(go2v_type(fun.name))
+			app.gen('(')
+			app.expr(call.args[0])
+			app.gen(')')
+			return
 		} else if fun.name == 'make' {
 			app.make_call(call)
 			return
+		} else if fun.name in ['print', 'println'] {
+			fn_name = fun.name
+			is_println = true
 		}
 	}
 
@@ -88,43 +97,54 @@ fn (mut app App) call_expr(call CallExpr) {
 
 	app.gen('${fn_name}(') // fn_name is empty unless print
 
-	// In V println can only accept one argument, so convert multiple arguments into a single string
-	// with concatenation:
-	// `println(a, b)` => `println('${a} ${b}')`
-	if is_println && call.args.len > 1 {
-		app.gen("'")
-		for i, arg in call.args {
-			is_string_lit := arg is BasicLit && arg.kind == 'STRING'
-			// println('arg=${arg}')
-			if is_string_lit {
-				// 'foo=${bar}` instead of '${"foo"}=${bar}'
-				lit := arg as BasicLit
-				app.gen(lit.value[1..lit.value.len - 1])
-			} else {
-				app.gen('\${')
+	if call.args.len > 0 {
+		if is_println {
+			// In V println can only accept one argument, so convert multiple arguments into a single string
+			// with concatenation:
+			// `fmt.Println(a, b)` => `println('${a} ${b}')`
+			more_than_one := call.args.len > 1
+			if more_than_one {
+				app.gen("'")
+			}
+			for i, arg in call.args {
+				if i > 0 {
+					app.gen(' ')
+				}
+				if arg is BinaryExpr {
+					app.expr(arg)
+				} else {
+					if more_than_one {
+						app.gen('\${')
+					}
+					app.expr(arg)
+					if more_than_one {
+						app.gen('}')
+					}
+				}
+			}
+			if more_than_one {
+				app.gen("'")
+			}
+		} else if fun is SelectorExpr {
+			mut count := 0
+			for idx, arg in call.args {
+				if idx == 0 && fun.x is Ident && fun.x.name == 'strings' {
+					continue
+				}
+				if count > 0 {
+					app.gen(', ')
+				}
 				app.expr(arg)
-				app.gen('}')
+				count++
 			}
-			if i < call.args.len - 1 {
-				app.gen(' ')
+		} else if fun is Ident {
+			if call.args.len > 0 {
+				for arg in call.args {
+					app.expr(arg)
+				}
 			}
-		}
-		app.gen("'")
-		app.genln(')')
-		return
-	}
-
-	for i, arg in call.args {
-		if app.skip_first_arg {
-			app.skip_first_arg = false
-			continue
-		}
-		app.expr(arg)
-		if i < call.args.len - 1 {
-			app.gen(', ')
 		}
 	}
-
 	app.gen(')')
 }
 

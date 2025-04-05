@@ -30,6 +30,9 @@ fn go2v_type(typ string) string {
 		'int64' {
 			return 'i64'
 		}
+		'String' {
+			return 'string'
+		}
 		'uint' {
 			return 'usize'
 		}
@@ -56,15 +59,11 @@ fn (mut app App) go2v_ident(ident string) string {
 	}
 	if app.force_upper || ident in app.struct_or_alias {
 		app.force_upper = false
-		if ident in ['string', 'int', 'float64'] {
-			return ident
+		id_typ := go2v_type(ident)
+		if id_typ != ident {
+			return id_typ
 		}
 		return ident.capitalize()
 	}
-	return go2v_ident2(ident)
-}
-
-fn go2v_ident2(ident string) string {
-	x := ident.camel_to_snake() // to_lower()) // TODO ?
-	return x
+	return ident.camel_to_snake()
 }
