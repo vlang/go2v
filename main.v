@@ -100,7 +100,7 @@ fn generate_ast_for_go_file(go_file_path string) string {
 	}
 	output_file := go_file_path + '.json'
 
-	asty_cmd := '${full_path_to_asty} go2json -comments -indent 2 -input ${go_file_path} -output ${output_file}'
+	asty_cmd := '${full_path_to_asty} go2json -imports -comments -indent 2 -input ${go_file_path} -output ${output_file}'
 	println('generating ast for ${go_file_path} with\n${asty_cmd}')
 	run_result := os.system(asty_cmd)
 	if run_result != 0 {

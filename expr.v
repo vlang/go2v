@@ -114,13 +114,30 @@ fn (mut app App) index_expr(s IndexExpr) {
 }
 
 fn (mut app App) binary_expr(b BinaryExpr) {
-	app.expr(b.x)
-	if b.op == '\u0026^' {
-		app.gen('&~')
+	if b.op == '+' && (b.x is BasicLit || b.y is BasicLit) {
+		x := b.x
+		y := b.y
+		if x is BasicLit && x.kind == 'STRING' && y is BasicLit && y.kind == 'STRING' {
+			app.gen("'${x.value[1..x.value.len - 1]}${y.value[1..y.value.len - 1]}'")
+		} else if x is BasicLit && x.kind == 'INT' && y is BasicLit && y.kind == 'INT' {
+			app.gen('${x.value}${b.op}${y.value}')
+		} else if x is BasicLit && y is Ident {
+			app.gen("'${x.value[1..x.value.len - 1]}\${${y.name}}'")
+		} else if x is Ident && y is BasicLit {
+			app.gen("'\${${x.name}}${y.value[1..y.value.len - 1]}'")
+		} else {
+			eprintln('Unknown BinaryExpr')
+			dump(b)
+		}
 	} else {
-		app.gen(b.op)
+		app.expr(b.x)
+		if b.op == '\u0026^' {
+			app.gen('&~')
+		} else {
+			app.gen(b.op)
+		}
+		app.expr(b.y)
 	}
-	app.expr(b.y)
 }
 
 fn (mut app App) unary_expr(u UnaryExpr) {

@@ -5,6 +5,6 @@ fn two_fn() (isize, isize) {
 }
 
 fn main() {
-	mut a, b := isize(1), 2
+	mut a, b := isize(1), isize(2)
 	mut c, d := two_fn()
 }
