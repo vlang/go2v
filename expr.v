@@ -204,14 +204,16 @@ fn (mut app App) array_type(node ArrayType) {
 
 fn (mut app App) map_type(node MapType) {
 	app.gen('map[')
-	app.expr(node.key)
+	match node.key {
+		Ident, SelectorExpr {
+			app.typ(node.key)
+		}
+		else {}
+	}
 	app.gen(']')
 	match node.val {
-		Ident, InterfaceType {
+		Ident, InterfaceType, SelectorExpr {
 			app.typ(node.val)
-		}
-		SelectorExpr {
-			app.expr(node.val)
 		}
 	}
 }

@@ -53,17 +53,25 @@ fn go2v_type(typ string) string {
 	return typ
 }
 
+const v_keywords = ['match']
+
 fn (mut app App) go2v_ident(ident string) string {
-	if ident == 'nil' {
+	mut id := ident
+
+	if ident in v_keywords {
+		id = id + '_'
+	}
+
+	if id == 'nil' {
 		return 'unsafe { nil }'
 	}
 	if app.force_upper || ident in app.struct_or_alias {
 		app.force_upper = false
-		id_typ := go2v_type(ident)
-		if id_typ != ident {
+		id_typ := go2v_type(id)
+		if id_typ != id {
 			return id_typ
 		}
-		return ident.capitalize()
+		return id.capitalize()
 	}
-	return ident.camel_to_snake()
+	return id.camel_to_snake()
 }

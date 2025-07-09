@@ -138,11 +138,17 @@ fn (mut app App) call_expr(call CallExpr) {
 				count++
 			}
 		} else if fun is Ident {
-			if call.args.len > 0 {
-				for arg in call.args {
-					app.expr(arg)
+			for idx, arg in call.args {
+				if idx > 0 {
+					app.gen(', ')
 				}
+				app.expr(arg)
 			}
+			// if call.args.len > 0 {
+			// 	for arg in call.args {
+			// 		app.expr(arg)
+			// 	}
+			// }
 		}
 	}
 	app.gen(')')

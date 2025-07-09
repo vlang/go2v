@@ -193,10 +193,10 @@ fn (mut app App) composite_lit(c CompositeLit) {
 			app.map_init(c)
 		}
 		SelectorExpr {
+			force_upper := app.force_upper // save force upper for `mod.ForceUpper`
 			app.force_upper = true
 			app.selector_expr(c.typ)
-			app.force_upper = false
-			app.map_init(c) // loops thru each key_value_expr TODO method needs renaming
+			app.force_upper = force_upper
 		}
 		else {
 			app.genln('// UNHANDLED CompositeLit type  ${c.typ.type_name()} strtyp="${c.typ}"')
