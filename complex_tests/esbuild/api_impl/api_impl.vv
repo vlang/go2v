@@ -25,14 +25,14 @@ import graph // local module
 import helpers // local module
 import js_ast // local module
 import js_parser // local module
-import linker // local module
 import logger // local module
+import rand.config
 import resolver // local module
-import xxhash // local module
+import xxhash
 
 fn validate_path_template(template string) []config.PathTemplate {
 	if template == '' {
-		return nil
+		return unsafe { nil }
 	}
 	template = './' + template.replace_all('\\', '/')
 	mut parts := []config.PathTemplate{len: 0, cap: 4}
@@ -321,7 +321,7 @@ fn validate_loader(value Loader) config.Loader {
 __global versionRegex = regexp.mustcompile(r'^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?(-[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)*)?$')
 fn validate_features(log logger.Log, target Target, engines []Engine) (compat.JSFeature, compat.CSSFeature, map[css_ast.D]compat.CSSPrefix, string) {
 	if target == default_target && engines.len == 0 {
-		return 0, 0, nil, ''
+		return 0, 0, unsafe { nil }, ''
 	}
 	mut constraints := map[compat.Engine]compat.Semver{}
 	mut targets := []string{len: 0, cap: 1 + engines.len}
@@ -388,15 +388,15 @@ fn validate_features(log logger.Log, target Target, engines []Engine) (compat.JS
 	}
 	for _, engine in engines {
 		mut match_ := version_regex.findstringsubmatch(engine.version)
-		if match_ != nil {
+		if match_ != unsafe { nil } {
 			mut major, err := strconv.atoi(match_[1])
-			if err == nil {
+			if err == unsafe { nil } {
 				mut parts := [isize(major)]
 				mut minor, err := strconv.atoi(match_[2])
-				if err == nil {
+				if err == unsafe { nil } {
 					parts << minor
 					mut patch, err := strconv.atoi(match_[3])
-					if err == nil {
+					if err == unsafe { nil } {
 						parts << patch
 					}
 				}
@@ -408,7 +408,7 @@ fn validate_features(log logger.Log, target Target, engines []Engine) (compat.JS
 			}
 		}
 		mut text := 'All version numbers passed to esbuild must be in the format "X", "X.Y", or "X.Y.Z" where X, Y, and Z are non-negative integers.'
-		log.adderrorwithnotes(nil, logger.Range{}, strconv.v_sprintf('Invalid version: %q',
+		log.adderrorwithnotes(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid version: %q',
 			engine.version), [logger.MsgData{
 			Text: text
 		}])
@@ -440,7 +440,7 @@ fn validate_supported(log logger.Log, supported map[string]bool) (compat.JSFeatu
 					css_feature |= css
 				}
 			} else {
-				log.adderror(nil, logger.Range{}, strconv.v_sprintf('%q is not a valid feature name for the "supported" setting',
+				log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('%q is not a valid feature name for the "supported" setting',
 					k))
 			}
 		}
@@ -462,18 +462,18 @@ fn validate_global_name(log logger.Log, text string) []string {
 			return result
 		}
 	}
-	return nil
+	return unsafe { nil }
 }
 
 fn validate_regex(log logger.Log, what string, value string) &regexp.Regexp {
 	if value == '' {
-		return nil
+		return unsafe { nil }
 	}
 	mut regex, err := regexp.compile(value)
-	if err != nil {
-		log.adderror(nil, logger.Range{}, strconv.v_sprintf('The %q setting is not a valid Go regular expression: %s',
+	if err != unsafe { nil } {
+		log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('The %q setting is not a valid Go regular expression: %s',
 			what, value))
-		return nil
+		return unsafe { nil }
 	}
 	return regex
 }
@@ -491,7 +491,7 @@ fn validate_externals(log logger.Log, fs fs.FS, paths []string) config.ExternalS
 		mut index := path.index_byte(`*`)
 		if index != -1 {
 			if path[index + 1..].contains_rune(`*`) {
-				log.adderror(nil, logger.Range{}, strconv.v_sprintf('External path %q cannot have more than one "*" wildcard',
+				log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('External path %q cannot have more than one "*" wildcard',
 					path))
 			} else {
 				result.pre_resolve.patterns << config.WildcardPattern{
@@ -532,7 +532,7 @@ fn validate_alias(log logger.Log, fs fs.FS, alias map[string]string) map[string]
 	mut valid := map[string]string{}
 	for old, new in alias {
 		if new == '' {
-			log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid alias substitution: %q',
+			log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid alias substitution: %q',
 				new))
 			continue
 		}
@@ -541,7 +541,7 @@ fn validate_alias(log logger.Log, fs fs.FS, alias map[string]string) map[string]
 			valid[old] = new
 			continue
 		}
-		log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid alias name: %q',
+		log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid alias name: %q',
 			old))
 	}
 	return valid
@@ -552,12 +552,12 @@ fn is_valid_extension(ext string) bool {
 }
 
 fn validate_resolve_extensions(log logger.Log, order []string) []string {
-	if order == nil {
+	if order == unsafe { nil } {
 		return ['.tsx', '.ts', '.jsx', '.js', '.css', '.json']
 	}
 	for _, ext in order {
 		if !is_valid_extension(ext) {
-			log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid file extension: %q',
+			log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid file extension: %q',
 				ext))
 		}
 	}
@@ -568,7 +568,7 @@ fn validate_loaders(log logger.Log, loaders map[string]Loader) map[string]config
 	mut result := bundler.defaultextensiontoloadermap()
 	for ext, loader in loaders {
 		if ext != '' && !is_valid_extension(ext) {
-			log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid file extension: %q',
+			log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid file extension: %q',
 				ext))
 		}
 		result[ext] = validate_loader(loader)
@@ -579,11 +579,11 @@ fn validate_loaders(log logger.Log, loaders map[string]Loader) map[string]config
 fn validate_jsxe_xpr(log logger.Log, text string, name string) config.DefineExpr {
 	if text != '' {
 		mut expr, _ := js_parser.parsedefineexprorjson(text)
-		if expr.parts.len > 0 || name == 'fragment' && expr.constant != nil {
+		if expr.parts.len > 0 || name == 'fragment' && expr.constant != unsafe { nil } {
 			return expr
 		}
-		log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid JSX %s: %q', name,
-			text))
+		log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid JSX %s: %q',
+			name, text))
 	}
 	return config.DefineExpr{}
 }
@@ -596,17 +596,17 @@ fn validate_defines(log logger.Log, defines map[string]string, pureFns []string,
 		for _, part in key.split('.') {
 			if !js_ast.isidentifier(part) {
 				if part == key {
-					log.adderror(nil, logger.Range{}, strconv.v_sprintf('The define key %q must be a valid identifier',
+					log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('The define key %q must be a valid identifier',
 						key))
 				} else {
-					log.adderror(nil, logger.Range{}, strconv.v_sprintf('The define key %q contains invalid identifier %q',
+					log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('The define key %q contains invalid identifier %q',
 						key, part))
 				}
 				continue
 			}
 		}
 		mut define_expr, inject_expr := js_parser.parsedefineexprorjson(value)
-		if define_expr.constant != nil || define_expr.parts.len > 0 {
+		if define_expr.constant != unsafe { nil } || define_expr.parts.len > 0 {
 			raw_defines[key] = config.DefineData{
 				DefineExpr: &define_expr
 			}
@@ -658,9 +658,9 @@ fn validate_defines(log logger.Log, defines map[string]string, pureFns []string,
 			}
 			continue
 		}
-		if inject_expr != nil {
+		if inject_expr != unsafe { nil } {
 			defines_to_inject << key
-			if value_to_inject == nil {
+			if value_to_inject == unsafe { nil } {
 				value_to_inject = map[string]config.InjectedDefine{}
 			}
 			value_to_inject[key] = config.InjectedDefine{
@@ -672,7 +672,7 @@ fn validate_defines(log logger.Log, defines map[string]string, pureFns []string,
 			}
 			continue
 		}
-		log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid define value (must be an entity name or valid JSON syntax): %s',
+		log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid define value (must be an entity name or valid JSON syntax): %s',
 			value))
 	}
 	mut injectedDefines := []config.InjectedDefine{}
@@ -720,7 +720,7 @@ fn validate_defines(log logger.Log, defines map[string]string, pureFns []string,
 	for _, key in pure_fns {
 		for _, part in key.split('.') {
 			if !js_ast.isidentifier(part) {
-				log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid pure function: %q',
+				log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid pure function: %q',
 					key))
 				continue
 			}
@@ -747,8 +747,8 @@ fn validate_path(log logger.Log, fs fs.FS, relPath string, pathKind string) stri
 	}
 	mut abs_path, ok := fs.abs(rel_path)
 	if !ok {
-		log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid %s: %s', path_kind,
-			rel_path))
+		log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid %s: %s',
+			path_kind, rel_path))
 	}
 	return abs_path
 }
@@ -756,7 +756,7 @@ fn validate_path(log logger.Log, fs fs.FS, relPath string, pathKind string) stri
 fn validate_output_extensions(log logger.Log, outExtensions map[string]string) (string, string) {
 	for key, value in out_extensions {
 		if !is_valid_extension(value) {
-			log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid output extension: %q',
+			log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid output extension: %q',
 				value))
 		}
 		match key {
@@ -767,7 +767,7 @@ fn validate_output_extensions(log logger.Log, outExtensions map[string]string) (
 				css = value
 			}
 			else {
-				log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid output extension: %q (valid: .css, .js)',
+				log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid output extension: %q (valid: .css, .js)',
 					key))
 			}
 		}
@@ -785,7 +785,7 @@ fn validate_banner_or_footer(log logger.Log, name string, values map[string]stri
 				css = value
 			}
 			else {
-				log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid %s file type: %q (valid: css, js)',
+				log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid %s file type: %q (valid: css, js)',
 					name, key))
 			}
 		}
@@ -797,14 +797,14 @@ fn validate_keep_names(log logger.Log, options &config.Options) {
 	if options.keep_names && options.unsupported_jsf_eatures.has(compat.function_name_configurable) {
 		mut where := config.prettyprinttargetenvironment(options.original_target_env,
 			options.unsupported_jsf_eature_overrides_mask)
-		log.adderrorwithnotes(nil, logger.Range{}, strconv.v_sprintf('The "keep names" setting cannot be used with %s',
+		log.adderrorwithnotes(unsafe { nil }, logger.Range{}, strconv.v_sprintf('The "keep names" setting cannot be used with %s',
 			where), [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
 		])
 	}
 }
 
 fn convert_location_to_public(loc &logger.MsgLocation) &Location {
-	if loc != nil {
+	if loc != unsafe { nil } {
 		return &Location{
 			File:       loc.file
 			Namespace:  loc.namespace
@@ -815,7 +815,7 @@ fn convert_location_to_public(loc &logger.MsgLocation) &Location {
 			Suggestion: loc.suggestion
 		}
 	}
-	return nil
+	return unsafe { nil }
 }
 
 fn convert_messages_to_public(kind logger.MsgKind, msgs []logger.Msg) []Message {
@@ -843,7 +843,7 @@ fn convert_messages_to_public(kind logger.MsgKind, msgs []logger.Msg) []Message 
 }
 
 fn convert_location_to_internal(loc &Location) &logger.MsgLocation {
-	if loc != nil {
+	if loc != unsafe { nil } {
 		mut namespace := loc.namespace
 		if namespace == '' {
 			namespace = 'file'
@@ -858,7 +858,7 @@ fn convert_location_to_internal(loc &Location) &logger.MsgLocation {
 			Suggestion: loc.suggestion
 		}
 	}
-	return nil
+	return unsafe { nil }
 }
 
 fn convert_messages_to_internal(msgs []logger.Msg, kind logger.MsgKind, messages []Message) []logger.Msg {
@@ -896,17 +896,17 @@ fn convert_errors_and_warnings_to_internal(errors []Message, warnings []Message)
 		sort.stable(msgs)
 		return msgs
 	}
-	return nil
+	return unsafe { nil }
 }
 
 fn clone_mangle_cache(log logger.Log, mangleCache map[string]string) map[string]string {
-	if mangle_cache == nil {
-		return nil
+	if mangle_cache == unsafe { nil } {
+		return unsafe { nil }
 	}
 	mut clone := map[string]string{}
 	for k, v in mangle_cache {
 		if v == '__proto__' {
-			log.adderror(nil, logger.Range{}, strconv.v_sprintf('Invalid identifier name %q in mangle cache',
+			log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid identifier name %q in mangle cache',
 				k))
 		} else {
 			clone[k] = v
@@ -928,10 +928,10 @@ fn context_impl(buildOpts BuildOptions) (&internalContext, []Message) {
 		AbsWorkingDir: abs_working_dir
 		DoNotCache:    true
 	})
-	if err != nil {
+	if err != unsafe { nil } {
 		mut log := logger.newstderrlog(log_options)
-		log.adderror(nil, logger.Range{}, err.error())
-		return nil, convert_messages_to_public(logger.error, log.done())
+		log.adderror(unsafe { nil }, logger.Range{}, err.error())
+		return unsafe { nil }, convert_messages_to_public(logger.error, log.done())
 	}
 	mut caches := cache.makecacheset()
 	mut log := logger.newdeferlog(logger.defer_log_no_verbose_or_debug, log_options.overrides)
@@ -951,7 +951,7 @@ fn context_impl(buildOpts BuildOptions) (&internalContext, []Message) {
 			}
 			stderr.done()
 		}
-		return nil, convert_messages_to_public(logger.error, msgs)
+		return unsafe { nil }, convert_messages_to_public(logger.error, msgs)
 	}
 	mut args := rebuildArgs{
 		caches:             caches
@@ -969,7 +969,7 @@ fn context_impl(buildOpts BuildOptions) (&internalContext, []Message) {
 		args:          args
 		realFS:        real_fs
 		absWorkingDir: abs_working_dir
-	}, nil
+	}, unsafe { nil }
 }
 
 struct buildInProgress {
@@ -999,7 +999,7 @@ fn (ctx &internalContext) rebuild() rebuildState {
 		return rebuildState{}
 	}
 	mut build0 := ctx.active_build
-	if build0 != nil {
+	if build0 != unsafe { nil } {
 		ctx.mutex.unlock()
 		build0.wait_group.wait()
 		return build0.state
@@ -1015,14 +1015,14 @@ fn (ctx &internalContext) rebuild() rebuildState {
 	ctx.mutex.unlock()
 	mut newHashes := map[string]string{}
 	build.state, new_hashes = rebuild_impl(args, old_hashes)
-	if handler != nil {
+	if handler != unsafe { nil } {
 		handler.broadcastbuildresult(build.state.result, new_hashes)
 	}
-	if watcher != nil {
+	if watcher != unsafe { nil } {
 		watcher.setwatchdata(build.state.watch_data)
 	}
 	mut recent_build := &build.state.result
-	ctx.active_build = nil
+	ctx.active_build = unsafe { nil }
 	ctx.recent_build = recent_build
 	ctx.latest_hashes = new_hashes
 	ctx.mutex.unlock()
@@ -1042,13 +1042,13 @@ fn (ctx &internalContext) rebuild() rebuildState {
 // requests.
 fn (ctx &internalContext) active_build_or_recent_build_or_rebuild() BuildResult {
 	mut build0 := ctx.active_build
-	if build0 != nil {
+	if build0 != unsafe { nil } {
 		ctx.mutex.unlock()
 		build0.wait_group.wait()
 		return build0.state.result
 	}
 	mut build := ctx.recent_build
-	if build != nil {
+	if build != unsafe { nil } {
 		ctx.mutex.unlock()
 		return &build
 	}
@@ -1067,7 +1067,7 @@ pub fn (ctx &internalContext) watch(options WatchOptions) error {
 	if ctx.did_dispose {
 		return errors.new('Cannot watch a disposed context')
 	}
-	if ctx.watcher != nil {
+	if ctx.watcher != unsafe { nil } {
 		return errors.new('Watch mode has already been enabled')
 	}
 	mut log_level := ctx.args.log_options.log_level
@@ -1083,7 +1083,7 @@ pub fn (ctx &internalContext) watch(options WatchOptions) error {
 	ctx.args.options.watch_mode = true
 	ctx.watcher.start()
 	ctx.watcher.start()
-	return nil
+	return unsafe { nil }
 }
 
 pub fn (ctx &internalContext) cancel() {
@@ -1093,7 +1093,7 @@ pub fn (ctx &internalContext) cancel() {
 	}
 	mut build := ctx.active_build
 	ctx.mutex.unlock()
-	if build != nil {
+	if build != unsafe { nil } {
 		build.cancel.cancel()
 		build.wait_group.wait()
 	}
@@ -1105,16 +1105,16 @@ pub fn (ctx &internalContext) dispose() {
 		return
 	}
 	ctx.did_dispose = true
-	ctx.recent_build = nil
+	ctx.recent_build = unsafe { nil }
 	mut build := ctx.active_build
 	ctx.mutex.unlock()
-	if ctx.watcher != nil {
+	if ctx.watcher != unsafe { nil } {
 		ctx.watcher.stop()
 	}
-	if ctx.handler != nil {
+	if ctx.handler != unsafe { nil } {
 		ctx.handler.stop()
 	}
-	if build != nil {
+	if build != unsafe { nil } {
 		build.wait_group.wait()
 	}
 	for _, f in ctx.args.on_dispose_callbacks {
@@ -1142,11 +1142,11 @@ fn print_summary(color logger.UseColor, outputFiles []OutputFile, start time.Tim
 	}
 	mut table := []logger.SummaryTableEntry{}
 	mut cwd, err := os.getwd()
-	if err == nil {
+	if err == unsafe { nil } {
 		mut real_fs, err := fs.realfs(fs.RealFSOptions{
 			AbsWorkingDir: cwd
 		})
-		if err == nil {
+		if err == unsafe { nil } {
 			for i, file in output_files {
 				mut path, ok := real_fs.rel(real_fs.cwd(), file.path)
 				if !ok {
@@ -1167,7 +1167,7 @@ fn print_summary(color logger.UseColor, outputFiles []OutputFile, start time.Tim
 	mut user_agent, ok := os.lookupenv('npm_config_user_agent')
 	if ok {
 		if user_agent.contains('yarn/1.') {
-			logger.printsummary(color, table, nil)
+			logger.printsummary(color, table, unsafe { nil })
 			return
 		}
 	}
@@ -1262,10 +1262,10 @@ fn validate_build_options(buildOpts BuildOptions, log logger.Log, realFS fs.FS) 
 		PreserveSymlinks:                   build_opts.preserve_symlinks
 	}
 	validate_keep_names(log, &options)
-	if build_opts.conditions != nil {
+	if build_opts.conditions != unsafe { nil } {
 		options.conditions << build_opts.conditions
 	}
-	if options.main_fields != nil {
+	if options.main_fields != unsafe { nil } {
 		options.main_fields << options.main_fields
 	}
 	for i, path in build_opts.node_paths {
@@ -1292,7 +1292,7 @@ fn validate_build_options(buildOpts BuildOptions, log logger.Log, realFS fs.FS) 
 		}
 	}
 	mut entry_point_count := entry_points.len
-	if build_opts.stdin != nil {
+	if build_opts.stdin != unsafe { nil } {
 		entry_point_count++
 		options.stdin = &config.StdinInfo{
 			Loader:        validate_loader(build_opts.stdin.loader)
@@ -1302,29 +1302,29 @@ fn validate_build_options(buildOpts BuildOptions, log logger.Log, realFS fs.FS) 
 		}
 	}
 	if options.abs_output_dir == '' && (entry_point_count > 1 || has_entry_point_with_wildcard) {
-		log.adderror(nil, logger.Range{}, 'Must use "outdir" when there are multiple input files')
+		log.adderror(unsafe { nil }, logger.Range{}, 'Must use "outdir" when there are multiple input files')
 	} else if options.abs_output_dir == '' && options.code_splitting {
-		log.adderror(nil, logger.Range{}, 'Must use "outdir" when code splitting is enabled')
+		log.adderror(unsafe { nil }, logger.Range{}, 'Must use "outdir" when code splitting is enabled')
 	} else if options.abs_output_file != '' && options.abs_output_dir != '' {
-		log.adderror(nil, logger.Range{}, 'Cannot use both "outfile" and "outdir"')
+		log.adderror(unsafe { nil }, logger.Range{}, 'Cannot use both "outfile" and "outdir"')
 	} else if options.abs_output_file != '' {
 		options.abs_output_dir = real_fs.dir(options.abs_output_file)
 	} else if options.abs_output_dir == '' {
 		options.write_to_stdout = true
 		if options.source_map != config.source_map_none
 			&& options.source_map != config.source_map_inline {
-			log.adderror(nil, logger.Range{}, 'Cannot use an external source map without an output path')
+			log.adderror(unsafe { nil }, logger.Range{}, 'Cannot use an external source map without an output path')
 		}
 		if options.legal_comments.hasexternalfile() {
-			log.adderror(nil, logger.Range{}, 'Cannot use linked or external legal comments without an output path')
+			log.adderror(unsafe { nil }, logger.Range{}, 'Cannot use linked or external legal comments without an output path')
 		}
 		for _, loader in options.extension_to_loader {
 			if loader == config.loader_file {
-				log.adderror(nil, logger.Range{}, 'Cannot use the "file" loader without an output path')
+				log.adderror(unsafe { nil }, logger.Range{}, 'Cannot use the "file" loader without an output path')
 				break
 			}
 			if loader == config.loader_copy {
-				log.adderror(nil, logger.Range{}, 'Cannot use the "copy" loader without an output path')
+				log.adderror(unsafe { nil }, logger.Range{}, 'Cannot use the "copy" loader without an output path')
 				break
 			}
 		}
@@ -1333,10 +1333,10 @@ fn validate_build_options(buildOpts BuildOptions, log logger.Log, realFS fs.FS) 
 	if !build_opts.bundle {
 		if options.external_settings.pre_resolve.hasmatchers()
 			|| options.external_settings.post_resolve.hasmatchers() {
-			log.adderror(nil, logger.Range{}, 'Cannot use "external" without "bundle"')
+			log.adderror(unsafe { nil }, logger.Range{}, 'Cannot use "external" without "bundle"')
 		}
 		if options.package_aliases.len > 0 {
-			log.adderror(nil, logger.Range{}, 'Cannot use "alias" without "bundle"')
+			log.adderror(unsafe { nil }, logger.Range{}, 'Cannot use "alias" without "bundle"')
 		}
 	} else if options.output_format == config.format_preserve {
 		match options.platform {
@@ -1356,14 +1356,14 @@ fn validate_build_options(buildOpts BuildOptions, log logger.Log, realFS fs.FS) 
 	} else if options.output_format != config.format_preserve {
 		options.mode = config.mode_convert_format
 	}
-	if options.conditions == nil && options.platform != config.platform_neutral {
+	if options.conditions == unsafe { nil } && options.platform != config.platform_neutral {
 		options.conditions = ['module']
 	}
 	if options.code_splitting && options.output_format != config.format_esm_odule {
-		log.adderror(nil, logger.Range{}, 'Splitting currently only works with the "esm" format')
+		log.adderror(unsafe { nil }, logger.Range{}, 'Splitting currently only works with the "esm" format')
 	}
 	if options.tsc_onfig_path != '' && options.tsc_onfig_raw != '' {
-		log.adderror(nil, logger.Range{}, 'Cannot provide "tsconfig" as both a raw string and a path')
+		log.adderror(unsafe { nil }, logger.Range{}, 'Cannot provide "tsconfig" as both a raw string and a path')
 	}
 	if !build_opts.write {
 		options.allow_overwrite = true
@@ -1407,7 +1407,7 @@ fn rebuild_impl(args rebuildArgs, oldHashes map[string]string) (rebuildState, ma
 		AbsWorkingDir: args.abs_working_dir
 		WantWatchData: args.options.watch_mode
 	})
-	if err != nil {
+	if err != unsafe { nil } {
 		panic(err.error())
 	}
 	mut result := 0
@@ -1425,7 +1425,7 @@ fn rebuild_impl(args rebuildArgs, oldHashes map[string]string) (rebuildState, ma
 		result.mangle_cache = clone_mangle_cache(log, args.mangle_cache)
 		mut results, metafile := bundle.compile(log, timer, result.mangle_cache, linker.link)
 		if args.options.cancel_flag.didcancel() {
-			log.adderror(nil, logger.Range{}, 'The build was canceled')
+			log.adderror(unsafe { nil }, logger.Range{}, 'The build was canceled')
 		}
 		if !log.haserrors() {
 			result.metafile = metafile
@@ -1451,7 +1451,7 @@ fn rebuild_impl(args rebuildArgs, oldHashes map[string]string) (rebuildState, ma
 				timer.begin('Write output files')
 				if args.options.write_to_stdout {
 					if results.len != 1 {
-						log.adderror(nil, logger.Range{}, strconv.v_sprintf('Internal error: did not expect to generate %d files when writing to stdout',
+						log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Internal error: did not expect to generate %d files when writing to stdout',
 							results.len))
 					} else {
 						to_write_to_stdout = results[0].contents
@@ -1479,7 +1479,7 @@ fn rebuild_impl(args rebuildArgs, oldHashes map[string]string) (rebuildState, ma
 		}
 	}
 	if log.haserrors() {
-		result.mangle_cache = nil
+		result.mangle_cache = unsafe { nil }
 	}
 	mut msgs := log.peek()
 	result.errors = convert_messages_to_public(logger.error, msgs)
@@ -1497,7 +1497,7 @@ fn rebuild_impl(args rebuildArgs, oldHashes map[string]string) (rebuildState, ma
 				from_plugin.warnings[i].plugin_name = on_end.plugin_name
 			}
 		}
-		if thrown != nil {
+		if thrown != unsafe { nil } {
 			from_plugin.errors << Message{
 				PluginName: on_end.plugin_name
 				Text:       thrown.error()
@@ -1515,7 +1515,7 @@ fn rebuild_impl(args rebuildArgs, oldHashes map[string]string) (rebuildState, ma
 	timer.end('On-end callbacks')
 	timer.log(log)
 	log.done()
-	if to_write_to_stdout != nil {
+	if to_write_to_stdout != unsafe { nil } {
 		os.stdout.write(to_write_to_stdout)
 	}
 	return rebuildState{
@@ -1607,17 +1607,17 @@ fn transform_impl(input string, transformOpts TransformOptions) TransformResult 
 		options.jsf_ooter = transform_opts.footer
 	}
 	if options.source_map == config.source_map_linked_with_comment {
-		log.adderror(nil, logger.Range{}, 'Cannot transform with linked source maps')
+		log.adderror(unsafe { nil }, logger.Range{}, 'Cannot transform with linked source maps')
 	}
 	if options.source_map != config.source_map_none && options.stdin.source_file == '' {
-		log.adderror(nil, logger.Range{}, 'Must use "sourcefile" with "sourcemap" to set the original file name')
+		log.adderror(unsafe { nil }, logger.Range{}, 'Must use "sourcefile" with "sourcemap" to set the original file name')
 	}
 	if logger.api == logger.cliapi {
 		if options.legal_comments.hasexternalfile() {
-			log.adderror(nil, logger.Range{}, 'Cannot transform with linked or external legal comments')
+			log.adderror(unsafe { nil }, logger.Range{}, 'Cannot transform with linked or external legal comments')
 		}
 	} else if options.legal_comments == config.legal_comments_linked_with_comment {
-		log.adderror(nil, logger.Range{}, 'Cannot transform with linked legal comments')
+		log.adderror(unsafe { nil }, logger.Range{}, 'Cannot transform with linked legal comments')
 	}
 	if options.output_format != config.format_preserve {
 		options.mode = config.mode_convert_format
@@ -1630,7 +1630,7 @@ fn transform_impl(input string, transformOpts TransformOptions) TransformResult 
 		}
 		mut mock_fs := fs.mockfs(map[string]string{}, fs.mock_unix, '/')
 		mut bundle := bundler.scanbundle(config.transform_call, log, mock_fs, caches,
-			nil, options, timer)
+			unsafe { nil }, options, timer)
 		if !log.haserrors() {
 			results, _ = bundle.compile(log, timer, mangle_cache, linker.link)
 		}
@@ -1659,7 +1659,7 @@ fn transform_impl(input string, transformOpts TransformOptions) TransformResult 
 		}
 	}
 	if log.haserrors() {
-		mangle_cache = nil
+		mangle_cache = unsafe { nil }
 	}
 	mut msgs := log.done()
 	return TransformResult{
@@ -1684,7 +1684,7 @@ fn (impl &pluginImpl) on_start(callback fn () (OnStartResult, error)) {
 		Name:     impl.plugin.name
 		Callback: fn () {
 			mut response, err := callback()
-			if err != nil {
+			if err != unsafe { nil } {
 				result.thrown_error = err
 				return
 			}
@@ -1760,8 +1760,8 @@ fn resolve_kind_to_import_kind(kind ResolveKind) ast.ImportKind {
 
 fn (impl &pluginImpl) on_resolve(options OnResolveOptions, callback fn () (OnResolveResult, error)) {
 	mut filter, err := config.compilefilterforplugin(impl.plugin.name, 'OnResolve', options.filter)
-	if filter == nil {
-		impl.log.adderror(nil, logger.Range{}, err.error())
+	if filter == unsafe { nil } {
+		impl.log.adderror(unsafe { nil }, logger.Range{}, err.error())
 		return
 	}
 	impl.plugin.on_resolve << config.OnResolve{
@@ -1781,12 +1781,12 @@ fn (impl &pluginImpl) on_resolve(options OnResolveOptions, callback fn () (OnRes
 			result.plugin_name = response.plugin_name
 			result.abs_watch_files = impl.validatepathsarray(response.watch_files, 'watch file')
 			result.abs_watch_dirs = impl.validatepathsarray(response.watch_dirs, 'watch directory')
-			if err == nil && response.suffix != '' && response.suffix[0] != `?`
+			if err == unsafe { nil } && response.suffix != '' && response.suffix[0] != `?`
 				&& response.suffix[0] != `#` {
 				err = strconv.errorf('Invalid path suffix %q returned from plugin (must start with "?" or "#")',
 					response.suffix)
 			}
-			if err != nil {
+			if err != unsafe { nil } {
 				result.thrown_error = err
 				return
 			}
@@ -1805,11 +1805,11 @@ fn (impl &pluginImpl) on_resolve(options OnResolveOptions, callback fn () (OnRes
 					what = 'namespace'
 				} else if response.suffix != '' {
 					what = 'suffix'
-				} else if response.plugin_data != nil {
+				} else if response.plugin_data != unsafe { nil } {
 					what = 'pluginData'
-				} else if response.watch_files != nil {
+				} else if response.watch_files != unsafe { nil } {
 					what = 'watchFiles'
-				} else if response.watch_dirs != nil {
+				} else if response.watch_dirs != unsafe { nil } {
 					what = 'watchDirs'
 				}
 				if what != '' {
@@ -1834,8 +1834,8 @@ fn (impl &pluginImpl) on_resolve(options OnResolveOptions, callback fn () (OnRes
 
 fn (impl &pluginImpl) on_load(options OnLoadOptions, callback fn () (OnLoadResult, error)) {
 	mut filter, err := config.compilefilterforplugin(impl.plugin.name, 'OnLoad', options.filter)
-	if filter == nil {
-		impl.log.adderror(nil, logger.Range{}, err.error())
+	if filter == unsafe { nil } {
+		impl.log.adderror(unsafe { nil }, logger.Range{}, err.error())
 		return
 	}
 	impl.plugin.on_load << config.OnLoad{
@@ -1852,7 +1852,7 @@ fn (impl &pluginImpl) on_load(options OnLoadOptions, callback fn () (OnLoadResul
 			result.plugin_name = response.plugin_name
 			result.abs_watch_files = impl.validatepathsarray(response.watch_files, 'watch file')
 			result.abs_watch_dirs = impl.validatepathsarray(response.watch_dirs, 'watch directory')
-			if err != nil {
+			if err != unsafe { nil } {
 				result.thrown_error = err
 				return
 			}
@@ -1895,7 +1895,7 @@ fn load_plugins(initialOptions &BuildOptions, fs fs.FS, log logger.Log, caches &
 
 	for i, item in clone {
 		if item.name == '' {
-			log.adderror(nil, logger.Range{}, strconv.v_sprintf('Plugin at index %d is missing a name',
+			log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Plugin at index %d is missing a name',
 				i))
 			continue
 		}
@@ -1907,7 +1907,7 @@ fn load_plugins(initialOptions &BuildOptions, fs fs.FS, log logger.Log, caches &
 			}
 		}
 		mut resolve := fn (path string, options ResolveOptions) {
-			if options_for_resolve == nil {
+			if options_for_resolve == unsafe { nil } {
 				return ResolveResult{
 					Errors: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
 					]
@@ -1931,7 +1931,7 @@ fn load_plugins(initialOptions &BuildOptions, fs fs.FS, log logger.Log, caches &
 			}
 			mut kind := resolve_kind_to_import_kind(options.kind)
 			mut resolve_result, _, _ := bundler.runonresolveplugins(plugins, resolver,
-				log, fs, &caches.fsc_ache, nil, logger.Range{}, logger.Path{
+				log, fs, &caches.fsc_ache, unsafe { nil }, logger.Range{}, logger.Path{
 				Text:      options.importer
 				Namespace: options.namespace
 			}, path, logger.encodeimportattributes(options.with), kind, abs_resolve_dir,
@@ -1939,10 +1939,10 @@ fn load_plugins(initialOptions &BuildOptions, fs fs.FS, log logger.Log, caches &
 			mut msgs := log.done()
 			result.errors = convert_messages_to_public(logger.error, msgs)
 			result.warnings = convert_messages_to_public(logger.warning, msgs)
-			if resolve_result != nil {
+			if resolve_result != unsafe { nil } {
 				result.path = resolve_result.path_pair.primary.text
 				result.external = resolve_result.path_pair.is_external
-				result.side_effects = resolve_result.primary_side_effects_data == nil
+				result.side_effects = resolve_result.primary_side_effects_data == unsafe { nil }
 				result.namespace = resolve_result.path_pair.primary.namespace
 				result.suffix = resolve_result.path_pair.primary.ignored_suffix
 				result.plugin_data = resolve_result.plugin_data
@@ -1990,7 +1990,7 @@ fn format_msgs_impl(msgs []Message, opts FormatMessagesOptions) []string {
 	if opts.kind == warning_message {
 		kind = logger.warning
 	}
-	mut log_msgs := convert_messages_to_internal(nil, kind, msgs)
+	mut log_msgs := convert_messages_to_internal(unsafe { nil }, kind, msgs)
 	mut strings := []string{}
 	for i, msg in log_msgs {
 		strings[i] = msg.str(logger.OutputOptions{
@@ -2053,14 +2053,14 @@ fn get_object_property_array(expr js_ast.Expr, key string) &js_ast.EArray {
 }
 
 fn analyze_metafile_impl(metafile string, opts AnalyzeMetafileOptions) string {
-	mut log := logger.newdeferlog(logger.defer_log_no_verbose_or_debug, nil)
+	mut log := logger.newdeferlog(logger.defer_log_no_verbose_or_debug, unsafe { nil })
 	mut source := logger.Source{
 		Contents: metafile
 	}
 	mut result, ok := js_parser.parsejson(log, source, js_parser.JSONOptions{})
 	if ok {
 		mut outputs := get_object_property_object(result, 'outputs')
-		if outputs != nil {
+		if outputs != unsafe { nil } {
 			mut entries := 0
 			mut entryPoints := []string{}
 			for _, output in outputs.properties {
@@ -2069,20 +2069,20 @@ fn analyze_metafile_impl(metafile string, opts AnalyzeMetafileOptions) string {
 					mut entry_point_path := ''
 					mut entry_point := get_object_property_string(output.value_or_nil,
 						'entryPoint')
-					if entry_point != nil {
+					if entry_point != unsafe { nil } {
 						entry_point_path = helpers.utf16tostring(entry_point.value)
 						entry_points << entry_point_path
 					}
 					mut bytes := get_object_property_number(output.value_or_nil, 'bytes')
-					if bytes != nil {
+					if bytes != unsafe { nil } {
 						mut inputs := get_object_property_object(output.value_or_nil,
 							'inputs')
-						if inputs != nil {
+						if inputs != unsafe { nil } {
 							mut children := 0
 							for _, input in inputs.properties {
 								mut bytes_in_output := get_object_property_number(input.value_or_nil,
 									'bytesInOutput')
-								if bytes_in_output != nil && bytes_in_output.value > 0 {
+								if bytes_in_output != unsafe { nil } && bytes_in_output.value > 0 {
 									children << metafileEntry{
 										name: helpers.utf16tostring(.value)
 										size: isize(bytes_in_output.value)
@@ -2104,14 +2104,14 @@ fn analyze_metafile_impl(metafile string, opts AnalyzeMetafileOptions) string {
 
 			mut imports_for_path := map[string]importData{}
 			mut inputs := get_object_property_object(result, 'inputs')
-			if inputs != nil {
+			if inputs != unsafe { nil } {
 				for _, prop in inputs.properties {
 					mut imports := get_object_property_array(prop.value_or_nil, 'imports')
-					if imports != nil {
+					if imports != unsafe { nil } {
 						mut data := 0
 						for _, item in imports.items {
 							mut path := get_object_property_string(item, 'path')
-							if path != nil {
+							if path != unsafe { nil } {
 								data.imports << helpers.utf16tostring(path.value)
 							}
 						}
@@ -2121,7 +2121,7 @@ fn analyze_metafile_impl(metafile string, opts AnalyzeMetafileOptions) string {
 			}
 			mut graph_for_entry_points := fn (worklist []string) {
 				if !opts.verbose {
-					return nil
+					return unsafe { nil }
 				}
 				mut graph := map[string]graphData{}
 				for _, entryPoint in worklist {

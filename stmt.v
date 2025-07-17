@@ -171,14 +171,8 @@ fn (mut app App) decl_stmt(d DeclStmt) {
 								}
 								n := spec.names[idx].name
 								if app.cur_fn_names[n] {
-									println('${n} already declared in cur fn. skipping. (why does this happen?)')
+									app.genln('// "${n}" already declared in cur fn. skipping. (why does this happen?)')
 									return
-								}
-								if n == 'layerDuplicates2' {
-									// app.genln('${d}')
-									println('=================')
-									print_backtrace()
-									println('1111111111111111111111')
 								}
 								app.gen(n)
 								app.cur_fn_names[n] = true
