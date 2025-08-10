@@ -25,10 +25,11 @@ import graph // local module
 import helpers // local module
 import js_ast // local module
 import js_parser // local module
+import linker // local module
 import logger // local module
-import rand.config
 import resolver // local module
-import xxhash
+import xxhash // local module
+import rand.config // local module
 
 fn validate_path_template(template string) []config.PathTemplate {
 	if template == '' {

@@ -136,14 +136,12 @@ fn (mut app App) range_stmt(node RangeStmt) {
 	} else {
 		key_name := app.unique_name_anti_shadow(app.go2v_ident(node.key.name))
 		app.gen(key_name)
-		app.cur_fn_names[key_name] = true
 		app.gen(', ')
 		if node.value.name == '' {
 			app.gen(' _ ')
 		} else {
 			value_name := app.unique_name_anti_shadow(app.go2v_ident(node.value.name))
 			app.gen(value_name)
-			app.cur_fn_names[value_name] = true
 		}
 	}
 	app.gen(' in ')
