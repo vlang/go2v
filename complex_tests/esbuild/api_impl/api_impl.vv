@@ -30,11 +30,6 @@ import logger // local module
 import resolver // local module
 import xxhash // local module
 import rand.config
-import complex_tests.esbuild.js_parser
-import complex_tests.esbuild.resolver
-import complex_tests.esbuild.bundler
-import vab.cache
-import build
 
 fn validate_path_template(template string) []config.PathTemplate {
 	if template == '' {
