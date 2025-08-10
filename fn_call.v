@@ -144,11 +144,6 @@ fn (mut app App) call_expr(call CallExpr) {
 				}
 				app.expr(arg)
 			}
-			// if call.args.len > 0 {
-			// 	for arg in call.args {
-			// 		app.expr(arg)
-			// 	}
-			// }
 		}
 	}
 	app.gen(')')
@@ -157,7 +152,6 @@ fn (mut app App) call_expr(call CallExpr) {
 const nonexistent_modules = ['fmt', 'path', 'strings']
 
 fn (mut app App) selector_expr_fn_call(call CallExpr, sel SelectorExpr) {
-	// app.genln('///selector_expr_fn_call')
 	if sel.x is Ident {
 		if sel.x.name in nonexistent_modules {
 			app.handle_nonexistent_module_call(sel, sel.x.name, sel.sel.name, call)

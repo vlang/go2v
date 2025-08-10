@@ -29,7 +29,12 @@ import linker // local module
 import logger // local module
 import resolver // local module
 import xxhash // local module
-import rand.config // local module
+import rand.config
+import complex_tests.esbuild.js_parser
+import complex_tests.esbuild.resolver
+import complex_tests.esbuild.bundler
+import vab.cache
+import build
 
 fn validate_path_template(template string) []config.PathTemplate {
 	if template == '' {
@@ -64,16 +69,16 @@ fn validate_path_template(template string) []config.PathTemplate {
 			continue
 		}
 		parts << config.PathTemplate{
-			Data:        head
-			Placeholder: placeholder
+			data:        head
+			placeholder: placeholder
 		}
 		template = template[search..]
 		search = isize(0)
 	}
 	if search < template.len {
 		parts << config.PathTemplate{
-			Data:        template
-			Placeholder: config.no_placeholder
+			data:        template
+			placeholder: config.no_placeholder
 		}
 	}
 	return parts
@@ -319,7 +324,7 @@ fn validate_loader(value Loader) config.Loader {
 	}
 }
 
-__global versionRegex = regexp.mustcompile(r'^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?(-[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)*)?$')
+__global versionRegex = regexp.must_compile(r'^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?(-[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)*)?$')
 fn validate_features(log logger.Log, target Target, engines []Engine) (compat.JSFeature, compat.CSSFeature, map[css_ast.D]compat.CSSPrefix, string) {
 	if target == default_target && engines.len == 0 {
 		return 0, 0, unsafe { nil }, ''
@@ -329,57 +334,57 @@ fn validate_features(log logger.Log, target Target, engines []Engine) (compat.JS
 	match target {
 		es_5 {
 			constraints[compat.es] = compat.Semver{
-				Parts: [isize(5)]
+				parts: [isize(5)]
 			}
 		}
 		es_2015 {
 			constraints[compat.es] = compat.Semver{
-				Parts: [isize(2015)]
+				parts: [isize(2015)]
 			}
 		}
 		es_2016 {
 			constraints[compat.es] = compat.Semver{
-				Parts: [isize(2016)]
+				parts: [isize(2016)]
 			}
 		}
 		es_2017 {
 			constraints[compat.es] = compat.Semver{
-				Parts: [isize(2017)]
+				parts: [isize(2017)]
 			}
 		}
 		es_2018 {
 			constraints[compat.es] = compat.Semver{
-				Parts: [isize(2018)]
+				parts: [isize(2018)]
 			}
 		}
 		es_2019 {
 			constraints[compat.es] = compat.Semver{
-				Parts: [isize(2019)]
+				parts: [isize(2019)]
 			}
 		}
 		es_2020 {
 			constraints[compat.es] = compat.Semver{
-				Parts: [isize(2020)]
+				parts: [isize(2020)]
 			}
 		}
 		es_2021 {
 			constraints[compat.es] = compat.Semver{
-				Parts: [isize(2021)]
+				parts: [isize(2021)]
 			}
 		}
 		es_2022 {
 			constraints[compat.es] = compat.Semver{
-				Parts: [isize(2022)]
+				parts: [isize(2022)]
 			}
 		}
 		es_2023 {
 			constraints[compat.es] = compat.Semver{
-				Parts: [isize(2023)]
+				parts: [isize(2023)]
 			}
 		}
 		es_2024 {
 			constraints[compat.es] = compat.Semver{
-				Parts: [isize(2024)]
+				parts: [isize(2024)]
 			}
 		}
 		esn_ext, default_target {}
@@ -388,7 +393,7 @@ fn validate_features(log logger.Log, target Target, engines []Engine) (compat.JS
 		}
 	}
 	for _, engine in engines {
-		mut match_ := version_regex.findstringsubmatch(engine.version)
+		mut match_ := version_regex.find_string_submatch(engine.version)
 		if match_ != unsafe { nil } {
 			mut major, err := strconv.atoi(match_[1])
 			if err == unsafe { nil } {
@@ -402,16 +407,16 @@ fn validate_features(log logger.Log, target Target, engines []Engine) (compat.JS
 					}
 				}
 				constraints[convert_engine_name(engine.name)] = compat.Semver{
-					Parts:      parts
-					PreRelease: match_[4]
+					parts:       parts
+					pre_release: match_[4]
 				}
 				continue
 			}
 		}
 		mut text := 'All version numbers passed to esbuild must be in the format "X", "X.Y", or "X.Y.Z" where X, Y, and Z are non-negative integers.'
-		log.adderrorwithnotes(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid version: %q',
+		log.add_error_with_notes(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid version: %q',
 			engine.version), [logger.MsgData{
-			Text: text
+			text: text
 		}])
 	}
 	for engine, version in constraints {
@@ -421,8 +426,8 @@ fn validate_features(log logger.Log, target Target, engines []Engine) (compat.JS
 		targets << 'esnext'
 	}
 	sort.strings(targets)
-	mut target_env := helpers.stringarraytoquotedcommaseparatedstring(targets)
-	return compat.unsupportedjsfeatures(constraints), compat.unsupportedcssfeatures(constraints), compat.cssprefixdata(constraints), target_env
+	mut target_env := helpers.string_array_to_quoted_comma_separated_string(targets)
+	return compat.unsupported_jsf_eatures(constraints), compat.unsupported_cssf_eatures(constraints), compat.cssp_refix_data(constraints), target_env
 }
 
 fn validate_supported(log logger.Log, supported map[string]bool) (compat.JSFeature, compat.JSFeature, compat.CSSFeature, compat.CSSFeature) {
@@ -441,7 +446,7 @@ fn validate_supported(log logger.Log, supported map[string]bool) (compat.JSFeatu
 					css_feature |= css
 				}
 			} else {
-				log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('%q is not a valid feature name for the "supported" setting',
+				log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('%q is not a valid feature name for the "supported" setting',
 					k))
 			}
 		}
@@ -452,13 +457,13 @@ fn validate_supported(log logger.Log, supported map[string]bool) (compat.JSFeatu
 fn validate_global_name(log logger.Log, text string) []string {
 	if text != '' {
 		mut source := logger.Source{
-			KeyPath:    logger.Path{
-				Text: '(global path)'
+			key_path:    logger.Path{
+				text: '(global path)'
 			}
-			PrettyPath: '(global name)'
-			Contents:   text
+			pretty_path: '(global name)'
+			contents:    text
 		}
-		mut result, ok := js_parser.parseglobalname(log, source)
+		mut result, ok := js_parser.parse_global_name(log, source)
 		if ok {
 			return result
 		}
@@ -472,7 +477,7 @@ fn validate_regex(log logger.Log, what string, value string) &regexp.Regexp {
 	}
 	mut regex, err := regexp.compile(value)
 	if err != unsafe { nil } {
-		log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('The %q setting is not a valid Go regular expression: %s',
+		log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('The %q setting is not a valid Go regular expression: %s',
 			what, value))
 		return unsafe { nil }
 	}
@@ -481,32 +486,32 @@ fn validate_regex(log logger.Log, what string, value string) &regexp.Regexp {
 
 fn validate_externals(log logger.Log, fs fs.FS, paths []string) config.ExternalSettings {
 	mut result := config.ExternalSettings{
-		PreResolve:  config.ExternalMatchers{
-			Exact: map[string]bool{}
+		pre_resolve:  config.ExternalMatchers{
+			exact: map[string]bool{}
 		}
-		PostResolve: config.ExternalMatchers{
-			Exact: map[string]bool{}
+		post_resolve: config.ExternalMatchers{
+			exact: map[string]bool{}
 		}
 	}
 	for _, path in paths {
 		mut index := path.index_byte(`*`)
 		if index != -1 {
 			if path[index + 1..].contains_rune(`*`) {
-				log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('External path %q cannot have more than one "*" wildcard',
+				log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('External path %q cannot have more than one "*" wildcard',
 					path))
 			} else {
 				result.pre_resolve.patterns << config.WildcardPattern{
-					Prefix: path[..index]
-					Suffix: path[index + 1..]
+					prefix: path[..index]
+					suffix: path[index + 1..]
 				}
-				if !resolver.ispackagepath(path) {
+				if !resolver.is_package_path(path) {
 					mut abs_path := validate_path(log, fs, path, 'external path')
 					if abs_path != '' {
 						mut abs_index := abs_path.index_byte(`*`)
 						if abs_index != -1 && !abs_path[abs_index + 1..].contains_rune(`*`) {
 							result.post_resolve.patterns << config.WildcardPattern{
-								Prefix: abs_path[..abs_index]
-								Suffix: abs_path[abs_index + 1..]
+								prefix: abs_path[..abs_index]
+								suffix: abs_path[abs_index + 1..]
 							}
 						}
 					}
@@ -514,9 +519,9 @@ fn validate_externals(log logger.Log, fs fs.FS, paths []string) config.ExternalS
 			}
 		} else {
 			result.pre_resolve.exact[path] = true
-			if resolver.ispackagepath(path) {
+			if resolver.is_package_path(path) {
 				result.pre_resolve.patterns << config.WildcardPattern{
-					Prefix: path + '/'
+					prefix: '${path}/'
 				}
 			} else {
 				mut abs_path := validate_path(log, fs, path, 'external path')
@@ -533,16 +538,16 @@ fn validate_alias(log logger.Log, fs fs.FS, alias map[string]string) map[string]
 	mut valid := map[string]string{}
 	for old, new in alias {
 		if new == '' {
-			log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid alias substitution: %q',
+			log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid alias substitution: %q',
 				new))
 			continue
 		}
-		if !old.has_prefix('.') && !old.has_prefix('/') && !fs.isabs(old)
-			&& (old.replace_all('\\', '/')) == old {
+		if !old.has_prefix('.') && !old.has_prefix('/') && !fs.is_abs(old)
+			&& path.clean(old.replace_all('\\', '/')) == old {
 			valid[old] = new
 			continue
 		}
-		log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid alias name: %q',
+		log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid alias name: %q',
 			old))
 	}
 	return valid
@@ -558,7 +563,7 @@ fn validate_resolve_extensions(log logger.Log, order []string) []string {
 	}
 	for _, ext in order {
 		if !is_valid_extension(ext) {
-			log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid file extension: %q',
+			log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid file extension: %q',
 				ext))
 		}
 	}
@@ -566,10 +571,10 @@ fn validate_resolve_extensions(log logger.Log, order []string) []string {
 }
 
 fn validate_loaders(log logger.Log, loaders map[string]Loader) map[string]config.Loader {
-	mut result := bundler.defaultextensiontoloadermap()
+	mut result := bundler.default_extension_to_loader_map()
 	for ext, loader in loaders {
 		if ext != '' && !is_valid_extension(ext) {
-			log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid file extension: %q',
+			log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid file extension: %q',
 				ext))
 		}
 		result[ext] = validate_loader(loader)
@@ -579,82 +584,82 @@ fn validate_loaders(log logger.Log, loaders map[string]Loader) map[string]config
 
 fn validate_jsxe_xpr(log logger.Log, text string, name string) config.DefineExpr {
 	if text != '' {
-		mut expr, _ := js_parser.parsedefineexprorjson(text)
+		mut expr, _ := js_parser.parse_define_expr_or_json(text)
 		if expr.parts.len > 0 || name == 'fragment' && expr.constant != unsafe { nil } {
 			return expr
 		}
-		log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid JSX %s: %q',
+		log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid JSX %s: %q',
 			name, text))
 	}
 	return config.DefineExpr{}
 }
 
-fn validate_defines(log logger.Log, defines map[string]string, pureFns []string, platform config.Platform, isBuildAPI bool, minify bool, drop Drop) (&config.ProcessedDefines, []config.InjectedDefine) {
+fn validate_defines(log logger.Log, defines map[string]string, pure_fns []string, platform config.Platform, is_build_api bool, minify bool, drop Drop) (&config.ProcessedDefines, []config.InjectedDefine) {
 	mut raw_defines := map[string]config.DefineData{}
-	mut valueToInject := map[string]config.InjectedDefine{}
-	mut definesToInject := []string{}
+	mut value_to_inject := map[string]config.InjectedDefine{}
+	mut defines_to_inject := []string{}
 	for key, value in defines {
 		for _, part in key.split('.') {
-			if !js_ast.isidentifier(part) {
+			if !js_ast.is_identifier(part) {
 				if part == key {
-					log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('The define key %q must be a valid identifier',
+					log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('The define key %q must be a valid identifier',
 						key))
 				} else {
-					log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('The define key %q contains invalid identifier %q',
+					log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('The define key %q contains invalid identifier %q',
 						key, part))
 				}
 				continue
 			}
 		}
-		mut define_expr, inject_expr := js_parser.parsedefineexprorjson(value)
+		mut define_expr, inject_expr := js_parser.parse_define_expr_or_json(value)
 		if define_expr.constant != unsafe { nil } || define_expr.parts.len > 0 {
 			raw_defines[key] = config.DefineData{
-				DefineExpr: &define_expr
+				define_expr: &define_expr
 			}
 			if define_expr.parts.len == 1 && key == 'process.env.NODE_ENV' {
 				mut data := logger.MsgData{
-					Text: strconv.v_sprintf('%q is defined as an identifier instead of a string (surround %q with quotes to get a string)',
+					text: strconv.v_sprintf('%q is defined as an identifier instead of a string (surround %q with quotes to get a string)',
 						key, value)
 				}
 				mut part := define_expr.parts[0]
 				match logger.api {
 					logger.cliapi {
 						data.location = &logger.MsgLocation{
-							File:       '<cli>'
-							Line:       1
-							Column:     30
-							Length:     part.len
-							LineText:   strconv.v_sprintf('--define:process.env.NODE_ENV=%s',
+							file:       '<cli>'
+							line:       1
+							column:     30
+							length:     part.len
+							line_text:  strconv.v_sprintf('--define:process.env.NODE_ENV=%s',
 								part)
-							Suggestion: strconv.v_sprintf('\\"%s\\"', part)
+							suggestion: strconv.v_sprintf('\\"%s\\"', part)
 						}
 					}
 					logger.jsapi {
 						data.location = &logger.MsgLocation{
-							File:       '<js>'
-							Line:       1
-							Column:     34
-							Length:     part.len + 2
-							LineText:   strconv.v_sprintf("define: { 'process.env.NODE_ENV': '%s' }",
+							file:       '<js>'
+							line:       1
+							column:     34
+							length:     part.len + 2
+							line_text:  strconv.v_sprintf("define: { 'process.env.NODE_ENV': '%s' }",
 								part)
-							Suggestion: strconv.v_sprintf('\'"%s"\'', part)
+							suggestion: strconv.v_sprintf('\'"%s"\'', part)
 						}
 					}
 					logger.go_api {
 						data.location = &logger.MsgLocation{
-							File:       '<go>'
-							Line:       1
-							Column:     50
-							Length:     part.len + 2
-							LineText:   strconv.v_sprintf('Define: map[string]string{"process.env.NODE_ENV": "%s"}',
+							file:       '<go>'
+							line:       1
+							column:     50
+							length:     part.len + 2
+							line_text:  strconv.v_sprintf('Define: map[string]string{"process.env.NODE_ENV": "%s"}',
 								part)
-							Suggestion: strconv.v_sprintf('"\\"%s\\""', part)
+							suggestion: strconv.v_sprintf('"\\"%s\\""', part)
 						}
 					}
 				}
-				log.addmsgid(logger.msg_id_js_suspicious_define, logger.Msg{
-					Kind: logger.warning
-					Data: data
+				log.add_msg_id(logger.msg_id_js_suspicious_define, logger.Msg{
+					kind: logger.warning
+					data: data
 				})
 			}
 			continue
@@ -665,26 +670,26 @@ fn validate_defines(log logger.Log, defines map[string]string, pureFns []string,
 				value_to_inject = map[string]config.InjectedDefine{}
 			}
 			value_to_inject[key] = config.InjectedDefine{
-				Source: logger.Source{
-					Contents: value
+				source: logger.Source{
+					contents: value
 				}
-				Data:   inject_expr
-				Name:   key
+				data:   inject_expr
+				name:   key
 			}
 			continue
 		}
-		log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid define value (must be an entity name or valid JSON syntax): %s',
+		log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid define value (must be an entity name or valid JSON syntax): %s',
 			value))
 	}
-	mut injectedDefines := []config.InjectedDefine{}
+	mut injected_defines := []config.InjectedDefine{}
 	if defines_to_inject.len > 0 {
 		injected_defines = []config.InjectedDefine{}
 		sort.strings(defines_to_inject)
 		for i, key in defines_to_inject {
 			injected_defines[i] = value_to_inject[key]
 			raw_defines[key] = config.DefineData{
-				DefineExpr: &config.DefineExpr{
-					InjectedDefineIndex: ast.makeindex32(u32(i))
+				define_expr: &config.DefineExpr{
+					injected_define_index: ast.make_index32(u32(i))
 				}
 			}
 		}
@@ -698,14 +703,14 @@ fn validate_defines(log logger.Log, defines map[string]string, pureFns []string,
 				if !process_env_node_env {
 					mut value := []u16{}
 					if minify {
-						value = helpers.stringtoutf16('production')
+						value = helpers.string_to_utf_16('production')
 					} else {
-						value = helpers.stringtoutf16('development')
+						value = helpers.string_to_utf_16('development')
 					}
 					raw_defines['process.env.NODE_ENV'] = config.DefineData{
-						DefineExpr: &config.DefineExpr{
-							Constant: &js_ast.EString{
-								Value: value
+						define_expr: &config.DefineExpr{
+							constant: &js_ast.EString{
+								value: value
 							}
 						}
 					}
@@ -720,8 +725,8 @@ fn validate_defines(log logger.Log, defines map[string]string, pureFns []string,
 	}
 	for _, key in pure_fns {
 		for _, part in key.split('.') {
-			if !js_ast.isidentifier(part) {
-				log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid pure function: %q',
+			if !js_ast.is_identifier(part) {
+				log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid pure function: %q',
 					key))
 				continue
 			}
@@ -730,34 +735,34 @@ fn validate_defines(log logger.Log, defines map[string]string, pureFns []string,
 		define.flags |= config.call_can_be_unwrapped_if_unused
 		raw_defines[key] = define
 	}
-	mut processed := config.processdefines(raw_defines)
+	mut processed := config.process_defines(raw_defines)
 	return &processed, injected_defines
 }
 
 fn validate_log_overrides(input map[string]LogLevel) map[logger.MsgID]logger.LogLevel {
 	output = map[u8]logger.LogLevel{}
 	for k, v in input {
-		logger.stringtomsgids(k, validate_log_level(v), output)
+		logger.string_to_msg_id_s(k, validate_log_level(v), output)
 	}
 	return
 }
 
-fn validate_path(log logger.Log, fs fs.FS, relPath string, pathKind string) string {
+fn validate_path(log logger.Log, fs fs.FS, rel_path string, path_kind string) string {
 	if rel_path == '' {
 		return ''
 	}
 	mut abs_path, ok := fs.abs(rel_path)
 	if !ok {
-		log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid %s: %s',
+		log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid %s: %s',
 			path_kind, rel_path))
 	}
 	return abs_path
 }
 
-fn validate_output_extensions(log logger.Log, outExtensions map[string]string) (string, string) {
+fn validate_output_extensions(log logger.Log, out_extensions map[string]string) (string, string) {
 	for key, value in out_extensions {
 		if !is_valid_extension(value) {
-			log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid output extension: %q',
+			log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid output extension: %q',
 				value))
 		}
 		match key {
@@ -768,7 +773,7 @@ fn validate_output_extensions(log logger.Log, outExtensions map[string]string) (
 				css = value
 			}
 			else {
-				log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid output extension: %q (valid: .css, .js)',
+				log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid output extension: %q (valid: .css, .js)',
 					key))
 			}
 		}
@@ -786,7 +791,7 @@ fn validate_banner_or_footer(log logger.Log, name string, values map[string]stri
 				css = value
 			}
 			else {
-				log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid %s file type: %q (valid: css, js)',
+				log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid %s file type: %q (valid: css, js)',
 					name, key))
 			}
 		}
@@ -796,9 +801,9 @@ fn validate_banner_or_footer(log logger.Log, name string, values map[string]stri
 
 fn validate_keep_names(log logger.Log, options &config.Options) {
 	if options.keep_names && options.unsupported_jsf_eatures.has(compat.function_name_configurable) {
-		mut where := config.prettyprinttargetenvironment(options.original_target_env,
+		mut where := config.pretty_print_target_environment(options.original_target_env,
 			options.unsupported_jsf_eature_overrides_mask)
-		log.adderrorwithnotes(unsafe { nil }, logger.Range{}, strconv.v_sprintf('The "keep names" setting cannot be used with %s',
+		log.add_error_with_notes(unsafe { nil }, logger.Range{}, strconv.v_sprintf('The "keep names" setting cannot be used with %s',
 			where), [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
 		])
 	}
@@ -807,13 +812,13 @@ fn validate_keep_names(log logger.Log, options &config.Options) {
 fn convert_location_to_public(loc &logger.MsgLocation) &Location {
 	if loc != unsafe { nil } {
 		return &Location{
-			File:       loc.file
-			Namespace:  loc.namespace
-			Line:       loc.line
-			Column:     loc.column
-			Length:     loc.length
-			LineText:   loc.line_text
-			Suggestion: loc.suggestion
+			file:       loc.file
+			namespace:  loc.namespace
+			line:       loc.line
+			column:     loc.column
+			length:     loc.length
+			line_text:  loc.line_text
+			suggestion: loc.suggestion
 		}
 	}
 	return unsafe { nil }
@@ -826,17 +831,17 @@ fn convert_messages_to_public(kind logger.MsgKind, msgs []logger.Msg) []Message 
 			mut notes := []Note{}
 			for _, note in msg.notes {
 				notes << Note{
-					Text:     note.text
-					Location: convert_location_to_public(note.location)
+					text:     note.text
+					location: convert_location_to_public(note.location)
 				}
 			}
 			filtered << Message{
-				ID:         logger.msgidtostring(msg.id)
-				PluginName: msg.plugin_name
-				Text:       msg.data.text
-				Location:   convert_location_to_public(msg.data.location)
-				Notes:      notes
-				Detail:     msg.data.user_detail
+				id:          logger.msg_idt_o_string(msg.id)
+				plugin_name: msg.plugin_name
+				text:        msg.data.text
+				location:    convert_location_to_public(msg.data.location)
+				notes:       notes
+				detail:      msg.data.user_detail
 			}
 		}
 	}
@@ -850,13 +855,13 @@ fn convert_location_to_internal(loc &Location) &logger.MsgLocation {
 			namespace = 'file'
 		}
 		return &logger.MsgLocation{
-			File:       loc.file
-			Namespace:  namespace
-			Line:       loc.line
-			Column:     loc.column
-			Length:     loc.length
-			LineText:   loc.line_text
-			Suggestion: loc.suggestion
+			file:       loc.file
+			namespace:  namespace
+			line:       loc.line
+			column:     loc.column
+			length:     loc.length
+			line_text:  loc.line_text
+			suggestion: loc.suggestion
 		}
 	}
 	return unsafe { nil }
@@ -867,20 +872,20 @@ fn convert_messages_to_internal(msgs []logger.Msg, kind logger.MsgKind, messages
 		mut notes := []logger.MsgData{}
 		for _, note in message.notes {
 			notes << logger.MsgData{
-				Text:     note.text
-				Location: convert_location_to_internal(note.location)
+				text:     note.text
+				location: convert_location_to_internal(note.location)
 			}
 		}
 		msgs << logger.Msg{
-			ID:         logger.stringtomaximummsgid(message.id)
-			PluginName: message.plugin_name
-			Kind:       kind
-			Data:       logger.MsgData{
-				Text:       message.text
-				Location:   convert_location_to_internal(message.location)
-				UserDetail: message.detail
+			id:          logger.string_to_maximum_msg_id(message.id)
+			plugin_name: message.plugin_name
+			kind:        kind
+			data:        logger.MsgData{
+				text:        message.text
+				location:    convert_location_to_internal(message.location)
+				user_detail: message.detail
 			}
-			Notes:      notes
+			notes:       notes
 		}
 	}
 	return msgs
@@ -900,14 +905,14 @@ fn convert_errors_and_warnings_to_internal(errors []Message, warnings []Message)
 	return unsafe { nil }
 }
 
-fn clone_mangle_cache(log logger.Log, mangleCache map[string]string) map[string]string {
+fn clone_mangle_cache(log logger.Log, mangle_cache map[string]voidptr) map[string]voidptr {
 	if mangle_cache == unsafe { nil } {
 		return unsafe { nil }
 	}
 	mut clone := map[string]string{}
 	for k, v in mangle_cache {
 		if v == '__proto__' {
-			log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid identifier name %q in mangle cache',
+			log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid identifier name %q in mangle cache',
 				k))
 		} else {
 			clone[k] = v
@@ -916,26 +921,26 @@ fn clone_mangle_cache(log logger.Log, mangleCache map[string]string) map[string]
 	return clone
 }
 
-fn context_impl(buildOpts BuildOptions) (&internalContext, []Message) {
+fn context_impl(build_opts BuildOptions) (&InternalContext, []Message) {
 	mut log_options := logger.OutputOptions{
-		IncludeSource: true
-		MessageLimit:  build_opts.log_limit
-		Color:         validate_color(build_opts.color)
-		LogLevel:      validate_log_level(build_opts.log_level)
-		Overrides:     validate_log_overrides(build_opts.log_override)
+		include_source: true
+		message_limit:  build_opts.log_limit
+		color:          validate_color(build_opts.color)
+		log_level:      validate_log_level(build_opts.log_level)
+		overrides:      validate_log_overrides(build_opts.log_override)
 	}
 	mut abs_working_dir := build_opts.abs_working_dir
-	mut real_fs, err := fs.realfs(fs.RealFSOptions{
-		AbsWorkingDir: abs_working_dir
-		DoNotCache:    true
+	mut real_fs, err := fs.real_fs(fs.RealFSOptions{
+		abs_working_dir: abs_working_dir
+		do_not_cache:    true
 	})
 	if err != unsafe { nil } {
-		mut log := logger.newstderrlog(log_options)
-		log.adderror(unsafe { nil }, logger.Range{}, err.error())
+		mut log := logger.new_stderr_log(log_options)
+		log.add_error(unsafe { nil }, logger.Range{}, err.error())
 		return unsafe { nil }, convert_messages_to_public(logger.error, log.done())
 	}
-	mut caches := cache.makecacheset()
-	mut log := logger.newdeferlog(logger.defer_log_no_verbose_or_debug, log_options.overrides)
+	mut caches := cache.make_cache_set()
+	mut log := logger.new_defer_log(logger.defer_log_no_verbose_or_debug, log_options.overrides)
 	mut on_end_callbacks, on_dispose_callbacks, finalize_build_options := load_plugins(&build_opts,
 		real_fs, log, caches)
 	mut options, entry_points := validate_build_options(build_opts, log, real_fs)
@@ -944,60 +949,63 @@ fn context_impl(buildOpts BuildOptions) (&internalContext, []Message) {
 		panic('Mutating "AbsWorkingDir" is not allowed')
 	}
 	mut msgs := log.done()
-	if log.haserrors() {
+	if log.has_errors() {
 		if log_options.log_level < logger.level_silent {
-			mut stderr := logger.newstderrlog(log_options)
+			mut stderr := logger.new_stderr_log(log_options)
 			for _, msg in msgs {
-				stderr.addmsg(msg)
+				stderr.add_msg(msg)
 			}
 			stderr.done()
 		}
 		return unsafe { nil }, convert_messages_to_public(logger.error, msgs)
 	}
-	mut args := rebuildArgs{
-		caches:             caches
-		onEndCallbacks:     on_end_callbacks
-		onDisposeCallbacks: on_dispose_callbacks
-		logOptions:         log_options
-		logWarnings:        msgs
-		entryPoints:        entry_points
-		options:            options
-		mangleCache:        build_opts.mangle_cache
-		absWorkingDir:      abs_working_dir
-		write:              build_opts.write
+	mut args := RebuildArgs{
+		caches:               caches
+		on_end_callbacks:     on_end_callbacks
+		on_dispose_callbacks: on_dispose_callbacks
+		log_options:          log_options
+		log_warnings:         msgs
+		entry_points:         entry_points
+		options:              options
+		mangle_cache:         build_opts.mangle_cache
+		abs_working_dir:      abs_working_dir
+		write:                build_opts.write
 	}
-	return &internalContext{
-		args:          args
-		realFS:        real_fs
-		absWorkingDir: abs_working_dir
+	return &InternalContext{
+		args:            args
+		real_fs:         real_fs
+		abs_working_dir: abs_working_dir
 	}, unsafe { nil }
 }
 
-struct buildInProgress {
+struct BuildInProgress {
 pub mut:
 	state      rebuildState
 	wait_group sync.WaitGroup
 	cancel     config.CancelFlag
 }
 
-struct internalContext {
+struct InternalContext {
 pub mut:
 	mutex           sync.Mutex
 	args            rebuildArgs
-	active_build    &buildInProgress = unsafe { nil }
+	active_build    &BuildInProgress = unsafe { nil }
 	recent_build    &BuildResult     = unsafe { nil }
 	real_fs         fs.FS
 	abs_working_dir string
-	watcher         &watcher    = unsafe { nil }
-	handler         &apiHandler = unsafe { nil }
+	watcher         &Watcher    = unsafe { nil }
+	handler         &ApiHandler = unsafe { nil }
 	did_dispose     bool
-	latest_hashes   map[string]string
+	// This saves just enough information to be able to compute a useful diff
+	// between two sets of output files. That way we don't need to hold both
+	// sets of output files in memory at once to compute a diff.
+	latest_hashes map[string]string
 }
 
-fn (ctx &internalContext) rebuild() rebuildState {
+fn (ctx &InternalContext) rebuild() RebuildState {
 	if ctx.did_dispose {
 		ctx.mutex.unlock()
-		return rebuildState{}
+		return RebuildState{}
 	}
 	mut build0 := ctx.active_build
 	if build0 != unsafe { nil } {
@@ -1005,7 +1013,7 @@ fn (ctx &internalContext) rebuild() rebuildState {
 		build0.wait_group.wait()
 		return build0.state
 	}
-	mut build := &buildInProgress{}
+	mut build := &BuildInProgress{}
 	build.wait_group.add(1)
 	ctx.active_build = build
 	mut args := ctx.args
@@ -1017,17 +1025,23 @@ fn (ctx &internalContext) rebuild() rebuildState {
 	mut newHashes := map[string]string{}
 	build.state, new_hashes = rebuild_impl(args, old_hashes)
 	if handler != unsafe { nil } {
-		handler.broadcastbuildresult(build.state.result, new_hashes)
+		handler.broadcast_build_result(build.state.result, new_hashes)
 	}
 	if watcher != unsafe { nil } {
-		watcher.setwatchdata(build.state.watch_data)
+		watcher.set_watch_data(build.state.watch_data)
 	}
 	mut recent_build := &build.state.result
 	ctx.active_build = unsafe { nil }
 	ctx.recent_build = recent_build
 	ctx.latest_hashes = new_hashes
 	ctx.mutex.unlock()
-	ctx.mutex.unlock()
+	go fn () {
+		time.sleep(250 * time.millisecond)
+		if ctx.recent_build == recent_build {
+			ctx.recent_build = unsafe { nil }
+		}
+		ctx.mutex.unlock()
+	}()
 	build.wait_group.done()
 	return build.state
 }
@@ -1041,7 +1055,7 @@ fn (ctx &internalContext) rebuild() rebuildState {
 // instead of generating new ones. This is because page loads likely involve
 // multiple requests, and don't want to rebuild separately for each of those
 // requests.
-fn (ctx &internalContext) active_build_or_recent_build_or_rebuild() BuildResult {
+fn (ctx &InternalContext) active_build_or_recent_build_or_rebuild() BuildResult {
 	mut build0 := ctx.active_build
 	if build0 != unsafe { nil } {
 		ctx.mutex.unlock()
@@ -1057,11 +1071,11 @@ fn (ctx &internalContext) active_build_or_recent_build_or_rebuild() BuildResult 
 	return ctx.rebuild()
 }
 
-pub fn (ctx &internalContext) rebuild2() BuildResult {
+pub fn (ctx &InternalContext) rebuild2() BuildResult {
 	return ctx.rebuild().result
 }
 
-pub fn (ctx &internalContext) watch(options WatchOptions) error {
+pub fn (ctx &InternalContext) watch(options WatchOptions) error {
 	defer {
 		ctx.mutex.unlock
 	}
@@ -1072,22 +1086,29 @@ pub fn (ctx &internalContext) watch(options WatchOptions) error {
 		return errors.new('Watch mode has already been enabled')
 	}
 	mut log_level := ctx.args.log_options.log_level
-	ctx.watcher = &watcher{
-		fs:        ctx.real_fs
-		shouldLog: log_level == logger.level_info || log_level == logger.level_debug
+	ctx.watcher = &Watcher{
+		fs:         ctx.real_fs
+		should_log: log_level == logger.level_info || log_level == logger.level_debug
 			|| log_level == logger.level_verbose
-		useColor:  ctx.args.log_options.color
-		rebuild:   fn () {
+		use_color:  ctx.args.log_options.color
+		rebuild:    fn () {
 			return ctx.rebuild().watch_data
 		}
 	}
 	ctx.args.options.watch_mode = true
 	ctx.watcher.start()
-	ctx.watcher.start()
+	go fn () {
+		mut build := ctx.active_build
+		ctx.mutex.unlock()
+		if build != unsafe { nil } {
+			build.wait_group.wait()
+		}
+		ctx.rebuild()
+	}()
 	return unsafe { nil }
 }
 
-pub fn (ctx &internalContext) cancel() {
+pub fn (ctx &InternalContext) cancel() {
 	if ctx.did_dispose {
 		ctx.mutex.unlock()
 		return
@@ -1100,7 +1121,7 @@ pub fn (ctx &internalContext) cancel() {
 	}
 }
 
-pub fn (ctx &internalContext) dispose() {
+pub fn (ctx &InternalContext) dispose() {
 	if ctx.did_dispose {
 		ctx.mutex.unlock()
 		return
@@ -1119,7 +1140,7 @@ pub fn (ctx &internalContext) dispose() {
 		build.wait_group.wait()
 	}
 	for _, f in ctx.args.on_dispose_callbacks {
-		// unhandled in stmt: unknown sum type value
+		go f()
 	}
 }
 
@@ -1137,15 +1158,15 @@ fn pretty_print_byte_count(n isize) string {
 	return size
 }
 
-fn print_summary(color logger.UseColor, outputFiles []OutputFile, start time.Time) {
+fn print_summary(color logger.UseColor, output_files []OutputFile, start time.Time) {
 	if output_files.len == 0 {
 		return
 	}
 	mut table := []logger.SummaryTableEntry{}
 	mut cwd, err := os.getwd()
 	if err == unsafe { nil } {
-		mut real_fs, err := fs.realfs(fs.RealFSOptions{
-			AbsWorkingDir: cwd
+		mut real_fs, err := fs.real_fs(fs.RealFSOptions{
+			abs_working_dir: cwd
 		})
 		if err == unsafe { nil } {
 			for i, file in output_files {
@@ -1156,26 +1177,26 @@ fn print_summary(color logger.UseColor, outputFiles []OutputFile, start time.Tim
 				mut base := real_fs.base(path)
 				mut n := file.contents.len
 				table[i] = logger.SummaryTableEntry{
-					Dir:         path[..path.len - base.len]
-					Base:        base
-					Size:        pretty_print_byte_count(n)
-					Bytes:       n
-					IsSourceMap: base.has_suffix('.map')
+					dir:           path[..path.len - base.len]
+					base:          base
+					size:          pretty_print_byte_count(n)
+					bytes:         n
+					is_source_map: base.has_suffix('.map')
 				}
 			}
 		}
 	}
-	mut user_agent, ok := os.lookupenv('npm_config_user_agent')
+	mut user_agent, ok := os.lookup_env('npm_config_user_agent')
 	if ok {
 		if user_agent.contains('yarn/1.') {
-			logger.printsummary(color, table, unsafe { nil })
+			logger.print_summary(color, table, unsafe { nil })
 			return
 		}
 	}
-	logger.printsummary(color, table, &start)
+	logger.print_summary(color, table, &start)
 }
 
-fn validate_build_options(buildOpts BuildOptions, log logger.Log, realFS fs.FS) (config.Options, []bundler.EntryPoint) {
+fn validate_build_options(build_opts BuildOptions, log logger.Log, real_fs fs.FS) (config.Options, []bundler.EntryPoint) {
 	mut js_features, css_features, css_prefix_data, target_env := validate_features(log,
 		build_opts.target, build_opts.engines)
 	mut js_overrides, js_mask, css_overrides, css_mask := validate_supported(log, build_opts.supported)
@@ -1188,86 +1209,87 @@ fn validate_build_options(buildOpts BuildOptions, log logger.Log, realFS fs.FS) 
 	mut defines, injected_defines := validate_defines(log, build_opts.define, build_opts.pure,
 		platform, true, minify, build_opts.drop)
 	options = config.Options{
-		CSSPrefixData:                      css_prefix_data
-		UnsupportedJSFeatures:              js_features.applyoverrides(js_overrides, js_mask)
-		UnsupportedCSSFeatures:             css_features.applyoverrides(css_overrides,
+		cssp_refix_data:                        css_prefix_data
+		unsupported_jsf_eatures:                js_features.apply_overrides(js_overrides,
+			js_mask)
+		unsupported_cssf_eatures:               css_features.apply_overrides(css_overrides,
 			css_mask)
-		UnsupportedJSFeatureOverrides:      js_overrides
-		UnsupportedJSFeatureOverridesMask:  js_mask
-		UnsupportedCSSFeatureOverrides:     css_overrides
-		UnsupportedCSSFeatureOverridesMask: css_mask
-		OriginalTargetEnv:                  target_env
-		JSX:                                config.JSXOptions{
-			Preserve:         build_opts.jsx == jsxp_reserve
-			AutomaticRuntime: build_opts.jsx == jsxa_utomatic
-			Factory:          validate_jsxe_xpr(log, build_opts.jsxf_actory, 'factory')
-			Fragment:         validate_jsxe_xpr(log, build_opts.jsxf_ragment, 'fragment')
-			Development:      build_opts.jsxd_ev
-			ImportSource:     build_opts.jsxi_mport_source
-			SideEffects:      build_opts.jsxs_ide_effects
+		unsupported_jsf_eature_overrides:       js_overrides
+		unsupported_jsf_eature_overrides_mask:  js_mask
+		unsupported_cssf_eature_overrides:      css_overrides
+		unsupported_cssf_eature_overrides_mask: css_mask
+		original_target_env:                    target_env
+		jsx:                                    config.JSXOptions{
+			preserve:          build_opts.jsx == jsxp_reserve
+			automatic_runtime: build_opts.jsx == jsxa_utomatic
+			factory:           validate_jsxe_xpr(log, build_opts.jsxf_actory, 'factory')
+			fragment:          validate_jsxe_xpr(log, build_opts.jsxf_ragment, 'fragment')
+			development:       build_opts.jsxd_ev
+			import_source:     build_opts.jsxi_mport_source
+			side_effects:      build_opts.jsxs_ide_effects
 		}
-		Defines:                            defines
-		InjectedDefines:                    injected_defines
-		Platform:                           platform
-		SourceMap:                          validate_source_map(build_opts.sourcemap)
-		LegalComments:                      validate_legal_comments(build_opts.legal_comments,
+		defines:                                defines
+		injected_defines:                       injected_defines
+		platform:                               platform
+		source_map:                             validate_source_map(build_opts.sourcemap)
+		legal_comments:                         validate_legal_comments(build_opts.legal_comments,
 			build_opts.bundle)
-		SourceRoot:                         build_opts.source_root
-		ExcludeSourcesContent:              build_opts.sources_content == sources_content_exclude
-		MinifySyntax:                       build_opts.minify_syntax
-		MinifyWhitespace:                   build_opts.minify_whitespace
-		MinifyIdentifiers:                  build_opts.minify_identifiers
-		LineLimit:                          build_opts.line_limit
-		MangleProps:                        validate_regex(log, 'mangle props', build_opts.mangle_props)
-		ReserveProps:                       validate_regex(log, 'reserve props', build_opts.reserve_props)
-		MangleQuoted:                       build_opts.mangle_quoted == mangle_quoted_true
-		DropLabels:                         append([]string{}, build_opts.drop_labels)
-		DropDebugger:                       (build_opts.drop & drop_debugger) != 0
-		AllowOverwrite:                     build_opts.allow_overwrite
-		ASCIIOnly:                          validate_asciio_nly(build_opts.charset)
-		IgnoreDCEAnnotations:               build_opts.ignore_annotations
-		TreeShaking:                        validate_tree_shaking(build_opts.tree_shaking,
+		source_root:                            build_opts.source_root
+		exclude_sources_content:                build_opts.sources_content == sources_content_exclude
+		minify_syntax:                          build_opts.minify_syntax
+		minify_whitespace:                      build_opts.minify_whitespace
+		minify_identifiers:                     build_opts.minify_identifiers
+		line_limit:                             build_opts.line_limit
+		mangle_props:                           validate_regex(log, 'mangle props', build_opts.mangle_props)
+		reserve_props:                          validate_regex(log, 'reserve props', build_opts.reserve_props)
+		mangle_quoted:                          build_opts.mangle_quoted == mangle_quoted_true
+		drop_labels:                            append([]string{}, build_opts.drop_labels)
+		drop_debugger:                          (build_opts.drop & drop_debugger) != 0
+		allow_overwrite:                        build_opts.allow_overwrite
+		asciio_nly:                             validate_asciio_nly(build_opts.charset)
+		ignore_dcea_nnotations:                 build_opts.ignore_annotations
+		tree_shaking:                           validate_tree_shaking(build_opts.tree_shaking,
 			build_opts.bundle, build_opts.format)
-		GlobalName:                         validate_global_name(log, build_opts.global_name)
-		CodeSplitting:                      build_opts.splitting
-		OutputFormat:                       validate_format(build_opts.format)
-		AbsOutputFile:                      validate_path(log, real_fs, build_opts.outfile,
+		global_name:                            validate_global_name(log, build_opts.global_name)
+		code_splitting:                         build_opts.splitting
+		output_format:                          validate_format(build_opts.format)
+		abs_output_file:                        validate_path(log, real_fs, build_opts.outfile,
 			'outfile path')
-		AbsOutputDir:                       validate_path(log, real_fs, build_opts.outdir,
+		abs_output_dir:                         validate_path(log, real_fs, build_opts.outdir,
 			'outdir path')
-		AbsOutputBase:                      validate_path(log, real_fs, build_opts.outbase,
+		abs_output_base:                        validate_path(log, real_fs, build_opts.outbase,
 			'outbase path')
-		NeedsMetafile:                      build_opts.metafile
-		EntryPathTemplate:                  validate_path_template(build_opts.entry_names)
-		ChunkPathTemplate:                  validate_path_template(build_opts.chunk_names)
-		AssetPathTemplate:                  validate_path_template(build_opts.asset_names)
-		OutputExtensionJS:                  out_js
-		OutputExtensionCSS:                 out_css
-		ExtensionToLoader:                  validate_loaders(log, build_opts.loader)
-		ExtensionOrder:                     validate_resolve_extensions(log, build_opts.resolve_extensions)
-		ExternalSettings:                   validate_externals(log, real_fs, build_opts.external)
-		ExternalPackages:                   validate_external_packages(build_opts.packages)
-		PackageAliases:                     validate_alias(log, real_fs, build_opts.alias)
-		TSConfigPath:                       validate_path(log, real_fs, build_opts.tsconfig,
+		needs_metafile:                         build_opts.metafile
+		entry_path_template:                    validate_path_template(build_opts.entry_names)
+		chunk_path_template:                    validate_path_template(build_opts.chunk_names)
+		asset_path_template:                    validate_path_template(build_opts.asset_names)
+		output_extension_js:                    out_js
+		output_extension_css:                   out_css
+		extension_to_loader:                    validate_loaders(log, build_opts.loader)
+		extension_order:                        validate_resolve_extensions(log, build_opts.resolve_extensions)
+		external_settings:                      validate_externals(log, real_fs, build_opts.external)
+		external_packages:                      validate_external_packages(build_opts.packages)
+		package_aliases:                        validate_alias(log, real_fs, build_opts.alias)
+		tsc_onfig_path:                         validate_path(log, real_fs, build_opts.tsconfig,
 			'tsconfig path')
-		TSConfigRaw:                        build_opts.tsconfig_raw
-		MainFields:                         build_opts.main_fields
-		PublicPath:                         build_opts.public_path
-		KeepNames:                          build_opts.keep_names
-		InjectPaths:                        append([]string{}, build_opts.inject)
-		AbsNodePaths:                       []string{}
-		JSBanner:                           banner_js
-		JSFooter:                           footer_js
-		CSSBanner:                          banner_css
-		CSSFooter:                          footer_css
-		PreserveSymlinks:                   build_opts.preserve_symlinks
+		tsc_onfig_raw:                          build_opts.tsconfig_raw
+		main_fields:                            build_opts.main_fields
+		public_path:                            build_opts.public_path
+		keep_names:                             build_opts.keep_names
+		inject_paths:                           append([]string{}, build_opts.inject)
+		abs_node_paths:                         []string{}
+		jsb_anner:                              banner_js
+		jsf_ooter:                              footer_js
+		cssb_anner:                             banner_css
+		cssf_ooter:                             footer_css
+		preserve_symlinks:                      build_opts.preserve_symlinks
 	}
 	validate_keep_names(log, &options)
 	if build_opts.conditions != unsafe { nil } {
-		options.conditions << build_opts.conditions
+		options.conditions << build_opts.conditions.clone()
 	}
 	if options.main_fields != unsafe { nil } {
-		options.main_fields << options.main_fields
+		options.main_fields << build_opts.main_fields.clone()
 	}
 	for i, path in build_opts.node_paths {
 		options.abs_node_paths[i] = validate_path(log, real_fs, path, 'node path')
@@ -1277,7 +1299,7 @@ fn validate_build_options(buildOpts BuildOptions, log logger.Log, realFS fs.FS) 
 	mut has_entry_point_with_wildcard := false
 	for _, ep in build_opts.entry_points {
 		entry_points << bundler.EntryPoint{
-			InputPath: ep
+			input_path: ep
 		}
 		if ep.contains_rune(`*`) {
 			has_entry_point_with_wildcard = true
@@ -1285,8 +1307,8 @@ fn validate_build_options(buildOpts BuildOptions, log logger.Log, realFS fs.FS) 
 	}
 	for _, ep in build_opts.entry_points_advanced {
 		entry_points << bundler.EntryPoint{
-			InputPath:  ep.input_path
-			OutputPath: ep.output_path
+			input_path:  ep.input_path
+			output_path: ep.output_path
 		}
 		if ep.input_path.contains_rune(`*`) {
 			has_entry_point_with_wildcard = true
@@ -1296,48 +1318,49 @@ fn validate_build_options(buildOpts BuildOptions, log logger.Log, realFS fs.FS) 
 	if build_opts.stdin != unsafe { nil } {
 		entry_point_count++
 		options.stdin = &config.StdinInfo{
-			Loader:        validate_loader(build_opts.stdin.loader)
-			Contents:      build_opts.stdin.contents
-			SourceFile:    build_opts.stdin.sourcefile
-			AbsResolveDir: validate_path(log, real_fs, build_opts.stdin.resolve_dir, 'resolve directory path')
+			loader:          validate_loader(build_opts.stdin.loader)
+			contents:        build_opts.stdin.contents
+			source_file:     build_opts.stdin.sourcefile
+			abs_resolve_dir: validate_path(log, real_fs, build_opts.stdin.resolve_dir,
+				'resolve directory path')
 		}
 	}
 	if options.abs_output_dir == '' && (entry_point_count > 1 || has_entry_point_with_wildcard) {
-		log.adderror(unsafe { nil }, logger.Range{}, 'Must use "outdir" when there are multiple input files')
+		log.add_error(unsafe { nil }, logger.Range{}, 'Must use "outdir" when there are multiple input files')
 	} else if options.abs_output_dir == '' && options.code_splitting {
-		log.adderror(unsafe { nil }, logger.Range{}, 'Must use "outdir" when code splitting is enabled')
+		log.add_error(unsafe { nil }, logger.Range{}, 'Must use "outdir" when code splitting is enabled')
 	} else if options.abs_output_file != '' && options.abs_output_dir != '' {
-		log.adderror(unsafe { nil }, logger.Range{}, 'Cannot use both "outfile" and "outdir"')
+		log.add_error(unsafe { nil }, logger.Range{}, 'Cannot use both "outfile" and "outdir"')
 	} else if options.abs_output_file != '' {
 		options.abs_output_dir = real_fs.dir(options.abs_output_file)
 	} else if options.abs_output_dir == '' {
 		options.write_to_stdout = true
 		if options.source_map != config.source_map_none
 			&& options.source_map != config.source_map_inline {
-			log.adderror(unsafe { nil }, logger.Range{}, 'Cannot use an external source map without an output path')
+			log.add_error(unsafe { nil }, logger.Range{}, 'Cannot use an external source map without an output path')
 		}
-		if options.legal_comments.hasexternalfile() {
-			log.adderror(unsafe { nil }, logger.Range{}, 'Cannot use linked or external legal comments without an output path')
+		if options.legal_comments.has_external_file() {
+			log.add_error(unsafe { nil }, logger.Range{}, 'Cannot use linked or external legal comments without an output path')
 		}
 		for _, loader in options.extension_to_loader {
 			if loader == config.loader_file {
-				log.adderror(unsafe { nil }, logger.Range{}, 'Cannot use the "file" loader without an output path')
+				log.add_error(unsafe { nil }, logger.Range{}, 'Cannot use the "file" loader without an output path')
 				break
 			}
 			if loader == config.loader_copy {
-				log.adderror(unsafe { nil }, logger.Range{}, 'Cannot use the "copy" loader without an output path')
+				log.add_error(unsafe { nil }, logger.Range{}, 'Cannot use the "copy" loader without an output path')
 				break
 			}
 		}
 		options.abs_output_dir = real_fs.cwd()
 	}
 	if !build_opts.bundle {
-		if options.external_settings.pre_resolve.hasmatchers()
-			|| options.external_settings.post_resolve.hasmatchers() {
-			log.adderror(unsafe { nil }, logger.Range{}, 'Cannot use "external" without "bundle"')
+		if options.external_settings.pre_resolve.has_matchers()
+			|| options.external_settings.post_resolve.has_matchers() {
+			log.add_error(unsafe { nil }, logger.Range{}, 'Cannot use "external" without "bundle"')
 		}
 		if options.package_aliases.len > 0 {
-			log.adderror(unsafe { nil }, logger.Range{}, 'Cannot use "alias" without "bundle"')
+			log.add_error(unsafe { nil }, logger.Range{}, 'Cannot use "alias" without "bundle"')
 		}
 	} else if options.output_format == config.format_preserve {
 		match options.platform {
@@ -1361,10 +1384,10 @@ fn validate_build_options(buildOpts BuildOptions, log logger.Log, realFS fs.FS) 
 		options.conditions = ['module']
 	}
 	if options.code_splitting && options.output_format != config.format_esm_odule {
-		log.adderror(unsafe { nil }, logger.Range{}, 'Splitting currently only works with the "esm" format')
+		log.add_error(unsafe { nil }, logger.Range{}, 'Splitting currently only works with the "esm" format')
 	}
 	if options.tsc_onfig_path != '' && options.tsc_onfig_raw != '' {
-		log.adderror(unsafe { nil }, logger.Range{}, 'Cannot provide "tsconfig" as both a raw string and a path')
+		log.add_error(unsafe { nil }, logger.Range{}, 'Cannot provide "tsconfig" as both a raw string and a path')
 	}
 	if !build_opts.write {
 		options.allow_overwrite = true
@@ -1375,10 +1398,10 @@ fn validate_build_options(buildOpts BuildOptions, log logger.Log, realFS fs.FS) 
 struct onEndCallback {
 pub mut:
 	plugin_name string
-	fn_         fn () (OnEndResult, error) = unsafe { nil }
+	fn          fn (_ &BuildResult) (OnEndResult, error) = unsafe { nil }
 }
 
-struct rebuildArgs {
+struct RebuildArgs {
 pub mut:
 	caches               &cache.CacheSet = unsafe { nil }
 	on_end_callbacks     []onEndCallback
@@ -1387,26 +1410,26 @@ pub mut:
 	log_warnings         []logger.Msg
 	entry_points         []bundler.EntryPoint
 	options              config.Options
-	mangle_cache         map[string]string
+	mangle_cache         map[string]voidptr
 	abs_working_dir      string
 	write                bool
 }
 
-struct rebuildState {
+struct RebuildState {
 pub mut:
 	result     BuildResult
 	watch_data fs.WatchData
 	options    config.Options
 }
 
-fn rebuild_impl(args rebuildArgs, oldHashes map[string]string) (rebuildState, map[string]string) {
-	mut log := logger.newstderrlog(args.log_options)
+fn rebuild_impl(args RebuildArgs, old_hashes map[string]string) (RebuildState, map[string]string) {
+	mut log := logger.new_stderr_log(args.log_options)
 	for _, msg in args.log_warnings {
-		log.addmsg(msg)
+		log.add_msg(msg)
 	}
-	mut real_fs, err := fs.realfs(fs.RealFSOptions{
-		AbsWorkingDir: args.abs_working_dir
-		WantWatchData: args.options.watch_mode
+	mut real_fs, err := fs.real_fs(fs.RealFSOptions{
+		abs_working_dir: args.abs_working_dir
+		want_watch_data: args.options.watch_mode
 	})
 	if err != unsafe { nil } {
 		panic(err.error())
@@ -1418,19 +1441,19 @@ fn rebuild_impl(args rebuildArgs, oldHashes map[string]string) (rebuildState, ma
 	if api_helpers.use_timer {
 		timer = &helpers.Timer{}
 	}
-	mut bundle := bundler.scanbundle(config.build_call, log, real_fs, args.caches, args.entry_points,
+	mut bundle := bundler.scan_bundle(config.build_call, log, real_fs, args.caches, args.entry_points,
 		args.options, timer)
-	watch_data = real_fs.watchdata()
+	watch_data = real_fs.watch_data()
 	mut new_hashes := old_hashes
-	if !log.haserrors() {
+	if !log.has_errors() {
 		result.mangle_cache = clone_mangle_cache(log, args.mangle_cache)
 		mut results, metafile := bundle.compile(log, timer, result.mangle_cache, linker.link)
-		if args.options.cancel_flag.didcancel() {
-			log.adderror(unsafe { nil }, logger.Range{}, 'The build was canceled')
+		if args.options.cancel_flag.did_cancel() {
+			log.add_error(unsafe { nil }, logger.Range{}, 'The build was canceled')
 		}
-		if !log.haserrors() {
+		if !log.has_errors() {
 			result.metafile = metafile
-			mut hashBytes := []u8{}
+			mut hash_bytes := []u8{}
 			result.output_files = []OutputFile{}
 			new_hashes = map[string]string{}
 			for i, item in results {
@@ -1439,12 +1462,12 @@ fn rebuild_impl(args rebuildArgs, oldHashes map[string]string) (rebuildState, ma
 				}
 				mut hasher := xxhash.new()
 				hasher.write(item.contents)
-				binary.little_endian.putuint64(hash_bytes[..], hasher.sum64())
-				mut hash := base64.raw_std_encoding.encodetostring(hash_bytes[..])
+				binary.little_endian.put_uint64(hash_bytes[..], hasher.sum64())
+				mut hash := base64.raw_std_encoding.encode_to_string(hash_bytes[..])
 				result.output_files[i] = OutputFile{
-					Path:     item.abs_path
-					Contents: item.contents
-					Hash:     hash
+					path:     item.abs_path
+					contents: item.contents
+					hash:     hash
 				}
 				new_hashes[item.abs_path] = hash
 			}
@@ -1452,14 +1475,14 @@ fn rebuild_impl(args rebuildArgs, oldHashes map[string]string) (rebuildState, ma
 				timer.begin('Write output files')
 				if args.options.write_to_stdout {
 					if results.len != 1 {
-						log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Internal error: did not expect to generate %d files when writing to stdout',
+						log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Internal error: did not expect to generate %d files when writing to stdout',
 							results.len))
 					} else {
 						to_write_to_stdout = results[0].contents
 					}
 				} else {
 					mut toDelete := []string{}
-					for absPath, _ in old_hashes {
+					for abs_path, _ in old_hashes {
 						_, ok := new_hashes[abs_path]
 						if !ok {
 							to_delete << abs_path
@@ -1468,10 +1491,51 @@ fn rebuild_impl(args rebuildArgs, oldHashes map[string]string) (rebuildState, ma
 					mut wait_group := sync.WaitGroup{}
 					wait_group.add(results.len + to_delete.len)
 					for _, result2 in results {
-						// unhandled in stmt: unknown sum type value
+						go fn (result2 graph.OutputFile) {
+							defer {
+								wait_group.done
+							}
+							fs.before_file_open()
+							defer {
+								fs.after_file_close
+							}
+							mut old_hash, ok := old_hashes[result2.abs_path]
+							if ok && old_hash == new_hashes[result2.abs_path] {
+								mut contents, err := ioutil.read_file(result2.abs_path)
+								if err == unsafe { nil } && bytes.equal(contents, result2.contents) {
+									return
+								}
+							}
+							mut err := fs.mkdir_all(real_fs, real_fs.dir(result2.abs_path),
+								755)
+							if err != unsafe { nil } {
+								log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Failed to create output directory: %s',
+									err.error()))
+							} else {
+								mut mode := isize(666)
+								if result2.is_executable {
+									mode = isize(777)
+								}
+								mut err := ioutil.write_file(result2.abs_path, result2.contents,
+									mode)
+								if err != unsafe { nil } {
+									log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Failed to write to output file: %s',
+										err.error()))
+								}
+							}
+						}()
 					}
-					for _, absPath in to_delete {
-						// unhandled in stmt: unknown sum type value
+					for _, abs_path in to_delete {
+						go fn (abs_path string) {
+							defer {
+								wait_group.done
+							}
+							fs.before_file_open()
+							defer {
+								fs.after_file_close
+							}
+							os.remove(abs_path)
+						}()
 					}
 					wait_group.wait()
 				}
@@ -1479,14 +1543,14 @@ fn rebuild_impl(args rebuildArgs, oldHashes map[string]string) (rebuildState, ma
 			}
 		}
 	}
-	if log.haserrors() {
+	if log.has_errors() {
 		result.mangle_cache = unsafe { nil }
 	}
 	mut msgs := log.peek()
 	result.errors = convert_messages_to_public(logger.error, msgs)
 	result.warnings = convert_messages_to_public(logger.warning, msgs)
 	timer.begin('On-end callbacks')
-	for _, onEnd in args.on_end_callbacks {
+	for _, on_end in args.on_end_callbacks {
 		mut from_plugin, thrown := on_end.myfn(&result)
 		for i, _ in from_plugin.errors {
 			if from_plugin.errors[i].plugin_name == '' {
@@ -1500,12 +1564,12 @@ fn rebuild_impl(args rebuildArgs, oldHashes map[string]string) (rebuildState, ma
 		}
 		if thrown != unsafe { nil } {
 			from_plugin.errors << Message{
-				PluginName: on_end.plugin_name
-				Text:       thrown.error()
+				plugin_name: on_end.plugin_name
+				text:        thrown.error()
 			}
 		}
 		for _, msg in convert_errors_and_warnings_to_internal(from_plugin.errors, from_plugin.warnings) {
-			log.addmsg(msg)
+			log.add_msg(msg)
 		}
 		result.errors << from_plugin.errors
 		result.warnings << from_plugin.warnings
@@ -1519,22 +1583,22 @@ fn rebuild_impl(args rebuildArgs, oldHashes map[string]string) (rebuildState, ma
 	if to_write_to_stdout != unsafe { nil } {
 		os.stdout.write(to_write_to_stdout)
 	}
-	return rebuildState{
-		result:    result
-		options:   args.options
-		watchData: watch_data
+	return RebuildState{
+		result:     result
+		options:    args.options
+		watch_data: watch_data
 	}, new_hashes
 }
 
-fn transform_impl(input string, transformOpts TransformOptions) TransformResult {
-	mut log := logger.newstderrlog(logger.OutputOptions{
-		IncludeSource: true
-		MessageLimit:  transform_opts.log_limit
-		Color:         validate_color(transform_opts.color)
-		LogLevel:      validate_log_level(transform_opts.log_level)
-		Overrides:     validate_log_overrides(transform_opts.log_override)
+fn transform_impl(input string, transform_opts TransformOptions) TransformResult {
+	mut log := logger.new_stderr_log(logger.OutputOptions{
+		include_source: true
+		message_limit:  transform_opts.log_limit
+		color:          validate_color(transform_opts.color)
+		log_level:      validate_log_level(transform_opts.log_level)
+		overrides:      validate_log_overrides(transform_opts.log_override)
 	})
-	mut caches := cache.makecacheset()
+	mut caches := cache.make_cache_set()
 	if transform_opts.sourcefile == '' {
 		transform_opts.sourcefile = '<stdin>'
 	}
@@ -1549,58 +1613,59 @@ fn transform_impl(input string, transformOpts TransformOptions) TransformResult 
 		platform, false, false, transform_opts.drop)
 	mut mangle_cache := clone_mangle_cache(log, transform_opts.mangle_cache)
 	mut options := config.Options{
-		CSSPrefixData:                      css_prefix_data
-		UnsupportedJSFeatures:              js_features.applyoverrides(js_overrides, js_mask)
-		UnsupportedCSSFeatures:             css_features.applyoverrides(css_overrides,
+		cssp_refix_data:                        css_prefix_data
+		unsupported_jsf_eatures:                js_features.apply_overrides(js_overrides,
+			js_mask)
+		unsupported_cssf_eatures:               css_features.apply_overrides(css_overrides,
 			css_mask)
-		UnsupportedJSFeatureOverrides:      js_overrides
-		UnsupportedJSFeatureOverridesMask:  js_mask
-		UnsupportedCSSFeatureOverrides:     css_overrides
-		UnsupportedCSSFeatureOverridesMask: css_mask
-		OriginalTargetEnv:                  target_env
-		TSConfigRaw:                        transform_opts.tsconfig_raw
-		JSX:                                config.JSXOptions{
-			Preserve:         transform_opts.jsx == jsxp_reserve
-			AutomaticRuntime: transform_opts.jsx == jsxa_utomatic
-			Factory:          validate_jsxe_xpr(log, transform_opts.jsxf_actory, 'factory')
-			Fragment:         validate_jsxe_xpr(log, transform_opts.jsxf_ragment, 'fragment')
-			Development:      transform_opts.jsxd_ev
-			ImportSource:     transform_opts.jsxi_mport_source
-			SideEffects:      transform_opts.jsxs_ide_effects
+		unsupported_jsf_eature_overrides:       js_overrides
+		unsupported_jsf_eature_overrides_mask:  js_mask
+		unsupported_cssf_eature_overrides:      css_overrides
+		unsupported_cssf_eature_overrides_mask: css_mask
+		original_target_env:                    target_env
+		tsc_onfig_raw:                          transform_opts.tsconfig_raw
+		jsx:                                    config.JSXOptions{
+			preserve:          transform_opts.jsx == jsxp_reserve
+			automatic_runtime: transform_opts.jsx == jsxa_utomatic
+			factory:           validate_jsxe_xpr(log, transform_opts.jsxf_actory, 'factory')
+			fragment:          validate_jsxe_xpr(log, transform_opts.jsxf_ragment, 'fragment')
+			development:       transform_opts.jsxd_ev
+			import_source:     transform_opts.jsxi_mport_source
+			side_effects:      transform_opts.jsxs_ide_effects
 		}
-		Defines:                            defines
-		InjectedDefines:                    injected_defines
-		Platform:                           platform
-		SourceMap:                          validate_source_map(transform_opts.sourcemap)
-		LegalComments:                      validate_legal_comments(transform_opts.legal_comments,
+		defines:                                defines
+		injected_defines:                       injected_defines
+		platform:                               platform
+		source_map:                             validate_source_map(transform_opts.sourcemap)
+		legal_comments:                         validate_legal_comments(transform_opts.legal_comments,
 			false)
-		SourceRoot:                         transform_opts.source_root
-		ExcludeSourcesContent:              transform_opts.sources_content == sources_content_exclude
-		OutputFormat:                       validate_format(transform_opts.format)
-		GlobalName:                         validate_global_name(log, transform_opts.global_name)
-		MinifySyntax:                       transform_opts.minify_syntax
-		MinifyWhitespace:                   transform_opts.minify_whitespace
-		MinifyIdentifiers:                  transform_opts.minify_identifiers
-		LineLimit:                          transform_opts.line_limit
-		MangleProps:                        validate_regex(log, 'mangle props', transform_opts.mangle_props)
-		ReserveProps:                       validate_regex(log, 'reserve props', transform_opts.reserve_props)
-		MangleQuoted:                       transform_opts.mangle_quoted == mangle_quoted_true
-		DropLabels:                         append([]string{}, transform_opts.drop_labels)
-		DropDebugger:                       (transform_opts.drop & drop_debugger) != 0
-		ASCIIOnly:                          validate_asciio_nly(transform_opts.charset)
-		IgnoreDCEAnnotations:               transform_opts.ignore_annotations
-		TreeShaking:                        validate_tree_shaking(transform_opts.tree_shaking,
+		source_root:                            transform_opts.source_root
+		exclude_sources_content:                transform_opts.sources_content == sources_content_exclude
+		output_format:                          validate_format(transform_opts.format)
+		global_name:                            validate_global_name(log, transform_opts.global_name)
+		minify_syntax:                          transform_opts.minify_syntax
+		minify_whitespace:                      transform_opts.minify_whitespace
+		minify_identifiers:                     transform_opts.minify_identifiers
+		line_limit:                             transform_opts.line_limit
+		mangle_props:                           validate_regex(log, 'mangle props', transform_opts.mangle_props)
+		reserve_props:                          validate_regex(log, 'reserve props', transform_opts.reserve_props)
+		mangle_quoted:                          transform_opts.mangle_quoted == mangle_quoted_true
+		drop_labels:                            append([]string{}, transform_opts.drop_labels)
+		drop_debugger:                          (transform_opts.drop & drop_debugger) != 0
+		asciio_nly:                             validate_asciio_nly(transform_opts.charset)
+		ignore_dcea_nnotations:                 transform_opts.ignore_annotations
+		tree_shaking:                           validate_tree_shaking(transform_opts.tree_shaking,
 			false, transform_opts.format)
-		AbsOutputFile:                      transform_opts.sourcefile + '-out'
-		KeepNames:                          transform_opts.keep_names
-		Stdin:                              &config.StdinInfo{
-			Loader:     validate_loader(transform_opts.loader)
-			Contents:   input
-			SourceFile: transform_opts.sourcefile
+		abs_output_file:                        transform_opts.sourcefile + '-out'
+		keep_names:                             transform_opts.keep_names
+		stdin:                                  &config.StdinInfo{
+			loader:      validate_loader(transform_opts.loader)
+			contents:    input
+			source_file: transform_opts.sourcefile
 		}
 	}
 	validate_keep_names(log, &options)
-	if options.stdin.loader.iscss() {
+	if options.stdin.loader.is_css() {
 		options.cssb_anner = transform_opts.banner
 		options.cssf_ooter = transform_opts.footer
 	} else {
@@ -1608,39 +1673,39 @@ fn transform_impl(input string, transformOpts TransformOptions) TransformResult 
 		options.jsf_ooter = transform_opts.footer
 	}
 	if options.source_map == config.source_map_linked_with_comment {
-		log.adderror(unsafe { nil }, logger.Range{}, 'Cannot transform with linked source maps')
+		log.add_error(unsafe { nil }, logger.Range{}, 'Cannot transform with linked source maps')
 	}
 	if options.source_map != config.source_map_none && options.stdin.source_file == '' {
-		log.adderror(unsafe { nil }, logger.Range{}, 'Must use "sourcefile" with "sourcemap" to set the original file name')
+		log.add_error(unsafe { nil }, logger.Range{}, 'Must use "sourcefile" with "sourcemap" to set the original file name')
 	}
 	if logger.api == logger.cliapi {
-		if options.legal_comments.hasexternalfile() {
-			log.adderror(unsafe { nil }, logger.Range{}, 'Cannot transform with linked or external legal comments')
+		if options.legal_comments.has_external_file() {
+			log.add_error(unsafe { nil }, logger.Range{}, 'Cannot transform with linked or external legal comments')
 		}
 	} else if options.legal_comments == config.legal_comments_linked_with_comment {
-		log.adderror(unsafe { nil }, logger.Range{}, 'Cannot transform with linked legal comments')
+		log.add_error(unsafe { nil }, logger.Range{}, 'Cannot transform with linked legal comments')
 	}
 	if options.output_format != config.format_preserve {
 		options.mode = config.mode_convert_format
 	}
 	mut results := []graph.OutputFile{}
-	if !log.haserrors() {
+	if !log.has_errors() {
 		mut timer := 0
 		if api_helpers.use_timer {
 			timer = &helpers.Timer{}
 		}
-		mut mock_fs := fs.mockfs(map[string]string{}, fs.mock_unix, '/')
-		mut bundle := bundler.scanbundle(config.transform_call, log, mock_fs, caches,
+		mut mock_fs := fs.mock_fs(map[string]string{}, fs.mock_unix, '/')
+		mut bundle := bundler.scan_bundle(config.transform_call, log, mock_fs, caches,
 			unsafe { nil }, options, timer)
-		if !log.haserrors() {
+		if !log.has_errors() {
 			results, _ = bundle.compile(log, timer, mangle_cache, linker.link)
 		}
 		timer.log(log)
 	}
 	mut code := []u8{}
-	mut sourceMap := []u8{}
-	mut legalComments := []u8{}
-	mut shortestAbsPath := 0
+	mut source_map := []u8{}
+	mut legal_comments := []u8{}
+	mut shortest_abs_path := 0
 	for _, result in results {
 		if shortest_abs_path == '' || result.abs_path.len < shortest_abs_path.len {
 			shortest_abs_path = result.abs_path
@@ -1651,39 +1716,39 @@ fn transform_impl(input string, transformOpts TransformOptions) TransformResult 
 			shortest_abs_path {
 				code = result.contents
 			}
-			shortest_abs_path + '.map' {
+			'${shortest_abs_path}.map' {
 				source_map = result.contents
 			}
-			shortest_abs_path + '.LEGAL.txt' {
+			'${shortest_abs_path}.LEGAL.txt' {
 				legal_comments = result.contents
 			}
 		}
 	}
-	if log.haserrors() {
+	if log.has_errors() {
 		mangle_cache = unsafe { nil }
 	}
 	mut msgs := log.done()
 	return TransformResult{
-		Errors:        convert_messages_to_public(logger.error, msgs)
-		Warnings:      convert_messages_to_public(logger.warning, msgs)
-		Code:          code
-		Map:           source_map
-		LegalComments: legal_comments
-		MangleCache:   mangle_cache
+		errors:         convert_messages_to_public(logger.error, msgs)
+		warnings:       convert_messages_to_public(logger.warning, msgs)
+		code:           code
+		map:            source_map
+		legal_comments: legal_comments
+		mangle_cache:   mangle_cache
 	}
 }
 
-struct pluginImpl {
+struct PluginImpl {
 pub mut:
 	log    logger.Log
 	fs     fs.FS
 	plugin config.Plugin
 }
 
-fn (impl &pluginImpl) on_start(callback fn () (OnStartResult, error)) {
+fn (impl &PluginImpl) on_start(callback fn () (OnStartResult, error)) {
 	impl.plugin.on_start << config.OnStart{
-		Name:     impl.plugin.name
-		Callback: fn () {
+		name:     impl.plugin.name
+		callback: fn () {
 			mut response, err := callback()
 			if err != unsafe { nil } {
 				result.thrown_error = err
@@ -1759,29 +1824,30 @@ fn resolve_kind_to_import_kind(kind ResolveKind) ast.ImportKind {
 	}
 }
 
-fn (impl &pluginImpl) on_resolve(options OnResolveOptions, callback fn () (OnResolveResult, error)) {
-	mut filter, err := config.compilefilterforplugin(impl.plugin.name, 'OnResolve', options.filter)
+fn (impl &PluginImpl) on_resolve(options OnResolveOptions, callback fn () (OnResolveResult, error)) {
+	mut filter, err := config.compile_filter_for_plugin(impl.plugin.name, 'OnResolve',
+		options.filter)
 	if filter == unsafe { nil } {
-		impl.log.adderror(unsafe { nil }, logger.Range{}, err.error())
+		impl.log.add_error(unsafe { nil }, logger.Range{}, err.error())
 		return
 	}
 	impl.plugin.on_resolve << config.OnResolve{
-		Name:      impl.plugin.name
-		Filter:    filter
-		Namespace: options.namespace
-		Callback:  fn (args config.OnResolveArgs) {
+		name:      impl.plugin.name
+		filter:    filter
+		namespace: options.namespace
+		callback:  fn (args config.OnResolveArgs) {
 			mut response, err := callback(OnResolveArgs{
-				Path:       args.path
-				Importer:   args.importer.text
-				Namespace:  args.importer.namespace
-				ResolveDir: args.resolve_dir
-				Kind:       import_kind_to_resolve_kind(args.kind)
-				PluginData: args.plugin_data
-				With:       args.with.decodeintomap()
+				path:        args.path
+				importer:    args.importer.text
+				namespace:   args.importer.namespace
+				resolve_dir: args.resolve_dir
+				kind:        import_kind_to_resolve_kind(args.kind)
+				plugin_data: args.plugin_data
+				with:        args.with.decode_into_map()
 			})
 			result.plugin_name = response.plugin_name
-			result.abs_watch_files = impl.validatepathsarray(response.watch_files, 'watch file')
-			result.abs_watch_dirs = impl.validatepathsarray(response.watch_dirs, 'watch directory')
+			result.abs_watch_files = impl.validate_paths_array(response.watch_files, 'watch file')
+			result.abs_watch_dirs = impl.validate_paths_array(response.watch_dirs, 'watch directory')
 			if err == unsafe { nil } && response.suffix != '' && response.suffix[0] != `?`
 				&& response.suffix[0] != `#` {
 				err = strconv.errorf('Invalid path suffix %q returned from plugin (must start with "?" or "#")',
@@ -1792,9 +1858,9 @@ fn (impl &pluginImpl) on_resolve(options OnResolveOptions, callback fn () (OnRes
 				return
 			}
 			result.path = logger.Path{
-				Text:          response.path
-				Namespace:     response.namespace
-				IgnoredSuffix: response.suffix
+				text:           response.path
+				namespace:      response.namespace
+				ignored_suffix: response.suffix
 			}
 			result.external = response.external
 			result.is_side_effect_free = response.side_effects == side_effects_false
@@ -1820,9 +1886,9 @@ fn (impl &pluginImpl) on_resolve(options OnResolveOptions, callback fn () (OnRes
 						path = path.title()
 					}
 					result.msgs << logger.Msg{
-						Kind: logger.warning
-						Data: logger.MsgData{
-							Text: strconv.v_sprintf("Returning %q doesn't do anything when %q is empty",
+						kind: logger.warning
+						data: logger.MsgData{
+							text: strconv.v_sprintf("Returning %q doesn't do anything when %q is empty",
 								what, path)
 						}
 					}
@@ -1833,26 +1899,26 @@ fn (impl &pluginImpl) on_resolve(options OnResolveOptions, callback fn () (OnRes
 	}
 }
 
-fn (impl &pluginImpl) on_load(options OnLoadOptions, callback fn () (OnLoadResult, error)) {
-	mut filter, err := config.compilefilterforplugin(impl.plugin.name, 'OnLoad', options.filter)
+fn (impl &pluginImpl) on_load(options OnLoadOptions, callback fn (_ OnLoadArgs) (OnLoadResult, error)) {
+	mut filter, err := config.compile_filter_for_plugin(impl.plugin.name, 'OnLoad', options.filter)
 	if filter == unsafe { nil } {
-		impl.log.adderror(unsafe { nil }, logger.Range{}, err.error())
+		impl.log.add_error(unsafe { nil }, logger.Range{}, err.error())
 		return
 	}
 	impl.plugin.on_load << config.OnLoad{
-		Filter:    filter
-		Namespace: options.namespace
-		Callback:  fn (args config.OnLoadArgs) {
+		filter:    filter
+		namespace: options.namespace
+		callback:  fn (args config.OnLoadArgs) {
 			mut response, err := callback(OnLoadArgs{
-				Path:       args.path.text
-				Namespace:  args.path.namespace
-				PluginData: args.plugin_data
-				Suffix:     args.path.ignored_suffix
-				With:       args.path.import_attributes.decodeintomap()
+				path:        args.path.text
+				namespace:   args.path.namespace
+				plugin_data: args.plugin_data
+				suffix:      args.path.ignored_suffix
+				with:        args.path.import_attributes.decode_into_map()
 			})
 			result.plugin_name = response.plugin_name
-			result.abs_watch_files = impl.validatepathsarray(response.watch_files, 'watch file')
-			result.abs_watch_dirs = impl.validatepathsarray(response.watch_dirs, 'watch directory')
+			result.abs_watch_files = impl.validate_paths_array(response.watch_files, 'watch file')
+			result.abs_watch_dirs = impl.validate_paths_array(response.watch_dirs, 'watch directory')
 			if err != unsafe { nil } {
 				result.thrown_error = err
 				return
@@ -1872,10 +1938,10 @@ fn (impl &pluginImpl) on_load(options OnLoadOptions, callback fn () (OnLoadResul
 	}
 }
 
-fn (impl &pluginImpl) validate_paths_array(pathsIn []string, name string) []string {
+fn (impl &pluginImpl) validate_paths_array(paths_in []string, name string) []string {
 	if paths_in.len > 0 {
 		mut path_kind := strconv.v_sprintf('%s path for plugin %q', name, impl.plugin.name)
-		for _, relPath in paths_in {
+		for _, rel_path in paths_in {
 			mut abs_path := validate_path(impl.log, impl.fs, rel_path, path_kind)
 			if abs_path != '' {
 				paths_out << abs_path
@@ -1885,7 +1951,7 @@ fn (impl &pluginImpl) validate_paths_array(pathsIn []string, name string) []stri
 	return
 }
 
-fn load_plugins(initialOptions &BuildOptions, fs fs.FS, log logger.Log, caches &cache.CacheSet) ([]onEndCallback, []fn (), fn ()) {
+fn load_plugins(initial_options &BuildOptions, fs fs.FS, log logger.Log, caches &cache.CacheSet) ([]OnEndCallback, []fn (), fn (_ &config.Options)) {
 	mut clone := []Plugin{}
 	mut optionsForResolve := 0
 	mut plugins := []config.Plugin{}
@@ -1896,46 +1962,47 @@ fn load_plugins(initialOptions &BuildOptions, fs fs.FS, log logger.Log, caches &
 
 	for i, item in clone {
 		if item.name == '' {
-			log.adderror(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Plugin at index %d is missing a name',
+			log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Plugin at index %d is missing a name',
 				i))
 			continue
 		}
-		mut impl := &pluginImpl{
+		mut impl := &PluginImpl{
 			fs:     fs
 			log:    log
 			plugin: config.Plugin{
-				Name: item.name
+				name: item.name
 			}
 		}
 		mut resolve := fn (path string, options ResolveOptions) {
 			if options_for_resolve == unsafe { nil } {
 				return ResolveResult{
-					Errors: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+					errors: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
 					]
 				}
 			}
 			if options.kind == resolve_none {
 				return ResolveResult{
-					Errors: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
+					errors: [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
 					]
 				}
 			}
-			mut log := logger.newdeferlog(logger.defer_log_no_verbose_or_debug, validate_log_overrides(initial_options.log_override))
+			mut log := logger.new_defer_log(logger.defer_log_no_verbose_or_debug, validate_log_overrides(initial_options.log_override))
 			mut options_clone := &options_for_resolve
-			mut resolver := resolver.newresolver(config.build_call, fs, log, caches, &options_clone)
+			mut resolver := resolver.new_resolver(config.build_call, fs, log, caches,
+				&options_clone)
 			mut abs_resolve_dir := validate_path(log, fs, options.resolve_dir, 'resolve directory')
-			if log.haserrors() {
+			if log.has_errors() {
 				mut msgs := log.done()
 				result.errors = convert_messages_to_public(logger.error, msgs)
 				result.warnings = convert_messages_to_public(logger.warning, msgs)
 				return
 			}
 			mut kind := resolve_kind_to_import_kind(options.kind)
-			mut resolve_result, _, _ := bundler.runonresolveplugins(plugins, resolver,
+			mut resolve_result, _, _ := bundler.run_on_resolve_plugins(plugins, resolver,
 				log, fs, &caches.fsc_ache, unsafe { nil }, logger.Range{}, logger.Path{
-				Text:      options.importer
-				Namespace: options.namespace
-			}, path, logger.encodeimportattributes(options.with), kind, abs_resolve_dir,
+				text:      options.importer
+				namespace: options.namespace
+			}, path, logger.encode_import_attributes(options.with), kind, abs_resolve_dir,
 				options.plugin_data)
 			mut msgs := log.done()
 			result.errors = convert_messages_to_public(logger.error, msgs)
@@ -1952,7 +2019,7 @@ fn load_plugins(initialOptions &BuildOptions, fs fs.FS, log logger.Log, caches &
 				if options.plugin_name != '' {
 					plugin_name = options.plugin_name
 				}
-				mut text, _, notes := bundler.resolvefailureerrortextsuggestionnotes(resolver,
+				mut text, _, notes := bundler.resolve_failure_error_text_suggestion_notes(resolver,
 					path, kind, plugin_name, fs, abs_resolve_dir, options_for_resolve.platform,
 					'', '')
 				result.errors << convert_messages_to_public(logger.error, [// UNHANDLED CompositeLit type  InvalidExpr strtyp="Expr(InvalidExpr{})"
@@ -1961,10 +2028,10 @@ fn load_plugins(initialOptions &BuildOptions, fs fs.FS, log logger.Log, caches &
 			return
 		}
 
-		mut on_end := fn (myfn fn () (OnEndResult, error)) {
-			on_end_callbacks << onEndCallback{
-				pluginName: item.name
-				myfn:       myfn
+		mut on_end := fn (myfn fn (_ &BuildResult) (OnEndResult, error)) {
+			on_end_callbacks << OnEndCallback{
+				plugin_name: item.name
+				myfn:        myfn
 			}
 		}
 
@@ -1973,13 +2040,13 @@ fn load_plugins(initialOptions &BuildOptions, fs fs.FS, log logger.Log, caches &
 		}
 
 		item.setup(PluginBuild{
-			InitialOptions: initial_options
-			Resolve:        resolve
-			OnStart:        impl.on_start
-			OnEnd:          on_end
-			OnDispose:      on_dispose
-			OnResolve:      impl.on_resolve
-			OnLoad:         impl.on_load
+			initial_options: initial_options
+			resolve:         resolve
+			on_start:        impl.on_start
+			on_end:          on_end
+			on_dispose:      on_dispose
+			on_resolve:      impl.on_resolve
+			on_load:         impl.on_load
 		})
 		plugins << impl.plugin
 	}
@@ -1995,16 +2062,16 @@ fn format_msgs_impl(msgs []Message, opts FormatMessagesOptions) []string {
 	mut strings := []string{}
 	for i, msg in log_msgs {
 		strings[i] = msg.str(logger.OutputOptions{
-			IncludeSource: true
+			include_source: true
 		}, logger.TerminalInfo{
-			UseColorEscapes: opts.color
-			Width:           opts.terminal_width
+			use_color_escapes: opts.color
+			width:             opts.terminal_width
 		})
 	}
 	return strings
 }
 
-struct metafileEntry {
+struct MetafileEntry {
 pub mut:
 	name        string
 	entry_point string
@@ -2013,17 +2080,17 @@ pub mut:
 }
 
 // This type is just so we can use Go's native sort function
-type metafileArray = []metafileEntry
+type MetafileArray = []MetafileEntry
 
-pub fn (a metafileArray) len() isize {
+pub fn (a MetafileArray) len() isize {
 	return a.len
 }
 
-pub fn (a metafileArray) swap(i isize, j isize) {
+pub fn (a MetafileArray) swap(i isize, j isize) {
 	a[i], a[j] = a[j], a[i]
 }
 
-pub fn (a metafileArray) less(i isize, j isize) bool {
+pub fn (a MetafileArray) less(i isize, j isize) bool {
 	mut ai := a[i]
 	mut aj := a[j]
 	return ai.size > aj.size || ai.size == aj.size && ai.name < aj.name
@@ -2034,44 +2101,44 @@ fn get_object_property(expr js_ast.Expr, key string) js_ast.Expr {
 }
 
 fn get_object_property_number(expr js_ast.Expr, key string) &js_ast.ENumber {
-	mut value, _ := _
+	mut value, _ := get_object_property(expr, key).data
 	return value
 }
 
 fn get_object_property_string(expr js_ast.Expr, key string) &js_ast.EString {
-	mut value, _ := _
+	mut value, _ := get_object_property(expr, key).data
 	return value
 }
 
 fn get_object_property_object(expr js_ast.Expr, key string) &js_ast.EObject {
-	mut value, _ := _
+	mut value, _ := get_object_property(expr, key).data
 	return value
 }
 
 fn get_object_property_array(expr js_ast.Expr, key string) &js_ast.EArray {
-	mut value, _ := _
+	mut value, _ := get_object_property(expr, key).data
 	return value
 }
 
 fn analyze_metafile_impl(metafile string, opts AnalyzeMetafileOptions) string {
-	mut log := logger.newdeferlog(logger.defer_log_no_verbose_or_debug, unsafe { nil })
+	mut log := logger.new_defer_log(logger.defer_log_no_verbose_or_debug, unsafe { nil })
 	mut source := logger.Source{
-		Contents: metafile
+		contents: metafile
 	}
-	mut result, ok := js_parser.parsejson(log, source, js_parser.JSONOptions{})
+	mut result, ok := js_parser.parse_json(log, source, js_parser.JSONOptions{})
 	if ok {
 		mut outputs := get_object_property_object(result, 'outputs')
 		if outputs != unsafe { nil } {
 			mut entries := 0
 			mut entryPoints := []string{}
 			for _, output in outputs.properties {
-				mut key := helpers.utf16tostring(.value)
+				mut key := helpers.utf_16_to_string(output.key.data.value)
 				if !key.has_suffix('.map') {
 					mut entry_point_path := ''
 					mut entry_point := get_object_property_string(output.value_or_nil,
 						'entryPoint')
 					if entry_point != unsafe { nil } {
-						entry_point_path = helpers.utf16tostring(entry_point.value)
+						entry_point_path = helpers.utf_16_to_string(entry_point.value)
 						entry_points << entry_point_path
 					}
 					mut bytes := get_object_property_number(output.value_or_nil, 'bytes')
@@ -2084,18 +2151,18 @@ fn analyze_metafile_impl(metafile string, opts AnalyzeMetafileOptions) string {
 								mut bytes_in_output := get_object_property_number(input.value_or_nil,
 									'bytesInOutput')
 								if bytes_in_output != unsafe { nil } && bytes_in_output.value > 0 {
-									children << metafileEntry{
-										name: helpers.utf16tostring(.value)
+									children << MetafileEntry{
+										name: helpers.utf_16_to_string(input.key.data.value)
 										size: isize(bytes_in_output.value)
 									}
 								}
 							}
 							sort.sort(children)
-							entries << metafileEntry{
-								name:       key
-								size:       isize(bytes.value)
-								entries:    children
-								entryPoint: entry_point_path
+							entries << MetafileEntry{
+								name:        key
+								size:        isize(bytes.value)
+								entries:     children
+								entry_point: entry_point_path
 							}
 						}
 					}
@@ -2113,10 +2180,10 @@ fn analyze_metafile_impl(metafile string, opts AnalyzeMetafileOptions) string {
 						for _, item in imports.items {
 							mut path := get_object_property_string(item, 'path')
 							if path != unsafe { nil } {
-								data.imports << helpers.utf16tostring(path.value)
+								data.imports << helpers.utf_16_to_string(path.value)
 							}
 						}
-						imports_for_path[helpers.utf16tostring(.value)] = data
+						imports_for_path[helpers.utf_16_to_string(prop.key.data.value)] = data
 					}
 				}
 			}
@@ -2124,15 +2191,15 @@ fn analyze_metafile_impl(metafile string, opts AnalyzeMetafileOptions) string {
 				if !opts.verbose {
 					return unsafe { nil }
 				}
-				mut graph := map[string]graphData{}
-				for _, entryPoint in worklist {
-					graph[entry_point] = graphData{}
+				mut graph := map[string]GraphData{}
+				for _, entry_point in worklist {
+					graph[entry_point] = GraphData{}
 				}
 				for worklist.len > 0 {
 					mut top := worklist[worklist.len - 1]
 					worklist = worklist[..worklist.len - 1]
 					mut child_depth := graph[top].depth + 1
-					for _, importPath in imports_for_path[top].imports {
+					for _, import_path in imports_for_path[top].imports {
 						mut imported, ok := graph[import_path]
 						if !ok {
 							imported.depth = math.max_uint32
@@ -2150,7 +2217,7 @@ fn analyze_metafile_impl(metafile string, opts AnalyzeMetafileOptions) string {
 
 			mut graph_for_all_entry_points := graph_for_entry_points(entry_points)
 
-			mut table := []tableEntry{}
+			mut table := []TableEntry{}
 			mut colors := 0
 			if opts.color {
 				colors = logger.terminal_colors
@@ -2158,14 +2225,14 @@ fn analyze_metafile_impl(metafile string, opts AnalyzeMetafileOptions) string {
 			for _, entry in entries {
 				mut second := pretty_print_byte_count(entry.size)
 				mut third := '100.0%'
-				table << tableEntry{
-					first:      entry.name
-					firstLen:   utf8.runecountinstring(entry.name)
-					second:     second
-					secondLen:  second.len
-					third:      third
-					thirdLen:   third.len
-					isTopLevel: true
+				table << TableEntry{
+					first:        entry.name
+					first_len:    utf8.rune_count_in_string(entry.name)
+					second:       second
+					second_len:   second.len
+					third:        third
+					third_len:    third.len
+					is_top_level: true
 				}
 				mut graph := graph_for_all_entry_points
 				if entry.entry_point != '' {
@@ -2180,13 +2247,13 @@ fn analyze_metafile_impl(metafile string, opts AnalyzeMetafileOptions) string {
 					mut first := indent + child.name
 					mut second2 := pretty_print_byte_count(child.size)
 					mut third2 := strconv.v_sprintf('%.1f%%', percent)
-					table << tableEntry{
-						first:     first
-						firstLen:  utf8.runecountinstring(first)
-						second:    second2
-						secondLen: second2.len
-						third:     third2
-						thirdLen:  third2.len
+					table << TableEntry{
+						first:      first
+						first_len:  utf8.rune_count_in_string(first)
+						second:     second2
+						second_len: second2.len
+						third:      third2
+						third_len:  third2.len
 					}
 					if opts.verbose {
 						indent = ' │ '
@@ -2221,8 +2288,7 @@ fn analyze_metafile_impl(metafile string, opts AnalyzeMetafileOptions) string {
 				}
 			}
 			mut sb := strings.Builder
-			{
-			}
+			{}
 			for _, entry in table {
 				mut prefix := '\n'
 				mut color := colors.bold
@@ -2231,7 +2297,7 @@ fn analyze_metafile_impl(metafile string, opts AnalyzeMetafileOptions) string {
 					color = ''
 				}
 				if entry.second == '' && entry.third == '' {
-					sb.writestring(strconv.v_sprintf('%s  %s\n', prefix, entry.first))
+					sb.write_string(strconv.v_sprintf('%s  %s\n', prefix, entry.first))
 					continue
 				}
 				mut second := entry.second
@@ -2242,7 +2308,7 @@ fn analyze_metafile_impl(metafile string, opts AnalyzeMetafileOptions) string {
 					line_char = '─'
 					extra_space = isize(1)
 				}
-				sb.writestring(strconv.v_sprintf('%s  %s%s%s %s%s%s %s%s%s %s%s%s %s%s%s\n',
+				sb.write_string(strconv.v_sprintf('%s  %s%s%s %s%s%s %s%s%s %s%s%s %s%s%s\n',
 					prefix, color, entry.first, colors.reset, colors.dim, line_char.repeat(
 					extra_space + max_first_len - entry.first_len + max_second_len - entry.second_len),
 					colors.reset, color, second_trimmed, colors.reset, colors.dim, line_char.repeat(
@@ -2255,7 +2321,7 @@ fn analyze_metafile_impl(metafile string, opts AnalyzeMetafileOptions) string {
 	return ''
 }
 
-fn strip_dir_prefix(path string, prefix string, allowedSlashes string) (string, bool) {
+fn strip_dir_prefix(path string, prefix string, allowed_slashes string) (string, bool) {
 	if path.has_prefix(prefix) {
 		mut path_len := path.len
 		mut prefix_len := prefix.len

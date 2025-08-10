@@ -197,6 +197,15 @@ fn (mut app App) composite_lit(c CompositeLit) {
 			app.force_upper = true
 			app.selector_expr(c.typ)
 			app.force_upper = force_upper
+			app.gen('{')
+			if c.elts.len > 0 {
+				app.genln('')
+			}
+			for elt in c.elts {
+				app.expr(elt)
+				app.genln('')
+			}
+			app.gen('}')
 		}
 		else {
 			app.genln('// UNHANDLED CompositeLit type  ${c.typ.type_name()} strtyp="${c.typ}"')
