@@ -141,7 +141,8 @@ fn (mut app App) import_spec(spec ImportSpec) {
 }
 
 fn (mut app App) struct_decl(struct_name string, spec StructType) {
-	app.genln('struct ${struct_name} {')
+	app.force_upper = true
+	app.genln('struct ${app.go2v_ident(struct_name)} {')
 	if spec.fields.list.len > 0 {
 		app.genln('pub mut:')
 	}
@@ -151,7 +152,6 @@ fn (mut app App) struct_decl(struct_name string, spec StructType) {
 			app.gen('\t')
 			app.gen(app.go2v_ident(n.name))
 			app.gen(' ')
-			app.force_upper = true
 			app.typ(field.typ)
 			if field.typ in [StarExpr, FuncType] {
 				app.gen(' = unsafe { nil }')

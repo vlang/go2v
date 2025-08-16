@@ -165,28 +165,29 @@ fn (mut app App) selector_xxx(sel SelectorExpr) {
 	app.expr(sel.x)
 	app.gen('.')
 	mut sel_name := sel.sel.name //.to_lower()
-	if sel_name == 'string' {
+	if sel.sel.name == 'String' {
 		sel_name = 'str'
 	}
 	app.gen(app.go2v_ident(sel_name))
 }
 
 fn (mut app App) make_call(call CallExpr) {
-	// app.genln('//make ${call.fun.type_name()} ar0=${call.args[0].type_name()}')
 	app.expr(call.args[0])
-	// len only
-	if call.args.len == 2 {
-		app.gen('{ len: ')
-		app.expr(call.args[1])
-		app.gen(' }')
-	}
-	// cap + len
-	else if call.args.len == 3 {
-		app.gen('{ len: ')
-		app.expr(call.args[1])
-		app.gen(', cap: ')
-		app.expr(call.args[2])
-		app.gen(' }')
+	if call.args[0] is ArrayType || call.args[0] is SelectorExpr {
+		// len only
+		if call.args.len == 2 {
+			app.gen('{ len: ')
+			app.expr(call.args[1])
+			app.gen(' }')
+		}
+		// cap + len
+		else if call.args.len == 3 {
+			app.gen('{ len: ')
+			app.expr(call.args[1])
+			app.gen(', cap: ')
+			app.expr(call.args[2])
+			app.gen(' }')
+		}
 	} else {
 		app.gen('{}')
 	}

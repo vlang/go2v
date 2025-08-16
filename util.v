@@ -65,6 +65,7 @@ fn (mut app App) go2v_ident(ident string) string {
 	if id == 'nil' {
 		return 'unsafe { nil }'
 	}
+
 	if app.force_upper || ident in app.struct_or_alias {
 		app.force_upper = false
 		id_typ := go2v_type(id)

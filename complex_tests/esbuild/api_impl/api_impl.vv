@@ -678,7 +678,7 @@ fn validate_defines(log logger.Log, defines map[string]string, pure_fns []string
 	}
 	mut injected_defines := []config.InjectedDefine{}
 	if defines_to_inject.len > 0 {
-		injected_defines = []config.InjectedDefine{}
+		injected_defines = []config.InjectedDefine{len: defines_to_inject.len}
 		sort.strings(defines_to_inject)
 		for i, key in defines_to_inject {
 			injected_defines[i] = value_to_inject[key]
@@ -904,7 +904,7 @@ fn clone_mangle_cache(log logger.Log, mangle_cache map[string]voidptr) map[strin
 	if mangle_cache == unsafe { nil } {
 		return unsafe { nil }
 	}
-	mut clone := map[string]string{}
+	mut clone := map[string]voidptr{}
 	for k, v in mangle_cache {
 		if v == '__proto__' {
 			log.add_error(unsafe { nil }, logger.Range{}, strconv.v_sprintf('Invalid identifier name %q in mangle cache',
@@ -975,7 +975,7 @@ fn context_impl(build_opts BuildOptions) (&InternalContext, []Message) {
 
 struct BuildInProgress {
 pub mut:
-	state      rebuildState
+	state      RebuildState
 	wait_group sync.WaitGroup
 	cancel     config.CancelFlag
 }
@@ -983,7 +983,7 @@ pub mut:
 struct InternalContext {
 pub mut:
 	mutex           sync.Mutex
-	args            rebuildArgs
+	args            RebuildArgs
 	active_build    &BuildInProgress = unsafe { nil }
 	recent_build    &BuildResult     = unsafe { nil }
 	real_fs         fs.FS
@@ -1390,7 +1390,7 @@ fn validate_build_options(build_opts BuildOptions, log logger.Log, real_fs fs.FS
 	return
 }
 
-struct onEndCallback {
+struct OnEndCallback {
 pub mut:
 	plugin_name string
 	fn          fn (_ &BuildResult) (OnEndResult, error) = unsafe { nil }

@@ -167,7 +167,7 @@ fn (mut app App) decl_stmt(d DeclStmt) {
 								if idx > 0 {
 									app.gen(',')
 								}
-								n := spec.names[idx].name
+								n := app.go2v_ident(spec.names[idx].name)
 								if app.cur_fn_names[n] {
 									app.genln('// "${n}" already declared in cur fn. skipping. (why does this happen?)')
 									return
