@@ -76,17 +76,20 @@ fn quoted_lit(s string, quote string) string {
 	mut quote2 := quote
 	go_quote := s[0]
 	mut no_quotes := s[1..s.len - 1]
+
 	// Use "" quotes if the string literal contains '
 	if quote2 == "'" && no_quotes.contains("'") && !no_quotes.contains('"') {
 		// no_quotes = no_quotes.replace(
 		quote2 = '"'
 	}
-	if s.contains('\\"') {
-		quote2 = '"'
-	}
+
 	mut prefix := ''
 	if go_quote == `\`` {
 		prefix = 'r'
+	}
+
+	if prefix != 'r' && s.contains('\\"') {
+		quote2 = '"'
 	}
 
 	// Handle '`' => `\``
