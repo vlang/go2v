@@ -1,18 +1,18 @@
 module main
 
 fn main() {
-	mut a := '="'
+	mut a := r'="'
 	mut b := '='
 	mut c := '\n\\'
-	mut d := '\\n\\\\'
+	mut d := r'\n\\'
 	mut e := "''"
-	mut f := "''"
-	mut g := '\\'
-	mut h := 'a"\\">'
-	mut i := `a`
-	mut j := `\\`
-	mut k := `'`
-	mut l := `\``
+	mut f := r"''"
+	mut g := r'\'
+	mut h := r'a"\">'
+	mut i := u8(`a`)
+	mut j := u8(`\\`)
+	mut k := u8(`'`)
+	mut l := u8(`\``)
 	mut m := l
 	mut n := '"'
 	mut o := '\\"'

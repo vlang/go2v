@@ -110,7 +110,9 @@ fn (mut app App) call_expr(call CallExpr) {
 				if i > 0 {
 					app.gen(' ')
 				}
-				if arg is BinaryExpr {
+				if arg is BasicLit {
+					app.gen(arg.value[1..arg.value.len - 1])
+				} else if arg is BinaryExpr {
 					app.expr(arg)
 				} else {
 					if more_than_one {
