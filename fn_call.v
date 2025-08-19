@@ -112,7 +112,7 @@ fn (mut app App) call_expr(call CallExpr) {
 				}
 				if arg is BasicLit {
 					if !more_than_one {
-						app.gen(arg.value)
+						app.basic_lit(arg)
 					} else {
 						app.gen(arg.value[1..arg.value.len - 1])
 					}
