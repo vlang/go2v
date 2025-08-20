@@ -1,0 +1,9 @@
+module main
+
+struct Ok {
+pub mut:
+	aaa string
+	bbb fn ()         = unsafe { nil }
+	ccc fn (_ isize)  = unsafe { nil }
+	ddd fn (_ Ok) u16 = unsafe { nil }
+}
