@@ -176,27 +176,41 @@ fn (mut app App) decl_stmt(d DeclStmt) {
 								app.cur_fn_names[n] = true
 							}
 							app.gen(' := ')
-							mut kind := 'int'
+
+							cast := if spec.typ != ValueSpecType{} {
+								go2v_type(spec.typ.name.to_lower())
+							} else {
+								''
+							}
 							if spec.values.len == 0 {
 								app.force_upper = true
-								app.gen_zero_value(spec.typ)
+								if cast != '' {
+									app.gen('${cast}(')
+								}
+								app.gen_zero_value(spec.names[0])
+								if cast != '' {
+									app.genln(')')
+								}
 								continue
 							}
-							mut needs_cast := false
 							for idx in 0 .. spec.values.len {
 								if idx > 0 {
 									app.gen(',')
 								}
 								value := spec.values[idx]
+								mut needs_cast := false
 								match value {
 									BasicLit {
-										kind = go2v_type(value.kind.to_lower())
-										if kind != 'int' && kind != 'string'
-											&& value.kind.to_lower() != 'char' {
-											needs_cast = true
-										}
-										if needs_cast {
-											app.gen('${kind}(')
+										if value.kind != 'CHAR' {
+											kind := if cast != '' {
+												cast
+											} else {
+												go2v_type(value.kind.to_lower())
+											}
+											if kind != value.kind.to_lower() {
+												app.gen('${kind}(')
+												needs_cast = true
+											}
 										}
 									}
 									else {}
@@ -205,7 +219,6 @@ fn (mut app App) decl_stmt(d DeclStmt) {
 								if needs_cast {
 									app.gen(')')
 								}
-								needs_cast = false
 							}
 						}
 						else {

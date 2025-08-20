@@ -23,7 +23,7 @@ fn (mut app App) gen_decl(decl GenDecl) {
 				}
 			}
 			ValueSpec {
-				if spec.typ is Ident {
+				if spec.typ.node_type == 'Ident' {
 					// needs_closer = true
 				}
 				match decl.tok {
@@ -63,17 +63,24 @@ fn (mut app App) type_decl(spec TypeSpec) {
 fn (mut app App) global_decl(spec ValueSpec) {
 	for name in spec.names {
 		app.gen('__global ${name.name} ')
-		if spec.typ is InvalidExpr {
-			// No type means `var x = foo.bar()`
-			// Eval the expression
-			app.gen(' = ')
-			// TODO multiple values?
-			if spec.values.len > 0 {
-				app.expr(spec.values[0])
+		match spec.typ.node_type {
+			'Ident' {
+				app.genln(spec.typ.name)
 			}
-		} else {
-			app.typ(spec.typ)
-			app.genln('')
+			'InvalidExpr' {
+				// No type means `var x = foo.bar()`
+				// Eval the expression
+				app.gen(' = ')
+				// TODO multiple values?
+				if spec.values.len > 0 {
+					app.expr(spec.values[0])
+				}
+			}
+			else {
+				if spec.typ.node_type != '' && spec.values.len > 0 {
+					app.expr(spec.values[0])
+				}
+			}
 		}
 	}
 }

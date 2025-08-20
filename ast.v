@@ -331,10 +331,15 @@ struct UnaryExpr {
 }
 
 struct ValueSpec {
-	node_type string  @[json: '_type']
-	names     []Ident @[json: 'Names']
-	typ       Type    @[json: 'Type']
-	values    []Expr  @[json: 'Values']
+	node_type string        @[json: '_type']
+	names     []Ident       @[json: 'Names']
+	typ       ValueSpecType @[json: 'Type']
+	values    []Expr        @[json: 'Values']
+}
+
+struct ValueSpecType {
+	node_type string @[json: '_type']
+	name      string @[json: 'Name']
 }
 
 fn parse_go_ast(file_path string) !GoFile {
