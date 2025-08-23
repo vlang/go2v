@@ -251,6 +251,7 @@ struct KeyValueExpr {
 struct LabeledStmt {
 	node_type string @[json: '_type']
 	label     Ident  @[json: 'Label']
+	stmt      Stmt   @[json: 'Stmt']
 }
 
 struct MapType {

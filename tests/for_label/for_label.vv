@@ -1,8 +1,8 @@
 module main
 
 fn main() {
-	first: for i := 0; i < 10; i++ {
-		for j := 0; j < 10; j++ {
+	first: for i := isize(0); i < 10; i++ {
+		for j := isize(0); j < 10; j++ {
 			if j == 5 {
 				continue first
 			}

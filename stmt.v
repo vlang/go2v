@@ -248,6 +248,7 @@ fn (mut app App) inc_dec_stmt(i IncDecStmt) {
 
 fn (mut app App) labeled_stmt(l LabeledStmt) {
 	app.genln('${l.label.name}:')
+	app.stmt(l.stmt)
 }
 
 fn (mut app App) range_stmt(node RangeStmt) {
