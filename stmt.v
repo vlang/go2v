@@ -189,25 +189,38 @@ fn (mut app App) for_stmt(f ForStmt) {
 	app.gen('for ')
 
 	init_empty := f.init.node_type == '' // f.init is InvalidStmt // f.init.node_type == ''
-	cond_empty := f.cond.node_type() == ''
+	cond_empty := f.cond is InvalidExpr
+	post_empty := f.post is InvalidStmt
 
-	if init_empty && cond_empty {
+	if init_empty && cond_empty && post_empty {
 		app.block_stmt(f.body)
 		return
 	}
 	// for cond {
-	if init_empty && !cond_empty {
+	if init_empty && !cond_empty && post_empty {
 		app.expr(f.cond)
 		app.block_stmt(f.body)
-
 		return
 	}
-	// for a;b;c {
+	// for ; cond ; post {
+	if init_empty && !cond_empty && !post_empty {
+		app.gen('; ')
+		app.expr(f.cond)
+		app.gen('; ')
+		if !post_empty {
+			app.stmt(f.post)
+		}
+		app.block_stmt(f.body)
+		return
+	}
+	// for init; cond; post {
 	app.assign_stmt(f.init, true)
 	app.gen('; ')
 	app.expr(f.cond)
 	app.gen('; ')
-	app.stmt(f.post)
+	if !post_empty {
+		app.stmt(f.post)
+	}
 	app.block_stmt(f.body)
 }
 
