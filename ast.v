@@ -39,6 +39,7 @@ type Stmt = InvalidStmt
 	| GoStmt
 	| IfStmt
 	| IncDecStmt
+	| LabeledStmt
 	| RangeStmt
 	| ReturnStmt
 	| SwitchStmt
@@ -245,6 +246,11 @@ struct KeyValueExpr {
 	key       Expr   @[json: 'Key']
 	value     Expr   @[json: 'Value']
 	node_type string @[json: '_type']
+}
+
+struct LabeledStmt {
+	node_type string @[json: '_type']
+	label     Ident  @[json: 'Label']
 }
 
 struct MapType {

@@ -43,6 +43,9 @@ fn (mut app App) stmt(stmt Stmt) {
 		IncDecStmt {
 			app.inc_dec_stmt(stmt)
 		}
+		LabeledStmt {
+			app.labeled_stmt(stmt)
+		}
 		RangeStmt {
 			app.range_stmt(stmt)
 		}
@@ -61,98 +64,19 @@ fn (mut app App) stmt(stmt Stmt) {
 	}
 }
 
-fn (mut app App) expr_stmt(stmt ExprStmt) {
-	app.expr(stmt.x)
-}
-
-fn (mut app App) go_stmt(stmt GoStmt) {
-	app.gen('go ')
-	app.expr(stmt.call)
-}
-
 fn (mut app App) block_stmt(body BlockStmt) {
 	app.genln('{')
 	app.stmt_list(body.list)
 	app.genln('}')
 }
 
-fn (mut app App) if_stmt(node IfStmt) {
-	if node.init.tok != '' {
-		app.assign_stmt(node.init, false)
+// branch_stmt handles continue break etc
+fn (mut app App) branch_stmt(node BranchStmt) {
+	app.gen(node.tok)
+	if node.label.name != '' {
+		app.gen(' ' + node.label.name)
 	}
-
-	app.gen('if ')
-	app.expr(node.cond)
-	app.block_stmt(node.body)
-	if node.else_ is IfStmt {
-		app.genln('else')
-		if node.else_.init.tok != '' {
-			// handle `else if x, ok := ...; ok {`  => `else { mut ok ... if ...  }`
-			app.genln('{')
-			// app.genln('//LOOL0')
-		}
-		app.if_stmt(node.else_)
-		if node.else_.init.tok != '' {
-			app.genln('}')
-		}
-	} else if node.else_ is BlockStmt {
-		app.genln('else')
-		app.block_stmt(node.else_)
-	}
-}
-
-fn (mut app App) for_stmt(f ForStmt) {
-	app.gen('for ')
-
-	init_empty := f.init.node_type == '' // f.init is InvalidStmt // f.init.node_type == ''
-	cond_empty := f.cond.node_type() == ''
-
-	if init_empty && cond_empty {
-		app.block_stmt(f.body)
-		return
-	}
-	// for cond {
-	if init_empty && !cond_empty {
-		app.expr(f.cond)
-		app.block_stmt(f.body)
-
-		return
-	}
-	// for a;b;c {
-	app.assign_stmt(f.init, true)
-	app.gen('; ')
-	app.expr(f.cond)
-	app.gen('; ')
-	app.stmt(f.post)
-	app.block_stmt(f.body)
-}
-
-fn (mut app App) range_stmt(node RangeStmt) {
-	app.gen('for ')
-	// Both key and value are present
-	// if node.key.name != node.value.name {
-	if node.key.name == '' {
-		app.gen('_ ')
-	} else {
-		key_name := app.unique_name_anti_shadow(app.go2v_ident(node.key.name))
-		app.gen(key_name)
-		app.gen(', ')
-		if node.value.name == '' {
-			app.gen(' _ ')
-		} else {
-			value_name := app.unique_name_anti_shadow(app.go2v_ident(node.value.name))
-			app.gen(value_name)
-		}
-	}
-	app.gen(' in ')
-	app.expr(node.x)
-	app.gen(' ')
-	app.block_stmt(node.body)
-}
-
-fn (mut app App) inc_dec_stmt(i IncDecStmt) {
-	app.expr(i.x)
-	app.gen(i.tok)
+	app.genln('')
 }
 
 fn (mut app App) decl_stmt(d DeclStmt) {
@@ -257,6 +181,98 @@ fn (mut app App) defer_stmt(node DeferStmt) {
 	}
 }
 
+fn (mut app App) expr_stmt(stmt ExprStmt) {
+	app.expr(stmt.x)
+}
+
+fn (mut app App) for_stmt(f ForStmt) {
+	app.gen('for ')
+
+	init_empty := f.init.node_type == '' // f.init is InvalidStmt // f.init.node_type == ''
+	cond_empty := f.cond.node_type() == ''
+
+	if init_empty && cond_empty {
+		app.block_stmt(f.body)
+		return
+	}
+	// for cond {
+	if init_empty && !cond_empty {
+		app.expr(f.cond)
+		app.block_stmt(f.body)
+
+		return
+	}
+	// for a;b;c {
+	app.assign_stmt(f.init, true)
+	app.gen('; ')
+	app.expr(f.cond)
+	app.gen('; ')
+	app.stmt(f.post)
+	app.block_stmt(f.body)
+}
+
+fn (mut app App) go_stmt(stmt GoStmt) {
+	app.gen('go ')
+	app.expr(stmt.call)
+}
+
+fn (mut app App) if_stmt(node IfStmt) {
+	if node.init.tok != '' {
+		app.assign_stmt(node.init, false)
+	}
+
+	app.gen('if ')
+	app.expr(node.cond)
+	app.block_stmt(node.body)
+	if node.else_ is IfStmt {
+		app.genln('else')
+		if node.else_.init.tok != '' {
+			// handle `else if x, ok := ...; ok {`  => `else { mut ok ... if ...  }`
+			app.genln('{')
+			// app.genln('//LOOL0')
+		}
+		app.if_stmt(node.else_)
+		if node.else_.init.tok != '' {
+			app.genln('}')
+		}
+	} else if node.else_ is BlockStmt {
+		app.genln('else')
+		app.block_stmt(node.else_)
+	}
+}
+
+fn (mut app App) inc_dec_stmt(i IncDecStmt) {
+	app.expr(i.x)
+	app.gen(i.tok)
+}
+
+fn (mut app App) labeled_stmt(l LabeledStmt) {
+	app.genln('${l.label.name}:')
+}
+
+fn (mut app App) range_stmt(node RangeStmt) {
+	app.gen('for ')
+	// Both key and value are present
+	// if node.key.name != node.value.name {
+	if node.key.name == '' {
+		app.gen('_ ')
+	} else {
+		key_name := app.unique_name_anti_shadow(app.go2v_ident(node.key.name))
+		app.gen(key_name)
+		app.gen(', ')
+		if node.value.name == '' {
+			app.gen(' _ ')
+		} else {
+			value_name := app.unique_name_anti_shadow(app.go2v_ident(node.value.name))
+			app.gen(value_name)
+		}
+	}
+	app.gen(' in ')
+	app.expr(node.x)
+	app.gen(' ')
+	app.block_stmt(node.body)
+}
+
 fn (mut app App) return_stmt(node ReturnStmt) {
 	app.gen('return ')
 	for i, result in node.results {
@@ -264,15 +280,6 @@ fn (mut app App) return_stmt(node ReturnStmt) {
 		if i < node.results.len - 1 {
 			app.gen(',')
 		}
-	}
-	app.genln('')
-}
-
-// continue break etc
-fn (mut app App) branch_stmt(node BranchStmt) {
-	app.gen(node.tok)
-	if node.label.name != '' {
-		app.gen(' ' + node.label.name)
 	}
 	app.genln('')
 }
