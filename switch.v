@@ -26,6 +26,8 @@ fn (mut app App) switch_stmt(switch_stmt SwitchStmt) {
 	if switch_stmt.init.lhs.len > 0 {
 		app.assign_stmt(switch_stmt.init, false)
 	}
+	if switch_stmt.body.list.len == 1 {
+	}
 	app.gen('match ')
 	app.expr(switch_stmt.tag)
 	app.genln('{')

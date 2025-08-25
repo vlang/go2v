@@ -11,7 +11,6 @@ fn (mut app App) stmt_list(list []Stmt) {
 fn (mut app App) stmt(stmt Stmt) {
 	match stmt {
 		AssignStmt {
-			// println('GOT A')
 			app.assign_stmt(stmt, false) // no_mut:false
 		}
 		BlockStmt {

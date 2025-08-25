@@ -68,10 +68,7 @@ fn (mut app App) global_decl(spec ValueSpec) {
 				app.genln(spec.typ.name)
 			}
 			'InvalidExpr' {
-				// No type means `var x = foo.bar()`
-				// Eval the expression
 				app.gen(' = ')
-				// TODO multiple values?
 				if spec.values.len > 0 {
 					app.expr(spec.values[0])
 				}
@@ -184,17 +181,25 @@ fn (mut app App) interface_decl(interface_name string, spec InterfaceType) {
 	app.genln('}\n')
 }
 
-// Foo{bar:baz}
-// config.Foo{bar:baz}
-// []int{1,2,3}
-// map[string]int{"foo":1}
 fn (mut app App) composite_lit(c CompositeLit) {
 	match c.typ {
 		ArrayType {
 			app.array_init(c)
 		}
+		CompositeLit {
+			app.composite_lit(c)
+		}
 		Ident {
 			app.struct_init(c)
+		}
+		InvalidExpr {
+			if c.elts.len > 0 {
+				app.genln('')
+			}
+			for elt in c.elts {
+				app.expr(elt)
+				app.genln('')
+			}
 		}
 		MapType {
 			app.map_init(c)
