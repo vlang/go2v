@@ -6,9 +6,12 @@ end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 
-[*.v]
+[*.{v,js,css}]
 indent_style = tab
-indent_size = 4
+
+[*.{bat,cmd}]
+# BAT/CMD ~ DOS/Win requires BAT/CMD files to have CRLF EOLNs
+end_of_line = crlf
 
 [*.{yml,yaml}]
 indent_style = space
@@ -22,5 +25,8 @@ trim_trailing_whitespace = false
 # `too_long_line_length_other     = 100`
 max_line_length = 100
 
-[*.txt]
+[*.{txt,out}]
 insert_final_newline = false
+
+[{Makefile,GNUmakefile}]
+indent_style = tab
