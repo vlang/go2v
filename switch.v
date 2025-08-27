@@ -27,7 +27,31 @@ fn (mut app App) switch_stmt(switch_stmt SwitchStmt) {
 		app.assign_stmt(switch_stmt.init, false)
 	}
 	if switch_stmt.body.list.len == 1 {
+		app.gen('if ')
+		app.expr(switch_stmt.tag)
+		case_clause := switch_stmt.body.list[0] as CaseClause
+		if case_clause.list.len == 1 {
+			app.gen(' == ')
+			app.expr(case_clause.list[0])
+			app.genln('{')
+			app.stmt_list(case_clause.body)
+			app.genln('}')
+		} else {
+			app.gen(' in [')
+			for i, x in case_clause.list {
+				if i > 0 {
+					app.gen(',')
+				}
+				app.expr(x)
+			}
+			app.genln('] {')
+			app.stmt_list(case_clause.body)
+			app.genln('}')
+		}
+
+		return
 	}
+
 	app.gen('match ')
 	app.expr(switch_stmt.tag)
 	app.genln('{')
