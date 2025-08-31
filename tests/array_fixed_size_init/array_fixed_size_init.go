@@ -1,6 +1,7 @@
 package main
 
 func main() {
+	arr0 := [3]int{}
 	arr1 := [1 << 9]int{
 		0x1: 0xe60a,
 		0x2: 0x2e404,
