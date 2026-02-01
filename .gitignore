@@ -26,3 +26,4 @@ z
 out.txt
 complex_tests/**/*.v
 complex_tests/**/*.vv
+translate_esbuild
