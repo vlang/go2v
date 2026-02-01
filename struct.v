@@ -62,7 +62,11 @@ fn (mut app App) type_decl(spec TypeSpec) {
 	// Remember the type name for the upcoming const (enum) handler if it's an enum
 	name := spec.name.name
 	// V requires type aliases to start with a capital letter
-	v_name := name.capitalize()
+	mut v_name := name.capitalize()
+	// If only 1 char in name, double it
+	if v_name.len == 1 {
+		v_name += v_name
+	}
 	// Store alias info
 	app.struct_or_alias << name
 	app.struct_or_alias << v_name
