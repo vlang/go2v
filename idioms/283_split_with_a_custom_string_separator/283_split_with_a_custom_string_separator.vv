@@ -1,0 +1,9 @@
+module main
+
+fn main() {
+	mut s := 'Love is all is alright'
+	mut sep := ' is '
+	mut parts := s.split(sep)
+	println(parts.len)
+	println(parts)
+}

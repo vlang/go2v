@@ -1,0 +1,10 @@
+module main
+
+import os
+
+fn main() {
+	mut c := os.path_separator
+	print('${c:c} \n')
+	mut s := '${c:c}'
+	print('${s} \n')
+}

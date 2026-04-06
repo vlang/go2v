@@ -1,0 +1,14 @@
+module main
+
+fn main() {
+	mut items := ['a', 'b', 'c', 'd', 'e', 'f']
+	println(items)
+	mut x := 'c'
+	for i, y in items {
+		if y == x {
+			items << items[i + 1..]
+			break
+		}
+	}
+	println(items)
+}

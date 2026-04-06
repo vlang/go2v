@@ -1,0 +1,10 @@
+module main
+
+type TT = isize
+
+fn main() {
+	mut items := [42, 1337]
+	mut x := t(7)
+	items = items.clone()
+	println(items)
+}

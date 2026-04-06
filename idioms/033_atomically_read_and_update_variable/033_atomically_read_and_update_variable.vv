@@ -1,0 +1,17 @@
+module main
+
+import sync
+
+fn main() {
+mut lock := sync.RWMutex{}
+
+mut x:=isize(3)
+lock.lock()
+x=f(x)
+lock.unlock()
+println(x)
+}
+
+fn f(i isize) isize {
+return 2 * i
+}

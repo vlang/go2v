@@ -1,0 +1,16 @@
+module main
+
+import os
+
+fn main() {
+	mut x := 0
+	x = 'Hello'
+	print('${typeof(x).name}')
+	println()
+	x = 4
+	print('${typeof(x).name}')
+	println()
+	x = os.new_file(777, 'foobar.txt')
+	print('${typeof(x).name}')
+	println()
+}

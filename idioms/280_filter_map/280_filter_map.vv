@@ -1,0 +1,25 @@
+module main
+
+fn main() {
+	mut x := {
+		'key1': 'a'
+		'key2': 'Othello'
+		'key3': ''
+		'key4': 'nicolas'
+		'key5': 'Bart'
+	}
+	mut p := fn (s string) bool {
+		if s == '' {
+			return false
+		}
+		mut c := s[..1]
+		return c == c.to_upper()
+	}
+	print('Before:\t x is "${x}"\n\n')
+	for k, v in x {
+		if !p(v) {
+			x.delete(k)
+		}
+	}
+	print('After:\t x is "${x}"\n\n')
+}

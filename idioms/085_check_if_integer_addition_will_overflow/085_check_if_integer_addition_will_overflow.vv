@@ -1,0 +1,19 @@
+module main
+
+import math
+
+fn adding_will_overflow(x isize, y isize) bool {
+	if x > 0 {
+		return y > math.max_int - x
+	}
+	return y < math.min_int - x
+}
+
+fn main() {
+	println(adding_will_overflow(math.max_int, math.max_int))
+	println(adding_will_overflow(math.max_int, math.min_int))
+	println(adding_will_overflow(math.min_int, math.min_int))
+	println(adding_will_overflow(0, 0))
+	println(adding_will_overflow(0, math.max_int))
+	println(adding_will_overflow(0, math.min_int))
+}

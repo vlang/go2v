@@ -1,0 +1,36 @@
+module main
+
+fn multiply_will_overflow(x u64, y u64) bool {
+	if x <= 1 || y <= 1 {
+		return false
+	}
+	mut d := x * y
+	return d / y != x
+}
+
+fn main() {
+	{
+		mut x, y := u64(2345), u64(6789)
+		if multiply_will_overflow(x, y) {
+			println('${x} * ${y} overflows')
+		} else {
+			println('${x} * ${y} doesn\'t overflow')
+		}
+	}
+	{
+		mut x_1, y_1 := u64(2345678), u64(9012345)
+		if multiply_will_overflow(x_1, y_1) {
+			println('${x_1} * ${y_1} overflows')
+		} else {
+			println('${x_1} * ${y_1} doesn\'t overflow')
+		}
+	}
+	{
+		mut x_2, y_2 := u64(2345678901), u64(9012345678)
+		if multiply_will_overflow(x_2, y_2) {
+			println('${x_2} * ${y_2} overflows')
+		} else {
+			println('${x_2} * ${y_2} doesn\'t overflow')
+		}
+	}
+}

@@ -1,0 +1,40 @@
+module main
+
+// T represents a tank. It doesn't implement fmt.Stringer.
+pub struct TT {
+pub mut:
+	name       string
+	weight     isize
+	fire_power isize
+}
+
+// Person implement fmt.Stringer.
+pub struct Person {
+pub mut:
+	first_name    string
+	last_name     string
+	year_of_birth isize
+}
+
+pub fn (p Person) str() string {
+	return '${p.first_name} ${p.last_name}, born ${p.year_of_birth:d}'
+}
+
+fn main() {
+	{
+		mut x := TT{
+			name:       'myTank'
+			weight:     100
+			fire_power: 90
+		}
+		println(x)
+	}
+	{
+		mut x_1 := Person{
+			first_name:    'John'
+			last_name:     'Doe'
+			year_of_birth: 1958
+		}
+		println(x_1)
+	}
+}

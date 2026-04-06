@@ -1,0 +1,8 @@
+module main
+
+import log
+
+fn main() {
+	mut msg := 'Hello, playground'
+	log.println(msg)
+}

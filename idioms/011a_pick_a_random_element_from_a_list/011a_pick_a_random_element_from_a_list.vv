@@ -1,0 +1,9 @@
+module main
+
+import rand
+
+__global x = ['bleen', 'fuligin', 'garrow', 'grue', 'hooloovoo']
+
+fn main() {
+	println(x[rand.intn(x.len)])
+}

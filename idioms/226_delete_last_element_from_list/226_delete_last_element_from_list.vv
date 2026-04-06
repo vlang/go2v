@@ -1,0 +1,8 @@
+module main
+
+fn main() {
+	mut items := ['banana', 'apple', 'kiwi']
+	println(items)
+	items = items[..items.len - 1]
+	println(items)
+}

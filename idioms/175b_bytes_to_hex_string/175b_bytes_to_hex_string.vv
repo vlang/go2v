@@ -1,0 +1,7 @@
+module main
+
+fn main() {
+	mut a := 'Hello'.bytes()
+	mut s := '${a.hex()}'
+	println(s)
+}

@@ -1,0 +1,9 @@
+module main
+
+import math.bits
+
+fn main() {
+	mut n := usize(112)
+	mut t := bits.trailing_zeros(n)
+	println(t)
+}

@@ -1,0 +1,17 @@
+module main
+
+fn main() {
+	mut x := ['b', 'a', 'b', 'b', 'c', 'b', 'a']
+	println('x = ${x}')
+	mut seen := map[string]bool{}
+	mut j := isize(0)
+	for _, v in x {
+		if !seen[v] {
+			x[j] = v
+			j++
+			seen[v] = true
+		}
+	}
+	x = x[..j]
+	println('x = ${x}')
+}

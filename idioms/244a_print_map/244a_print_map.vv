@@ -1,0 +1,19 @@
+module main
+
+fn main() {
+	{
+		mut m := {
+			'eleven':     11
+			'twenty-two': 22
+		}
+		println(m)
+	}
+	{
+		mut x, y := isize(7), isize(8)
+		mut m_1 := {
+			'seven': &x
+			'eight': &y
+		}
+		println(m_1)
+	}
+}

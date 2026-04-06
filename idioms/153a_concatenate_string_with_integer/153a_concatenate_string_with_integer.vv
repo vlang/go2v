@@ -1,0 +1,8 @@
+module main
+
+fn main() {
+	mut s := 'Hello'
+	mut i := isize(123)
+	mut t := '${s}${i:d}'
+	println(t)
+}

@@ -1,0 +1,43 @@
+module main
+
+struct Entry {
+pub mut:
+	key   string
+	value isize
+}
+
+type Entries = []Entry
+
+pub fn (list Entries) len() isize {
+	return list.len
+}
+
+pub fn (list Entries) less(i isize, j isize) bool {
+	return list[i].value < list[j].value
+}
+
+pub fn (mut list Entries) swap(i isize, j isize) {
+	list[i], list[j] = list[j], list[i]
+}
+
+fn main() {
+	mut mymap := {
+		'one':   1
+		'two':   2
+		'three': 3
+		'four':  4
+		'dos':   2
+		'deux':  2
+	}
+	mut entries_1 := Entries{}
+	for k, x in mymap {
+		entries_1 << Entry{
+			key:   k
+			value: x
+		}
+	}
+	entries_1.sort()
+	for _, e in entries_1 {
+		println('Key = ${e.key} , Value = ${e.value}')
+	}
+}

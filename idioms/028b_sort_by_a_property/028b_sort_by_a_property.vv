@@ -1,0 +1,21 @@
+module main
+
+pub struct Item {
+pub mut:
+	label string
+	p     isize
+	lang  string
+}
+
+fn main() {
+	mut items := [Item{'twelve', 12, 'english'}, Item{'six', 6, 'english'},
+		Item{'eleven', 11, 'english'}, Item{'zero', 0, 'english'},
+		Item{'two', 2, 'english'}]
+	println('Unsorted:  ${items}')
+	mut less := fn [mut items] (i isize, j isize) bool {
+		return items[i].p < items[j].p
+	}
+
+	items.sort()
+	println('Sorted:  ${items}')
+}

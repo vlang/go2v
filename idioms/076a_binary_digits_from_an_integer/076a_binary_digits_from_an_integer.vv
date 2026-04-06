@@ -1,0 +1,9 @@
+module main
+
+import strconv
+
+fn main() {
+	mut x := i64(13)
+	mut s := strconv.format_int(x, 2)
+	println(s)
+}

@@ -1,0 +1,9 @@
+module main
+
+import rand
+
+fn main() {
+	mut s := i64(42)
+	rand.seed(s)
+	println(rand.int_())
+}

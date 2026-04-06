@@ -1,0 +1,14 @@
+module main
+
+fn f(i isize) isize {
+	if i == 0 {
+		return 1
+	}
+	return i * f(i - 1)
+}
+
+fn main() {
+	for i := isize(0); i <= 10; i++ {
+		print('f(${i:d}) = ${f(i):d}\n')
+	}
+}

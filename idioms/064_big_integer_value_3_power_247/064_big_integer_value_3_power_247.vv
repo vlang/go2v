@@ -1,0 +1,9 @@
+module main
+
+import math.big
+
+fn main() {
+	mut x := &big.Int{}
+	x.exp(big.new_int(3), big.new_int(247), unsafe { nil })
+	println(x)
+}

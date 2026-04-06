@@ -1,0 +1,20 @@
+module main
+
+import regex as regexp
+import time
+
+fn clock(f fn ()) time.Duration {
+	mut t := time.now()
+	f()
+	return time.since(t)
+}
+
+fn f() {
+	mut re := regexp.must_compile_posix('|A+{300}')
+	re.find_all_string('A'.repeat(299), -1)
+}
+
+fn main() {
+	mut d := clock(f)
+	println(d)
+}

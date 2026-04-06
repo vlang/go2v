@@ -1,0 +1,14 @@
+module main
+
+import rand
+
+type TT = string
+
+fn pick_t(x []TT) TT {
+	return x[rand.intn(x.len)]
+}
+
+fn main() {
+	mut list := ['bleen', 'fuligin', 'garrow', 'grue', 'hooloovoo']
+	println(pick_t(list))
+}

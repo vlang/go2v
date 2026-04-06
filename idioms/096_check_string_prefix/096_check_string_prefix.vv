@@ -1,0 +1,15 @@
+module main
+
+fn check(s string, prefix string) {
+	mut b := s.starts_with(prefix)
+	if b {
+		println('${s} starts with ${prefix}')
+	} else {
+		println('${s} doesn\'t start with ${prefix}')
+	}
+}
+
+fn main() {
+	check('bar', 'foo')
+	check('foobar', 'foo')
+}

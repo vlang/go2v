@@ -1,0 +1,13 @@
+module main
+
+import math
+
+fn main() {
+	mut data := [f64(0.06), 0.82, -0.01, -0.34, -0.55]
+	mut s := f64(0)
+
+	for _, d in data {
+		s += math.pow(d, 2)
+	}
+	println(s)
+}

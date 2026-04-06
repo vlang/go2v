@@ -1,0 +1,15 @@
+module main
+
+fn main() {
+	mut m := {
+		'uno':  1
+		'dos':  2
+		'tres': 3
+	}
+	mut k := 'cinco'
+	ok := k in m
+	print('m contains key "${k}": ${ok}\n')
+	k = 'tres'
+	ok_1 := k in m
+	print('m contains key "${k}": ${ok_1}\n')
+}

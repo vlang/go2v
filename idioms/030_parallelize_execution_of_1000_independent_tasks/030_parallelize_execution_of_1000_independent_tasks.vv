@@ -1,0 +1,17 @@
+module main
+
+import rand
+import time
+
+fn f(i isize) {
+	mut d := rand.int_() % 10000
+	time.sleep(time.duration(d))
+	print('Hello ${i}\n')
+}
+
+fn main() {
+	for i := isize(1); i <= 1000; i++ {
+		spawn f(i)
+	}
+	time.sleep(4 * time.second)
+}

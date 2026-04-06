@@ -1,0 +1,9 @@
+module main
+
+import time
+
+fn main() {
+	mut d := time.now()
+	mut x := d.format('15:04:05')
+	println(x)
+}

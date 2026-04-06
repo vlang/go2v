@@ -1,0 +1,17 @@
+module main
+
+fn main() {
+	mut x := make2_d(2, 3)
+	x[1][1] = 8
+	println(x)
+}
+
+fn make2_d(m isize, n isize) [][]f64 {
+	mut buf := []f64{len: m * n}
+	mut x := [][]f64{len: m}
+	for i, _ in x {
+		x[i] = buf[..n]
+		buf = buf[n..]
+	}
+	return x
+}

@@ -1,0 +1,14 @@
+module main
+
+import rand
+
+fn main() {
+	mut x := ['Alice', 'Bob', 'Carol', 'Dan', 'Eve', 'Frank', 'Grace', 'Heidi']
+	mut k := isize(4)
+	mut y := []T{len: k}
+	mut perm := rand.perm(x.len)
+	for i, v in perm[..k] {
+		y[i] = x[v]
+	}
+	print('"${y}"')
+}

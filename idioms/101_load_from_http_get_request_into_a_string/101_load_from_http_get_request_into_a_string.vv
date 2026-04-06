@@ -1,0 +1,39 @@
+module main
+
+import io.util
+import net
+import net.http
+
+fn main() {
+	mut u := 'http://' + localhost + '/hello?name=Inigo+Montoya'
+	mut res, err := http.get(u)
+	check(err)
+	mut buffer, err_1 := ioutil.read_all(res.body)
+	res.body.close()
+	check(err_1)
+	mut s := buffer.str()
+	println('GET  response: ${res.status_code} ${s}')
+}
+
+const localhost = '127.0.0.1:3000'
+
+fn init() {
+	http.handle_func('/hello', my_handler)
+	start_server()
+}
+
+fn my_handler(w http.ResponseWriter, r &http.Request) {
+	w.write_string('Hello ${r.form_value('name')}') or { 0 }
+}
+
+fn start_server() {
+	mut listener, err := net.listen('tcp', localhost)
+	check(err)
+	spawn http.serve(listener, unsafe { nil })
+}
+
+fn check(err IError) {
+	if err != unsafe { nil } {
+		panic(err)
+	}
+}

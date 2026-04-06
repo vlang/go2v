@@ -1,0 +1,13 @@
+module main
+
+fn main() {
+	mut matrix := [[isize(1), 2, 3], [isize(4), 5, 6], [isize(7), 8, 9]]
+	for x := isize(1); x <= 11; x += 2 {
+		mut found, i, j := search(matrix, x)
+		if found {
+			print('matrix[${i}][${j}] == ${x} \n')
+		} else {
+			print('Value ${x} not found. \n')
+		}
+	}
+}

@@ -1,0 +1,13 @@
+module main
+
+import encoding.base64
+
+fn main() {
+	mut str := 'SGVsbG8gd29ybGQ='
+	mut data, err := base64.std_encoding.decode_string(str)
+	if err != unsafe { nil } {
+		println('error: ${err}')
+		return
+	}
+	print('"${data}"\n')
+}

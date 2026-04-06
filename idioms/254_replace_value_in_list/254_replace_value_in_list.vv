@@ -1,0 +1,12 @@
+module main
+
+fn main() {
+	mut x := ['a', '', 'foo', 'bar', 'foo']
+	print('Before:\t x is "${x}"\n')
+	for i, s in x {
+		if s == 'foo' {
+			x[i] = 'bar'
+		}
+	}
+	print('After:\t x is "${x}"\n')
+}

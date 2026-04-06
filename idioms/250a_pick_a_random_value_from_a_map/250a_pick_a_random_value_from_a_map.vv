@@ -1,0 +1,29 @@
+module main
+
+import rand
+
+type KK = string
+type VV = string
+
+fn pick(m map[string]VV) VV {
+	mut k := rand.intn(m.len)
+	mut i := isize(0)
+	for _, x in m {
+		if i == k {
+			return x
+		}
+		i++
+	}
+	panic('unreachable')
+}
+
+fn main() {
+	mut m := {
+		'one':   'un'
+		'two':   'deux'
+		'three': 'trois'
+		'four':  'quatre'
+	}
+	mut x := pick(m)
+	println(x)
+}

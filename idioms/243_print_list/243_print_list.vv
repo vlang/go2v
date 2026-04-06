@@ -1,0 +1,29 @@
+module main
+
+fn main() {
+	{
+		mut a := [isize(11), 22, 33]
+		println(a)
+	}
+	{
+		mut a_1 := ['aa', 'bb']
+		println(a_1)
+	}
+	{
+		mut x := Person{
+			first: 'Jane'
+			last:  'Doe'
+		}
+		mut y := Person{
+			first: 'John'
+			last:  'Doe'
+		}
+		mut a_2 := [x, y]
+		println(a_2)
+	}
+	{
+		mut x_1, y_1 := isize(11), isize(22)
+		mut a_3 := [isize(&x_1), &y_1]
+		println(a_3)
+	}
+}

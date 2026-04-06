@@ -1,0 +1,63 @@
+module main
+
+import io
+import io.util
+import os
+
+fn main() {
+	{
+		mut p := '/usr'
+		mut dir, err := os.open(p)
+		if err != unsafe { nil } {
+			panic(err)
+		}
+		defer {
+			dir.close()
+		}
+		_, err = dir.readdirnames(1)
+		mut b := err == io.eof
+		println('${p} is empty: ${b}')
+	}
+	{
+		mut p_1 := '/tmp'
+		mut dir_1, err_1 := os.open(p_1)
+		if err_1 != unsafe { nil } {
+			panic(err_1)
+		}
+		defer {
+			dir_1.close()
+		}
+		_, err = dir_1.readdirnames(1)
+		mut b_1 := err_1 == io.eof
+		println('${p_1} is empty: ${b_1}')
+	}
+	{
+		mut p_2, err_2 := ioutil.temp_dir('', '')
+		if err_2 != unsafe { nil } {
+			panic(err_2)
+		}
+		mut dir_2, err_3 := os.open(p_2)
+		if err_3 != unsafe { nil } {
+			panic(err_3)
+		}
+		defer {
+			dir_2.close()
+		}
+		_, err = dir_2.readdirnames(1)
+		mut b_2 := err_3 == io.eof
+		println('${p_2} is empty: ${b_2}')
+	}
+	{
+		mut p_3 := '/tmp'
+		mut dir_3, err_4 := os.open(p_3)
+		if err_4 != unsafe { nil } {
+			panic(err_4)
+		}
+		defer {
+			dir_3.close()
+		}
+		_, err = dir_3.readdirnames(1)
+		mut b_3 := err_4 == io.eof
+		println('${p_3} is empty: ${b_3}')
+	}
+}

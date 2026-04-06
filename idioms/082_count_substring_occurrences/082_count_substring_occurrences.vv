@@ -1,0 +1,8 @@
+module main
+
+fn main() {
+	mut s := 'Romaromamam'
+	mut t := 'mam'
+	mut x := s.count(t)
+	println(x)
+}

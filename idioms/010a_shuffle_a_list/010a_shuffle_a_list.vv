@@ -1,0 +1,12 @@
+module main
+
+import rand
+
+fn main() {
+	mut x := ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+	for i, _ in x {
+		mut j := rand.intn(i + 1)
+		x[i], x[j] = x[j], x[i]
+	}
+	println(x)
+}

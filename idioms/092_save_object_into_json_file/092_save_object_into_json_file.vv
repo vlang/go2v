@@ -1,0 +1,32 @@
+module main
+
+import io.util
+import encoding.json
+
+fn write_json_file() IError {
+	mut x := Person{
+		first_name: 'Napoléon'
+		age:        51
+	}
+	mut buffer, err := json.marshal_indent(x, '', '  ')
+	if err != unsafe { nil } {
+		return err
+	}
+	return ioutil.write_file(filename, buffer, 644)
+}
+
+fn main() {
+	mut err := write_json_file()
+	if err != unsafe { nil } {
+		panic(err)
+	}
+	println('Done.')
+}
+
+pub struct Person {
+pub mut:
+	first_name string
+	age        isize
+}
+
+const filename = '/tmp/data.json'

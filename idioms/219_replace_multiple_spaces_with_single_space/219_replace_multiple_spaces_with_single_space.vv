@@ -1,0 +1,15 @@
+module main
+
+import regex as regexp
+// regexp created only once, and then reused
+
+__global whitespaces = regexp.must_compile(r'\s+')
+
+fn main() {
+	mut s := r'
+	one   two
+	   three
+	'
+	mut t := whitespaces.replace_all_string(s, ' ')
+	print('t="${t}"')
+}

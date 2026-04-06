@@ -1,0 +1,14 @@
+module main
+
+fn main() {
+	mut s := "Let's dance the macarena"
+	mut word := 'dance'
+	mut ok := s.contains(word)
+	println(ok)
+	word = 'car'
+	ok = s.contains(word)
+	println(ok)
+	word = 'duck'
+	ok = s.contains(word)
+	println(ok)
+}

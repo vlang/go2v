@@ -1,0 +1,9 @@
+module main
+
+import encoding.base64
+
+fn main() {
+	mut data := 'Hello world'.bytes()
+	mut s := base64.std_encoding.encode_to_string(data)
+	println(s)
+}

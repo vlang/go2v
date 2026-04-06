@@ -1,0 +1,9 @@
+module main
+
+import os
+
+fn main() {
+	println('A')
+	exit(0)
+	println('B')
+}

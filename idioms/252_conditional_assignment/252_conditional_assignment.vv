@@ -1,0 +1,16 @@
+module main
+
+fn main() {
+	mut x := ''
+
+	if condition() {
+		x = 'a'
+	} else {
+		x = 'b'
+	}
+	println(x)
+}
+
+fn condition() bool {
+	return 'Scorates' == 'dog'
+}

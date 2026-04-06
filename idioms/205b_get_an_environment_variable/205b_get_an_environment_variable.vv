@@ -1,0 +1,11 @@
+module main
+
+import os
+
+fn main() {
+	mut foo := os.getenv('FOO')
+	if foo == '' {
+		foo = 'none'
+	}
+	println(foo)
+}

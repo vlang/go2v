@@ -1,0 +1,24 @@
+module main
+
+pub struct Point {
+pub mut:
+	x f64
+	y f64
+}
+
+fn main() {
+	mut p1 := Point{}
+	mut p2 := Point{2.1, 2.2}
+	mut p3 := Point{
+		y: 3.1
+		x: 3.2
+	}
+	mut p4 := &Point{
+		x: 4.1
+		y: 4.2
+	}
+	println(p1)
+	println(p2)
+	println(p3)
+	println(p4)
+}

@@ -1,0 +1,7 @@
+module main
+
+fn main() {
+	mut a, b, c := isize(42), 'hello', float(5.0)
+	println('${a} ${b} ${c}')
+	print('${typeof(a).name} ${typeof(b).name} ${typeof(c).name} \n')
+}

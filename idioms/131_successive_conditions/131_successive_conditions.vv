@@ -1,0 +1,38 @@
+module main
+
+fn conditional(x string) {
+	if c1(x) {
+		f1()
+	} else if c2(x) {
+		f2()
+	} else if c3(x) {
+		f3()
+	}
+}
+
+fn main() {
+	conditional('dog Snoopy')
+	conditional('fruit Raspberry')
+}
+
+fn f1() {
+	println("I'm a Human")
+}
+
+fn f2() {
+	println("I'm a Dog")
+}
+
+fn f3() {
+	println("I'm a Fruit")
+}
+
+__global c1 = prefix_check('human')
+__global c2 = prefix_check('human')
+__global c3 = prefix_check('human')
+
+fn prefix_check(prefix string) fn (string) bool {
+	return fn [mut prefix] (x string) bool {
+		return x.starts_with(prefix)
+	}
+}

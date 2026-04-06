@@ -1,0 +1,9 @@
+module main
+
+fn main() {
+	mut a, b := 'Hello', ' Universe'
+	mut s := a + b
+	print('a is "${a}"\n')
+	print('b is "${b}"\n')
+	print('s is "${s}"\n')
+}

@@ -1,0 +1,8 @@
+module main
+
+import os.exec
+
+fn main() {
+	mut err := exec.command('x', 'a', 'b').run()
+	println(err)
+}

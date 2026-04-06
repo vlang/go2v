@@ -1,0 +1,35 @@
+module main
+
+fn main() {
+	mut str := 'baz'
+	match str {
+		'foo' {
+			foo()
+		}
+		'bar' {
+			bar()
+		}
+		'baz' {
+			baz()
+		}
+		'barfl' {
+			barfl()
+		}
+	}
+}
+
+fn foo() {
+	println('Called foo')
+}
+
+fn bar() {
+	println('Called bar')
+}
+
+fn baz() {
+	println('Called baz')
+}
+
+fn barfl() {
+	println('Called barfl')
+}

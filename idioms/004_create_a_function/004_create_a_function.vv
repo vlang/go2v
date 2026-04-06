@@ -1,0 +1,10 @@
+module main
+
+fn square(x isize) isize {
+	return x * x
+}
+
+fn main() {
+	mut n := square(9)
+	println(n)
+}

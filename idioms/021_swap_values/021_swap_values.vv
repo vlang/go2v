@@ -1,0 +1,9 @@
+module main
+
+fn main() {
+	mut a := isize(3)
+	mut b := isize(10)
+	a, b = b, a
+	println(a)
+	println(b)
+}

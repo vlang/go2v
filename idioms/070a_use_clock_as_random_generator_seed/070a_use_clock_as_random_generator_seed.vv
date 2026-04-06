@@ -1,0 +1,9 @@
+module main
+
+import rand
+import time
+
+fn main() {
+	rand.seed(time.now().unix_nano())
+	println(rand.intn(999))
+}

@@ -1,0 +1,10 @@
+module main
+
+fn main() {
+	mut elements := [f64(2), 4, 9, 30]
+	println(elements)
+	for i, _ in elements {
+		elements[i] *= c
+	}
+	println(elements)
+}

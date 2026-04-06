@@ -1,0 +1,9 @@
+module main
+
+fn main() {
+	mut s := [isize(5), 2, 6, 3, 1, 4]
+	for i, j := isize(0), s.len - 1; i < j; i, j = i + 1, j - 1 {
+		s[i], s[j] = s[j], s[i]
+	}
+	println(s)
+}

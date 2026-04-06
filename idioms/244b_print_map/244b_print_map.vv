@@ -1,0 +1,9 @@
+module main
+
+fn main() {
+	mut m := {
+		'eleven':     'onze'
+		'twenty-two': 'vingt-deux'
+	}
+	print('"${m}"')
+}

@@ -1,0 +1,9 @@
+module main
+
+import encoding.utf8
+
+fn main() {
+	mut s := 'Hello, 世界'
+	mut n := utf8.rune_count_in_string(s)
+	println(n)
+}

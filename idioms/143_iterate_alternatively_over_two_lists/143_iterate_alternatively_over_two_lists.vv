@@ -1,0 +1,14 @@
+module main
+
+fn main() {
+	mut items1 := ['a', 'b']
+	mut items2 := ['A', 'B', 'C']
+	for i := isize(0); i < items1.len || i < items2.len; i++ {
+		if i < items1.len {
+			println(items1[i])
+		}
+		if i < items2.len {
+			println(items2[i])
+		}
+	}
+}

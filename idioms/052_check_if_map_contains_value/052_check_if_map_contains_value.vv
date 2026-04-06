@@ -1,0 +1,28 @@
+module main
+
+fn contains_value(m map[string]T, v T) bool {
+	for _, x in m {
+		if x == v {
+			return true
+		}
+	}
+	return false
+}
+
+// Arbitrary types for K, T.
+type KK = string
+type TT = isize
+
+fn main() {
+	mut m := {
+		'uno':  1
+		'dos':  2
+		'tres': 3
+	}
+	mut v := t(5)
+	mut ok := contains_value(m, v)
+	print('m contains value ${v:d}: ${ok}\n')
+	v = 3
+	ok = contains_value(m, v)
+	print('m contains value ${v:d}: ${ok}\n')
+}

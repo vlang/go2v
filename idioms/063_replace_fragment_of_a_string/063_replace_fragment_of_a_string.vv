@@ -1,0 +1,9 @@
+module main
+
+fn main() {
+	mut x := 'oink oink oink'
+	mut y := 'oink'
+	mut z := 'moo'
+	mut x2 := x.replace(y, z, -1)
+	println(x2)
+}

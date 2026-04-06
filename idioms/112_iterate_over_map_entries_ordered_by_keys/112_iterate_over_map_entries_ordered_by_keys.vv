@@ -1,0 +1,19 @@
+module main
+
+fn main() {
+	mut mymap := {
+		'one':   1
+		'two':   2
+		'three': 3
+		'four':  4
+	}
+	mut keys := []string{len: 0, cap: mymap.len}
+	for k, _ in mymap {
+		keys << k
+	}
+	keys.sort()
+	for _, k_1 in keys {
+		mut x := mymap[k_1]
+		println('Key = ${k_1} , Value = ${x}')
+	}
+}

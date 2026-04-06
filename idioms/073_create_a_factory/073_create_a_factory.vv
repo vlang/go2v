@@ -1,0 +1,20 @@
+module main
+
+pub struct Parent {
+pub mut:
+	name string
+}
+
+// A Factory is a function which returns an object
+type ParentFactory = fn (string) Parent
+
+fn main() {
+	mut fact := fn (str string) Parent {
+		return Parent{
+			name: str
+		}
+	}
+
+	mut p := fact('Daddy')
+	println(p)
+}

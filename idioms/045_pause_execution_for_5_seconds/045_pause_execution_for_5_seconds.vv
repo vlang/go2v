@@ -1,0 +1,8 @@
+module main
+
+import time
+
+fn main() {
+	time.sleep(5 * time.second)
+	println('Done.')
+}

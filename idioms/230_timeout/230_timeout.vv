@@ -1,0 +1,18 @@
+module main
+
+import context
+import time
+
+fn main() {
+	mut ctx, cancel := context.with_timeout(context.background(), 5 * time.second)
+	defer {
+		cancel()
+	}
+	p(ctx)
+}
+
+fn p(ctx context.Context) {
+	for i := isize(0); i < 100; i++ {
+		// unhandled in stmt: Stmt(InvalidStmt{})
+	}
+}

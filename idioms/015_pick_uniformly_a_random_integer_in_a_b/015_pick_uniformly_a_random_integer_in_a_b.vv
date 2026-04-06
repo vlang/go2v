@@ -1,0 +1,12 @@
+module main
+
+import rand
+
+fn main() {
+	mut x := pick(3, 7)
+	println(x)
+}
+
+fn pick(a isize, b isize) isize {
+	return a + rand.intn(b - a + 1)
+}

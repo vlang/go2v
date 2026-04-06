@@ -1,0 +1,7 @@
+module main
+
+fn main() {
+	mut n := isize(8)
+	mut a := []isize{len: n}
+	println(a)
+}

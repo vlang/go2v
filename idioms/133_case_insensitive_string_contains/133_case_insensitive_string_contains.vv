@@ -1,0 +1,22 @@
+module main
+
+// Package _strings has no case-insensitive version of _Contains, so
+// we have to make our own.
+fn contains_case_insensitive(s string, word string) bool {
+	mut lower_s, lower_word := s.to_lower(), word.to_lower()
+	mut ok := lower_s.contains(lower_word)
+	return ok
+}
+
+fn main() {
+	mut s := "Let's dance the macarena"
+	mut word := 'Dance'
+	mut ok := contains_case_insensitive(s, word)
+	println(ok)
+	word = 'dance'
+	ok = contains_case_insensitive(s, word)
+	println(ok)
+	word = 'Duck'
+	ok = contains_case_insensitive(s, word)
+	println(ok)
+}

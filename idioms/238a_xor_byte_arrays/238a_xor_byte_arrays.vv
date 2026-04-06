@@ -1,0 +1,14 @@
+module main
+
+fn main() {
+	mut a, b := 'Hello'.bytes(), 'world'.bytes()
+	mut c := []u8{len: a.len}
+	for i, _ in a {
+		c[i] = a[i] ^ b[i]
+	}
+	print('a is ${a}\n')
+	print('b is ${b}\n')
+	print('c is ${c}\n')
+	println('c == ${c}')
+	print('c as string would be "${c.str()}"\n')
+}

@@ -1,0 +1,31 @@
+module main
+
+import os
+
+fn main() {
+	process1()
+	process2()
+	process3()
+}
+
+fn process1() {
+	println('process 1')
+}
+
+fn process2() {
+	println('process 2')
+	defer {
+		println('A')
+	}
+	defer {
+		exit(0)
+	}
+	defer {
+		println('B')
+	}
+	println('C')
+}
+
+fn process3() {
+	println('process 3')
+}

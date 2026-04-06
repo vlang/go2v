@@ -1,0 +1,63 @@
+module main
+
+pub fn (mut start Vertex) bfs(f fn (&Vertex)) {
+	mut queue := [start]
+	mut seen := {
+		start: true
+	}
+	for queue.len > 0 {
+		mut v := queue[0]
+		queue = queue[1..]
+		f(v)
+		for next, is_edge in v.neighbours {
+			if is_edge && !seen[next] {
+				queue << next
+				seen[next] = true
+			}
+		}
+	}
+}
+
+pub struct Vertex {
+pub mut:
+	id         isize
+	label      string
+	neighbours map[voidptr]bool
+}
+
+type Graph = []&Vertex
+
+pub fn new_vertex(id isize, label string) &Vertex {
+	return &Vertex{
+		id:         id
+		label:      label
+		neighbours: map[voidptr]bool{}
+	}
+}
+
+pub fn (mut v Vertex) add_neighbour(w &Vertex) {
+	v.neighbours[w] = true
+}
+
+pub fn vertex_print(v &Vertex) {
+	print('${v.id} (${v.label})\n')
+}
+
+fn main() {
+	mut london := new_vertex(0, 'London')
+	mut ny := new_vertex(1, 'New York City')
+	mut berlin := new_vertex(2, 'Berlin')
+	mut paris := new_vertex(3, 'Paris')
+	mut tokyo := new_vertex(4, 'Tokyo')
+	mut g := [london, ny, berlin, paris, tokyo]
+	_ = g
+	london.add_neighbour(paris)
+	london.add_neighbour(ny)
+	ny.add_neighbour(london)
+	ny.add_neighbour(paris)
+	ny.add_neighbour(tokyo)
+	tokyo.add_neighbour(paris)
+	paris.add_neighbour(tokyo)
+	paris.add_neighbour(berlin)
+	london.bfs(vertex_print)
+}

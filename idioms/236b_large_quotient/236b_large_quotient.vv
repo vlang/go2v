@@ -1,0 +1,12 @@
+module main
+
+import math.big
+
+fn main() {
+	mut a, b := &big.Int{}, &big.Int{}
+	a.set_string('3559085320938475823508', 10)
+	b.set_string('1132039848475763040', 10)
+	mut q := &big.Rat{}
+	q.set_frac(a, b)
+	println(q)
+}

@@ -1,0 +1,15 @@
+module main
+
+fn main() {
+	mut x := 'été chaud'
+	{
+		mut y := 'chaud'
+		mut i := x.index(y) or { -1 }
+		println(i)
+	}
+	{
+		mut y_1 := 'froid'
+		mut i_1 := x.index(y_1) or { -1 }
+		println(i_1)
+	}
+}

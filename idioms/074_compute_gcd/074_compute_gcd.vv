@@ -1,0 +1,11 @@
+module main
+
+import math.big
+
+fn main() {
+	mut a, b, x := &big.Int{}, &big.Int{}, &big.Int{}
+	a.set_string('6000000000000', 10)
+	b.set_string('9000000000000', 10)
+	x.gcd(unsafe { nil }, unsafe { nil }, a, b)
+	println(x)
+}

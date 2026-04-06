@@ -1,0 +1,7 @@
+module main
+
+fn main() {
+	mut s := 'hello, world! 문자'
+	mut t := s.runes[s.runes.len - 5..].str()
+	println(t)
+}

@@ -1,0 +1,22 @@
+module main
+
+import io.util
+import os
+import path.filepath
+
+fn main() {
+	mut p := some_path()
+	println(p)
+	mut sep := '${filepath.separator:c}'
+	p = p.trim_right(sep)
+	println(p)
+}
+
+fn some_path() string {
+	mut dir, err := ioutil.temp_dir('', '')
+	if err != unsafe { nil } {
+		panic(err)
+	}
+	mut p := '${dir}${os.path_separator:c}${'foobar'}${os.path_separator:c}'
+	return p
+}

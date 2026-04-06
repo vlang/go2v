@@ -1,0 +1,19 @@
+module main
+
+fn main() {
+	salary = 65000
+	employees = 120000
+	total_payroll = salary * employees
+	if !is_consistent() {
+		panic('State consistency violated')
+	}
+	println('Everything fine')
+}
+
+__global salary i32
+__global employees i32
+__global total_payroll i32
+
+fn is_consistent() bool {
+	return salary >= 0 && employees >= 0 && total_payroll >= 0
+}

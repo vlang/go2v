@@ -1,0 +1,14 @@
+module main
+
+fn f(x ...isize) {
+	if x.len > 0 {
+		println('Present ${x[0]}')
+	} else {
+		println('Not present')
+	}
+}
+
+fn main() {
+	f()
+	f(1)
+}

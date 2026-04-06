@@ -1,0 +1,14 @@
+module main
+
+fn main() {
+	mut s := '5#∑∂ƒ∞645eyfu'
+	mut t := fn (r rune) rune {
+		if r > unicode.max_ascii {
+			return -1
+		}
+		return r
+	}
+	.map
+	s
+	println(t)
+}

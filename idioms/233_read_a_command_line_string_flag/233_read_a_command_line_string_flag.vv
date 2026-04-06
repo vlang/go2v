@@ -1,0 +1,10 @@
+module main
+
+import flag
+
+__global country = flag.string_('country', 'Canada', 'user home country')
+
+fn main() {
+	flag.parse()
+	println('country is ${*country}')
+}

@@ -1,0 +1,20 @@
+module main
+
+fn main() {
+	mut x := make3_d(2, 2, 3)
+	x[1][0][2] = 9
+	println(x)
+}
+
+fn make3_d(m isize, n isize, p isize) [][][]f64 {
+	mut buf := []f64{len: m * n * p}
+	mut x := [][][]f64{len: m}
+	for i, _ in x {
+		x[i] = [][]f64{len: n}
+		for j, _ in x[i] {
+			x[i][j] = buf[..p]
+			buf = buf[p..]
+		}
+	}
+	return x
+}

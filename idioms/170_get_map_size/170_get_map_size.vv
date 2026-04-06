@@ -1,0 +1,11 @@
+module main
+
+fn main() {
+	mut mymap := {
+		'a': 1
+		'b': 2
+		'c': 3
+	}
+	mut n := mymap.len
+	println(n)
+}

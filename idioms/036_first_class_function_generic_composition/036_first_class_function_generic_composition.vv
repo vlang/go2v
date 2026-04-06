@@ -1,0 +1,22 @@
+module main
+
+fn compose_int_funcs(f fn (isize) isize, g fn (isize) isize) fn (isize) isize {
+	return fn [mut g, mut f] (x isize) isize {
+		return g(f(x))
+	}
+}
+
+fn main() {
+	mut double := fn (x isize) isize {
+		return 2 * x
+	}
+
+	mut add_two := fn (x isize) isize {
+		return x + 2
+	}
+
+	mut h := compose_int_funcs(double, add_two)
+	for i := isize(0); i < 10; i++ {
+		println('${i} ${h(i)} ${add_two(double(i))}')
+	}
+}

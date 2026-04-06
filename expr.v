@@ -361,15 +361,47 @@ fn (mut app App) map_type(node MapType) {
 		else {}
 	}
 	app.gen(']')
+	saved_force_upper := app.force_upper
+	app.force_upper = true
 	match node.val {
-		ArrayType, FuncType, Ident, InterfaceType, MapType, SelectorExpr, StarExpr {
-			app.typ(node.val)
+		ArrayType {
+			app.array_type(node.val as ArrayType)
+		}
+		FuncType {
+			app.func_type(node.val as FuncType)
+		}
+		Ident {
+			ident := node.val as Ident
+			conversion := go2v_type_checked(ident.name)
+			if conversion.is_basic {
+				app.gen(conversion.v_type)
+			} else {
+				app.gen(app.go2v_ident(ident.name))
+			}
+		}
+		InterfaceType {
+			app.interface_type(node.val as InterfaceType)
+		}
+		MapType {
+			app.map_type(node.val as MapType)
+		}
+		SelectorExpr {
+			app.selector_expr(node.val as SelectorExpr)
+		}
+		StarExpr {
+			star := node.val as StarExpr
+			if star.x is ArrayType {
+				app.array_type(star.x as ArrayType)
+			} else {
+				app.star_expr(star)
+			}
 		}
 		StructType {
 			// Empty struct type, e.g., map[K]struct{}
-			app.struct_type(node.val)
+			app.struct_type(node.val as StructType)
 		}
 	}
+	app.force_upper = saved_force_upper
 }
 
 fn (mut app App) paren_expr(p ParenExpr) {

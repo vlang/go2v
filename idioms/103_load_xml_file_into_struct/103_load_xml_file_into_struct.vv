@@ -1,0 +1,46 @@
+module main
+
+import encoding.xml
+import io.util
+
+fn read_xml_file() IError {
+	mut x := Person{}
+
+	mut buffer, err := ioutil.read_file(filename)
+	if err != unsafe { nil } {
+		return err
+	}
+	err = xml.unmarshal(buffer, &x)
+	if err != unsafe { nil } {
+		return err
+	}
+	println(x)
+	return unsafe { nil }
+}
+
+fn main() {
+	mut err := read_xml_file()
+	if err != unsafe { nil } {
+		panic(err)
+	}
+}
+
+pub struct Person {
+pub mut:
+	first_name string
+	age        isize
+}
+
+const filename = '/tmp/data.xml'
+
+fn init() {
+	mut data := r'<?xml version="1.0" encoding="UTF-8"?>
+		<Person>
+			<FirstName>Napoléon</FirstName>
+			<Age>51</Age>
+		</Person>'
+	mut err := ioutil.write_file(filename, data.bytes(), 644)
+	if err != unsafe { nil } {
+		panic(err)
+	}
+}

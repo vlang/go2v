@@ -1,0 +1,7 @@
+module main
+
+fn main() {
+	for i := isize(5); i >= 0; i-- {
+		println(i)
+	}
+}

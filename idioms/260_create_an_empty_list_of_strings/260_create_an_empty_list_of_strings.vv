@@ -1,0 +1,10 @@
+module main
+
+fn main() {
+	mut items := []string{}
+	println('items has ${items.len} elements')
+	print('items is "${items}"\n')
+	items << 'foobar'
+	println('items has ${items.len} elements')
+	print('items is "${items}"\n')
+}

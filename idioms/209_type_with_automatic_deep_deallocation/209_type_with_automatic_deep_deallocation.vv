@@ -1,0 +1,13 @@
+module main
+
+fn main() {
+	f()
+}
+
+fn f() {
+	mut v := T{
+		s: 'Hello, world!'
+		n: [isize(1), 4, 9, 16, 25]
+	}
+	_ = v
+}

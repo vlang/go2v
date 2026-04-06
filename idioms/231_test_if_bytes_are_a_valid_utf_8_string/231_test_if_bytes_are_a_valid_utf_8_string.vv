@@ -1,0 +1,16 @@
+module main
+
+import encoding.utf8
+
+fn main() {
+	{
+		mut s := 'Hello, 世界'.bytes()
+		mut b := utf8.valid(s)
+		println(b)
+	}
+	{
+		mut s_1 := [u8(0xff), 0xfe, 0xfd]
+		mut b_1 := utf8.valid(s_1)
+		println(b_1)
+	}
+}

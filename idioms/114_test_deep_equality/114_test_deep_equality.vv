@@ -1,0 +1,58 @@
+module main
+
+import reflect
+
+fn main() {
+	mut x := Foo{9, 'Hello', [bool(false), true], {
+		1: 1.0
+		2: 2.0
+	}, &Bar{'Babar'}}
+	mut list := [
+		Foo{9, 'Bye', [bool(False), true], {
+			1: 1.0
+			2: 2.0
+		}, &Bar{'Babar'}},
+		Foo{9, 'Hello', [bool(False), false], {
+			1: 1.0
+			2: 2.0
+		}, &Bar{'Babar'}},
+		Foo{9, 'Hello', [bool(False), true], {
+			1: 3.0
+			2: 2.0
+		}, &Bar{'Babar'}},
+		Foo{9, 'Hello', [bool(False), true], {
+			1: 1.0
+			5: 2.0
+		}, &Bar{'Babar'}},
+		Foo{9, 'Hello', [bool(False), true], {
+			1: 1.0
+			2: 2.0
+		}, &Bar{'Batman'}},
+		Foo{9, 'Hello', [bool(False), true], {
+			1: 1.0
+			2: 2.0
+		}, &Bar{'Babar'}},
+	]
+	for i, y in list {
+		mut b := reflect.deep_equal(x, y)
+		if b {
+			println('x deep equals list[ ${i} ]')
+		} else {
+			println('x doesn\'t deep equal list[ ${i} ]')
+		}
+	}
+}
+
+pub struct Foo {
+pub mut:
+	int     isize
+	str     string
+	bools   []Bool
+	mapping map[isize]f64
+	bar     &Bar = unsafe { nil }
+}
+
+pub struct Bar {
+pub mut:
+	name string
+}

@@ -1,0 +1,18 @@
+module main
+
+import context
+import time
+
+fn main() {
+	mut ctx, cancel := context.with_cancel(context.background())
+	spawn p(ctx)
+	time.sleep(3 * time.second)
+	cancel()
+	time.sleep(3 * time.second)
+}
+
+fn p(ctx context.Context) {
+	for i := isize(0); i < 10; i++ {
+		// unhandled in stmt: Stmt(InvalidStmt{})
+	}
+}

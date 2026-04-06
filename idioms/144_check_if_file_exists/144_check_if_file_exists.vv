@@ -1,0 +1,19 @@
+module main
+
+import io.util
+import os
+
+fn main() {
+	mut fp := 'foo.txt'
+	_, err := os.stat(fp)
+	mut b := !os.is_not_exist(err)
+	println('${fp} exists: ${b}')
+	fp = 'bar.txt'
+	_, err = os.stat(fp)
+	b = !os.is_not_exist(err)
+	println('${fp} exists: ${b}')
+}
+
+fn init() {
+	ioutil.write_file('foo.txt', r'abc'.bytes(), 644)
+}

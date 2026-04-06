@@ -1,0 +1,16 @@
+module main
+
+fn f() {
+	println('Larger found')
+}
+
+fn main() {
+	mut a := [isize(1), 2, 3, 4, 5]
+	mut x := isize(4)
+	for _, v in a {
+		if v > x {
+			f()
+			break
+		}
+	}
+}

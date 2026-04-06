@@ -1,0 +1,52 @@
+module main
+
+import time
+
+type Company = string
+
+pub struct Employee {
+pub mut:
+	first_name string
+	last_name  string
+}
+
+pub fn (mut e Employee) str() string {
+	return '<' + e.first_name + ' ' + e.last_name + '>'
+}
+
+pub struct Payroll {
+pub mut:
+	company    Company
+	boss       &Employee = unsafe { nil }
+	employee   &Employee = unsafe { nil }
+	start_date time.Time
+	end_date   time.Time
+	amount     isize
+}
+
+// Creates a blank payroll for a specific employee with specific boss in specific company
+type PayFactory = fn (Company, &Employee, &Employee) Payroll
+
+// Creates a blank payroll for a specific employee
+type CustomPayFactory = fn (&Employee) Payroll
+
+pub fn curry_pay_factory(pf PayFactory, company Company, boss &Employee) CustomPayFactory {
+	return fn [mut pf, mut company, mut boss] (e &Employee) Payroll {
+		return pf(company, boss, e)
+	}
+}
+
+pub fn new_pay(company Company, boss &Employee, employee &Employee) Payroll {
+	return Payroll{
+		company:  company
+		boss:     boss
+		employee: employee
+	}
+}
+
+fn main() {
+	mut me := Employee{'Jack', 'Power'}
+	mut my_little_pay_factory := curry_pay_factory(new_pay, 'Richissim', &me)
+	println(my_little_pay_factory(&Employee{'Jean', 'Dupont'}))
+	println(my_little_pay_factory(&Employee{'Antoine', 'Pol'}))
+}

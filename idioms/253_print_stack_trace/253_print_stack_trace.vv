@@ -1,0 +1,11 @@
+module main
+
+fn main() {
+	println('Start')
+	my_fancy_func()
+	println('The end.')
+}
+
+fn my_fancy_func() {
+	debug.print_stack()
+}

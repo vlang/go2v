@@ -1,0 +1,14 @@
+module main
+
+fn main() {
+	mut items := ['huey', 'dewey', 'louie']
+	mut x := 'dewey'
+	mut i := -1
+	for j, e in items {
+		if e == x {
+			i = j
+			break
+		}
+	}
+	print('Found "${x}" at position ${i:d} in "${items}"')
+}

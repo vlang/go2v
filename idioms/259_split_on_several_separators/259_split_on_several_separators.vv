@@ -1,0 +1,10 @@
+module main
+
+import regex as regexp
+
+fn main() {
+	mut s := '2021-03-11,linux_amd64'
+	mut re := regexp.must_compile('[,\\-_]')
+	mut parts := re.split(s, -1)
+	print('"${parts}"')
+}

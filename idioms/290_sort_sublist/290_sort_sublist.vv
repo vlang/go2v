@@ -1,0 +1,21 @@
+module main
+
+pub struct Item {
+pub mut:
+	label string
+}
+
+// c returns true if x is "inferior to" y (in a custom way)
+fn c(x Item, y Item) bool {
+	return x.label < y.label
+}
+
+fn main() {
+	mut items := [Item{'start'}, Item{'ccc'}, Item{'aaa'}, Item{'ddd'},
+		Item{'bbb'}, Item{'end'}]
+	println('Unsorted: ${items}')
+	mut i, j := isize(1), items.len - 1
+	mut sub := items[i..j]
+	sub.sort()
+	println('Sorted:   ${items}')
+}

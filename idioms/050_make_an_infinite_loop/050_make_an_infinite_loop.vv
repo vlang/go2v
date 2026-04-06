@@ -1,0 +1,12 @@
+module main
+
+fn main() {
+	mut k := isize(0)
+	for {
+		println('Hello, playground')
+		k++
+		if k == 5 {
+			break
+		}
+	}
+}

@@ -1,0 +1,12 @@
+module main
+
+import rand
+
+fn main() {
+	mut x := pick(-2.0, 6.5)
+	println(x)
+}
+
+fn pick(a f64, b f64) f64 {
+	return a + (rand.float64() * (b - a))
+}

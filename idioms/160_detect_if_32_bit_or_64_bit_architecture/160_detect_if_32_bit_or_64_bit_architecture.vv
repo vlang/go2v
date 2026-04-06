@@ -1,0 +1,20 @@
+module main
+
+import strconv
+
+fn main() {
+	if strconv.int_size == 32 {
+		f32_()
+	}
+	if strconv.int_size == 64 {
+		f64_()
+	}
+}
+
+fn f32_() {
+	println('I am 32-bit')
+}
+
+fn f64_() {
+	println('I am 64-bit')
+}

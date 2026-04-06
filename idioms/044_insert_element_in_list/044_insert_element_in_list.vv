@@ -1,0 +1,12 @@
+module main
+
+fn main() {
+	mut s := []isize{len: 2}
+	s[0] = 0
+	s[1] = 2
+	println(s)
+	s << 0
+	copy(s[2..], s[1..])
+	s[1] = 1
+	println(s)
+}

@@ -1,0 +1,9 @@
+module main
+
+fn main() {
+	mut a, b, c := t('This'), t('is'), t('wonderful')
+	mut items := [a, b, c]
+	println(items)
+}
+
+type TT = string

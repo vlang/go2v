@@ -1,0 +1,10 @@
+module main
+
+fn main() {
+	mut a := ['The ', 'quick ']
+	mut b := ['brown ', 'fox ']
+	mut ab := []T{len: a.len + b.len}
+	copy(ab, a)
+	copy(ab[a.len..], b)
+	print('"${ab}"')
+}

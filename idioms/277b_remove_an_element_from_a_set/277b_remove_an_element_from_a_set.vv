@@ -1,0 +1,17 @@
+module main
+
+type EE = string
+
+fn main() {
+	mut x := {
+		'a': true
+		'b': true
+		'c': true
+	}
+	mut e := e('b')
+	x.delete(e)
+
+	for t, _ in x {
+		print('x contains the element "${t}" \n')
+	}
+}

@@ -1,0 +1,9 @@
+module main
+
+fn main() {
+	mut x := [m][N][P]f64{}
+
+	x[1][0][2] = 9
+	println(x)
+	print('${typeof(x).name}')
+}

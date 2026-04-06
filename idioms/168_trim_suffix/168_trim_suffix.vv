@@ -1,0 +1,8 @@
+module main
+
+fn main() {
+	mut s := 'café-society'
+	mut w := 'society'
+	mut t := s.trim_right(w)
+	println(t)
+}

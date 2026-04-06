@@ -1,0 +1,8 @@
+module main
+
+import time
+
+fn main() {
+	mut t := time.now().add(24 * time.hour).format('2006-01-02')
+	println(t)
+}

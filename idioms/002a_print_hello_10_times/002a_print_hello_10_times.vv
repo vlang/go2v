@@ -1,0 +1,7 @@
+module main
+
+fn main() {
+	for i := isize(0); i < 10; i++ {
+		println('Hello')
+	}
+}

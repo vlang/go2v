@@ -1,0 +1,15 @@
+module main
+
+pub fn reverse(s string) string {
+	mut runes := s.runes
+	for i, j := isize(0), runes.len - 1; i < j; i, j = i + 1, j - 1 {
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	return runes.str()
+}
+
+fn main() {
+	mut input := 'The quick brown 狐 jumped over the lazy 犬'
+	println(reverse(input))
+	println(input)
+}

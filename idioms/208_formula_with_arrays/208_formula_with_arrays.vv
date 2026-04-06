@@ -1,0 +1,20 @@
+module main
+
+import math
+
+fn apply_formula(a []f64, b []f64, c []f64, d []f64, e f64) {
+	for i, v in a {
+		a[i] = e * (v + b[i] + c[i] + math.cos(d[i]))
+	}
+}
+
+fn main() {
+	mut a := [f64(1), 2, 3, 4]
+	mut b := [f64(5.5), 6.6, 7.7, 8.8]
+	mut c := [f64(9), 10, 11, 12]
+	mut d := [f64(13), 14, 15, 16]
+	mut e := float(42.0)
+	println('a is     ${a}')
+	apply_formula(a, b, c, d, e)
+	println('a is now ${a}')
+}

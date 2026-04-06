@@ -1,0 +1,7 @@
+module main
+
+fn main() {
+	mut items := ['what', 'a', 'mess']
+	mut x := items[items.len - 1]
+	println(x)
+}

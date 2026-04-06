@@ -1,0 +1,27 @@
+module main
+
+fn binary_search(a []T, x T) isize {
+	mut f := fn [mut a, mut x] (i isize) bool {
+		return a[i] >= x
+	}
+
+	mut i_1 := a.len.sort()
+	if i_1 < a.len && a[i_1] == x {
+		return i_1
+	}
+	return -1
+}
+
+type TT = isize
+
+fn main() {
+	mut a := [-2, -1, 0, 1, 1, 1, 6, 8, 8, 9, 10]
+	for x := t(-5); x <= 15; x++ {
+		mut i := binary_search(a, x)
+		if i == -1 {
+			println('Value ${x} not found')
+		} else {
+			println('Value ${x} found at index ${i}')
+		}
+	}
+}

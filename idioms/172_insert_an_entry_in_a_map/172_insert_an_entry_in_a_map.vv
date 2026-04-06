@@ -1,0 +1,12 @@
+module main
+
+fn main() {
+	mut m := {
+		'one': 1
+		'two': 2
+	}
+	mut k := 'three'
+	mut v := isize(3)
+	m[k] = v
+	println(m)
+}

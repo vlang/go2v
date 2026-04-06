@@ -1,0 +1,12 @@
+module main
+
+fn main() {
+	mut m := map[string]string{}
+	mut foo := Foo{
+		name: 'John'
+		x:    42
+		y:    5
+	}
+	m[foo] = 'Professor'
+	println(m)
+}

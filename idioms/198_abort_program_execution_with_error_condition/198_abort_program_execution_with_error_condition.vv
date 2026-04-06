@@ -1,0 +1,8 @@
+module main
+
+import os
+
+fn main() {
+	mut x := isize(1)
+	exit(x)
+}

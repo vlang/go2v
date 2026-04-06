@@ -1,0 +1,18 @@
+module main
+
+import os
+
+fn main() {
+	mut path := 'foo'
+	_, err := os.stat(path)
+	mut b := !os.is_not_exist(err)
+	println('${path} exists: ${b}')
+	err = os.mkdir(path, os.mode_dir)
+	if err != unsafe { nil } {
+		panic(err)
+	}
+	mut info, err2 := os.stat(path)
+	b = !os.is_not_exist(err2)
+	println('${path} exists: ${b}')
+	println('${path} is a directory: ${info.is_dir()}')
+}

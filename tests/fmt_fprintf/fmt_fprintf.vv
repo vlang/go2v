@@ -1,0 +1,10 @@
+module main
+
+import os
+
+fn main() {
+	mut value := isize(42)
+	_ = (os.stderr()).write_string('value=${value:d}') or { 0 }
+	_ = (os.stdout()).write_string('done ${value}\n') or { 0 }
+	_ = (os.stdout()).write_string('tail ${value}') or { 0 }
+}

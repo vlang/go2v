@@ -1,0 +1,12 @@
+module main
+
+type TT = isize
+
+fn main() {
+	mut items := [42, 1337]
+	mut x := t(7)
+	items << x
+	copy(items[1..], items)
+	items[0] = x
+	println(items)
+}

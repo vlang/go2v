@@ -1,0 +1,11 @@
+module main
+
+fn main() {
+	mut x, y, z := f()
+	println('${x} ${y} ${z}')
+}
+
+fn f() (f64, string, chan isize) {
+	mut a, b, c := float(2.5), 'hello', chan isize{}
+	return a, b, c
+}

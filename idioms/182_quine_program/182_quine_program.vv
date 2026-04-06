@@ -1,0 +1,15 @@
+module main
+
+fn main() {
+	print('${s}${0x60:c}${s}${0x60:c}\n')
+}
+
+__global s = r'package main
+
+import "fmt"
+
+func main() {
+	fmt.Printf("%s%c%s%c\n", s, 0x60, s, 0x60)
+}
+
+var s = '

@@ -1,0 +1,14 @@
+module main
+
+import strconv
+
+fn main() {
+	mut s := '3.1415926535'
+	mut err_ok := true
+	f := strconv.parse_float(s, 64) or {
+		err_ok = false
+		0
+	}
+	err := if err_ok { none } else { error('conversion failed') }
+	print('${typeof(f).name}, ${f}, err=${err}\n')
+}

@@ -1,0 +1,10 @@
+module main
+
+import regex as regexp
+
+fn main() {
+	mut s := 'dæmi : пример : příklad : thí dụ'
+	mut re := regexp.must_compile('[[:^ascii:]]')
+	mut t := re.replace_all_literal_string(s, '')
+	println(t)
+}

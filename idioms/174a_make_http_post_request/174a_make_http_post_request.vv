@@ -1,0 +1,51 @@
+module main
+
+import io
+import io.util
+import net
+import net.http
+
+fn main() {
+	mut content_type := 'text/plain'
+	mut body := io.Reader{}
+
+	mut u := 'http://' + localhost + '/hello'
+	mut response, err := http.post(u, content_type, body)
+	check(err)
+	mut buffer, err_1 := ioutil.read_all(response.body)
+	check(err_1)
+	println('POST response: ${response.status_code} ${buffer.str()}')
+	response, err = http.get(u)
+	check(err_1)
+	buffer, err = ioutil.read_all(response.body)
+	check(err_1)
+	println('GET  response: ${response.status_code} ${buffer.str()}')
+}
+
+const localhost = '127.0.0.1:3000'
+
+fn init() {
+	http.handle_func('/hello', my_handler)
+	start_server()
+}
+
+fn my_handler(w http.ResponseWriter, r &http.Request) {
+	if r.method != 'POST' {
+		w.write_header(http.status_bad_request)
+		w.write_string('Refusing request verb "${r.method}"') or { 0 }
+		return
+	}
+	w.write_string('Hello POST :)') or { 0 }
+}
+
+fn start_server() {
+	mut listener, err := net.listen('tcp', localhost)
+	check(err)
+	spawn http.serve(listener, unsafe { nil })
+}
+
+fn check(err IError) {
+	if err != unsafe { nil } {
+		panic(err)
+	}
+}

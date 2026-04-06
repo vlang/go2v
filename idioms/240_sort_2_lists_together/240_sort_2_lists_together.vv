@@ -1,0 +1,34 @@
+module main
+
+type KK = isize
+type TT = string
+
+struct Sorter {
+pub mut:
+	k []KK
+	t []TT
+}
+
+pub fn (mut s Sorter) len() isize {
+	return s.k.len
+}
+
+pub fn (mut s Sorter) swap(i isize, j isize) {
+	s.k[i], s.k[j] = s.k[j], s.k[i]
+	s.t[i], s.t[j] = s.t[j], s.t[i]
+}
+
+pub fn (mut s Sorter) less(i isize, j isize) bool {
+	return s.k[i] < s.k[j]
+}
+
+fn main() {
+	mut a := [9, 3, 4, 8]
+	mut b := ['nine', 'three', 'four', 'eight']
+	&Sorter{
+		k: a
+		t: b
+	}.sort()
+	println(a)
+	println(b)
+}

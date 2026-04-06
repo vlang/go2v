@@ -1,0 +1,11 @@
+module main
+
+fn main() {
+	mut x := ['Never', 'gonna', 'shower']
+	mut y := []T{len: x.len}
+	copy(y, x)
+	y[2] = 'give'
+	y << [string('you'), 'up']
+	println(x)
+	println(y)
+}

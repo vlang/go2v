@@ -1,0 +1,11 @@
+module main
+
+import rand
+
+fn main() {
+	mut x := ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+	rand.shuffle(x.len, fn [mut x] (i isize, j isize) {
+		x[i], x[j] = x[j], x[i]
+	})
+	println(x)
+}

@@ -1,0 +1,9 @@
+module main
+
+import math.big
+
+fn main() {
+	mut x := big.new_int(999)
+	mut s := '${x.hex()}'
+	println(s)
+}

@@ -1,0 +1,18 @@
+module main
+
+pub fn contains(list []T, x T) bool {
+	for _, item in list {
+		if item == x {
+			return true
+		}
+	}
+	return false
+}
+
+type TT = string
+
+fn main() {
+	mut list := ['a', 'b', 'c']
+	println(contains(list, 'b'))
+	println(contains(list, 'z'))
+}

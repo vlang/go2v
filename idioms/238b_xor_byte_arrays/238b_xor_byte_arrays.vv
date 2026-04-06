@@ -1,0 +1,20 @@
+module main
+
+type TT = [5]u8
+
+fn main() {
+	mut a, b := TT{}
+
+	copy(a[..], 'Hello')
+	copy(b[..], 'world')
+	mut c := TT{}
+
+	for i, _ in a {
+		c[i] = a[i] ^ b[i]
+	}
+	print('a is ${a}\n')
+	print('b is ${b}\n')
+	print('c is ${c}\n')
+	println('c == ${c}')
+	print('c as string would be "${c[..].str()}"\n')
+}

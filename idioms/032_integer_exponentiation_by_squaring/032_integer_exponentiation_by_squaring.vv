@@ -1,0 +1,17 @@
+module main
+
+fn exp(x isize, n isize) isize {
+	if n == 0 {
+		return 1
+	} else if n == 1 {
+		return x
+	} else if n % 2 == 0 {
+		return exp(x * x, n / 2)
+	} else {
+		return x * exp(x * x, (n - 1) / 2)
+	}
+}
+
+fn main() {
+	println(exp(3, 5))
+}

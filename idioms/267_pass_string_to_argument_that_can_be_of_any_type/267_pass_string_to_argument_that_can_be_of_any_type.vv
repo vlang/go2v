@@ -1,0 +1,16 @@
+module main
+
+fn foo[T](x T) {
+	mut ok := x is string
+	mut s := x as string
+	if ok {
+		println(s)
+	} else {
+		println('Nothing.')
+	}
+}
+
+fn main() {
+	foo('Hello, world!')
+	foo(42)
+}

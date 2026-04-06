@@ -1,0 +1,10 @@
+module main
+
+import regex as regexp
+
+fn main() {
+	mut s := r'height="168px"'
+	mut re := regexp.must_compile('[^\\d]')
+	mut t := re.replace_all_literal_string(s, '')
+	println(t)
+}

@@ -1,0 +1,9 @@
+module main
+
+import math.big
+
+fn main() {
+	mut q := &big.Rat{}
+	q.set_string('3559085320938475823508/1132039848475763040')
+	println(q)
+}

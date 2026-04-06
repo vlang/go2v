@@ -1,0 +1,13 @@
+module main
+
+import os
+
+fn main() {
+	foo_opt := os.getenv_opt('FOO')
+	ok := foo_opt != none
+	foo := foo_opt or { '' }
+	if !ok {
+		foo = 'none'
+	}
+	println(foo)
+}

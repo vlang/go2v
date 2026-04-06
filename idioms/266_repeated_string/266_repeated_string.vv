@@ -1,0 +1,8 @@
+module main
+
+fn main() {
+	mut v := 'abc'
+	mut n := isize(5)
+	mut s := v.repeat(n)
+	println(s)
+}

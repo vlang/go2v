@@ -1,0 +1,10 @@
+module main
+
+import math.big
+
+fn main() {
+	mut a := i64(12345678)
+	mut b := i64(98765432109876)
+	mut q := big.new_rat(a, b)
+	println(q)
+}

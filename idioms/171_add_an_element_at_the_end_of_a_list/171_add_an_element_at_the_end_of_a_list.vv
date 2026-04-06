@@ -1,0 +1,8 @@
+module main
+
+fn main() {
+	mut s := [isize(1), 1, 2, 3, 5, 8, 13]
+	mut x := isize(21)
+	s << x
+	println(s)
+}

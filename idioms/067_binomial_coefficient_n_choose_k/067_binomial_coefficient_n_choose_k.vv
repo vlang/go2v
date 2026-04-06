@@ -1,0 +1,11 @@
+module main
+
+import math.big
+
+fn main() {
+	mut z := &big.Int{}
+	z.binomial(4, 2)
+	println(z)
+	z.binomial(133, 71)
+	println(z)
+}

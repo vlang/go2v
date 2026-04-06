@@ -1,0 +1,18 @@
+module main
+
+import time
+
+fn main() {
+	spawn println('aaa')
+	spawn println('bbb')
+	spawn println('ccc')
+	spawn println('ddd')
+	spawn println('eee')
+	runtime.gosched()
+	busywork()
+	time.sleep(100 * time.millisecond)
+}
+
+fn busywork() {
+	println('main')
+}

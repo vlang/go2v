@@ -1,0 +1,27 @@
+module main
+
+import log
+import strconv
+
+fn main() {
+	mut s := '101010100000000011111111'
+	if s.len % 8 != 0 {
+		log.fatalf('Length %d is not a multiple of 8: %q', s.len, s)
+	}
+	mut n := s.len / 8
+	mut a := []u8{len: n}
+	for i, _ in a {
+		mut err_ok := true
+		b := strconv.parse_int(s[i * 8..i * 8 + 8], 2, 0) or {
+			err_ok = false
+			0
+		}
+		err := if err_ok { none } else { error('conversion failed') }
+		if err != none {
+			log.fatal(err)
+		}
+		a[i] = u8(b)
+	}
+	println(a)
+	print('${a.hex().to_upper()}')
+}

@@ -1,0 +1,8 @@
+module main
+
+fn main() {
+	mut s1 := 'foobarfoo'
+	mut w := 'foo'
+	mut s2 := s1.replace(w, '', -1)
+	println(s2)
+}

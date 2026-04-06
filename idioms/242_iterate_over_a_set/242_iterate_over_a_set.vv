@@ -1,0 +1,21 @@
+module main
+
+type TT = string
+
+fn main() {
+	mut x := map[string]bool{}
+	x['A'] = true
+	x['B'] = true
+	x['B'] = true
+	x['C'] = true
+	x['D'] = true
+	x.delete('C')
+
+	for e, _ in x {
+		f(e)
+	}
+}
+
+fn f(e TT) {
+	print('contains element ${e} \n')
+}

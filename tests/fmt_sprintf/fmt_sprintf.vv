@@ -1,0 +1,10 @@
+module main
+
+fn main() {
+	mut name := 'V'
+	mut count := isize(7)
+	mut formatted := 'name="${name}" count=${count:02d} type=${typeof(count).name} hex=${count.hex().to_upper()} %'
+	print('-> ${formatted}')
+	mut err := error('bad "${name}"')
+	println(err)
+}

@@ -1,0 +1,19 @@
+module main
+
+import reflect
+import strconv
+
+fn main() {
+	mut s := '123'
+	println('s is ${reflect.type_of(s)} ${s}')
+	mut err_ok := true
+	i := strconv.parse_int(s, 10, 0) or {
+		err_ok = false
+		0
+	}
+	err := if err_ok { none } else { error('conversion failed') }
+	if err != none {
+		panic(err)
+	}
+	println('i is ${reflect.type_of(i)} ${i}')
+}

@@ -1,0 +1,13 @@
+module main
+
+import rand
+
+fn main() {
+	mut x := ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+	mut y := []string{len: x.len}
+	mut perm := rand.perm(x.len)
+	for i, v in perm {
+		y[v] = x[i]
+	}
+	println(y)
+}

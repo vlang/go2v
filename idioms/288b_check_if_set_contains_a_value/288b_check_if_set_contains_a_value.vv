@@ -1,0 +1,19 @@
+module main
+
+type EE = string
+
+fn main() {
+	mut x := map[string]_VAnonStruct1{}
+	x['foo'] = struct {}
+	{}
+	{
+		mut e := e('foo')
+		b := e in x
+		print('x contains "${e}": ${b}\n')
+	}
+	{
+		mut e_1 := e('barbaz')
+		b_1 := e_1 in x
+		print('x contains "${e_1}": ${b_1}\n')
+	}
+}

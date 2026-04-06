@@ -1,0 +1,25 @@
+module main
+
+import rand
+import sync
+import time
+
+fn f(i isize) {
+	mut d := rand.int_() % 10000
+	time.sleep(time.duration(d))
+	print('Hello ${i}\n')
+}
+
+fn main() {
+	mut wg := sync.WaitGroup{}
+
+	wg.add(1000)
+	for i := isize(1); i <= 1000; i++ {
+		spawn fn (i isize) {
+			f(i)
+			wg.done()
+		}()
+	}
+	wg.wait()
+	println('Finished')
+}

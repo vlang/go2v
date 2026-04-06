@@ -1,0 +1,15 @@
+module main
+
+fn check(s string, suffix string) {
+	mut b := s.ends_with(suffix)
+	if b {
+		println('${s} ends with ${suffix}')
+	} else {
+		println('${s} doesn\'t end with ${suffix}')
+	}
+}
+
+fn main() {
+	check('foo', 'bar')
+	check('foobar', 'bar')
+}

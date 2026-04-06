@@ -1,0 +1,10 @@
+module main
+
+fn main() {
+	mut a := -6.4
+	mut b := float(6.4)
+	mut c := float(6.6)
+	println(isize(a))
+	println(isize(b))
+	println(isize(c))
+}

@@ -1,0 +1,16 @@
+module main
+
+import image
+
+fn main() {
+	mut x1, y1, x2, y2 := isize(1), isize(1), isize(50), isize(100)
+	mut r := image.rect(x1, y1, x2, y2)
+	mut x, y := isize(10), isize(10)
+	mut p := image.pt(x, y)
+	mut b := p.in_(r)
+	println(b)
+	x, y = 100, 100
+	p = image.pt(x, y)
+	b = p.in_(r)
+	println(b)
+}

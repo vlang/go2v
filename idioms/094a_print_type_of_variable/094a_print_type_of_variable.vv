@@ -1,0 +1,14 @@
+module main
+
+import os
+import reflect
+
+fn main() {
+	mut x := 0
+	x = 'Hello'
+	println(reflect.type_of(x))
+	x = 4
+	println(reflect.type_of(x))
+	x = os.new_file(777, 'foobar.txt')
+	println(reflect.type_of(x))
+}

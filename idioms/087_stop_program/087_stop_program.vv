@@ -1,0 +1,9 @@
+module main
+
+import os
+
+fn main() {
+	println('Program starts')
+	exit(0)
+	println('Statement not reached')
+}

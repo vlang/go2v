@@ -1,0 +1,10 @@
+module main
+
+fn main() {
+	mut x := ['a', 'b', 'c']
+	mut n := x.len
+	println(n)
+	mut y := ['a', 'b', 'c', '']!
+	n = y.len
+	println(n)
+}

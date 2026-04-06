@@ -1,0 +1,21 @@
+module main
+
+fn binary_search(a []isize, x isize) isize {
+	mut i := a.sort()
+	if i < a.len && a[i] == x {
+		return i
+	}
+	return -1
+}
+
+fn main() {
+	mut a := [isize(-2), -1, 0, 1, 1, 1, 6, 8, 8, 9, 10]
+	for x := -5; x <= 15; x++ {
+		mut i := binary_search(a, x)
+		if i == -1 {
+			println('Value ${x} not found')
+		} else {
+			println('Value ${x} found at index ${i}')
+		}
+	}
+}

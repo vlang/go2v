@@ -1,0 +1,10 @@
+module main
+
+fn main() {
+	mut s, b := foo()
+	println('${s} ${b}')
+}
+
+fn foo() (string, bool) {
+	return 'Too good to be', true
+}

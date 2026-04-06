@@ -1,0 +1,7 @@
+module main
+
+fn main() {
+	mut x := ['eggs', 'butter', 'milk']
+	mut y := x.join(', ')
+	print('"${y}"')
+}

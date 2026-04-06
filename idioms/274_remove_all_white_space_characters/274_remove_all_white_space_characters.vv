@@ -1,0 +1,18 @@
+module main
+
+const s = r'
+ a   string full	of
+white	space
+ '
+
+fn main() {
+	mut t := fn (r rune) rune {
+		if unicode.is_space(r) {
+			return -1
+		}
+		return r
+	}
+	.map
+	s
+	print('t="${t}"')
+}

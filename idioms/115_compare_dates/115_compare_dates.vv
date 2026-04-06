@@ -1,0 +1,10 @@
+module main
+
+import time
+
+fn main() {
+	mut d1 := time.now()
+	mut d2 := time.date(2020, time.november, 10, 23, 0, 0, 0, time.utc)
+	mut b := d1.before(d2)
+	println(b)
+}

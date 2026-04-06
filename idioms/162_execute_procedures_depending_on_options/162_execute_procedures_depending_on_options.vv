@@ -1,0 +1,30 @@
+module main
+
+import flag
+import os
+
+fn init() {
+	os.args = ['program', '-f', '-b']
+}
+
+__global b = flag.bool_('b', false, 'Do bat')
+__global f = flag.bool_('f', false, 'Do fox')
+
+fn main() {
+	flag.parse()
+	if *b {
+		bar()
+	}
+	if *f {
+		fox()
+	}
+	println('The end.')
+}
+
+fn bar() {
+	println('BAR')
+}
+
+fn fox() {
+	println('FOX')
+}

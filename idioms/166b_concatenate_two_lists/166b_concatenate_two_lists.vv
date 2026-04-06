@@ -1,0 +1,10 @@
+module main
+
+fn main() {
+	mut a := ['The ', 'quick ']
+	mut b := ['brown ', 'fox ']
+	mut ab := []T{}
+
+	ab << b
+	print('"${ab}"')
+}

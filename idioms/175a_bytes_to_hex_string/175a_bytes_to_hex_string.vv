@@ -1,0 +1,9 @@
+module main
+
+import encoding.hex
+
+fn main() {
+	mut a := 'Hello'.bytes()
+	mut s := hex.encode_to_string(a)
+	println(s)
+}

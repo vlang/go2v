@@ -1,0 +1,6 @@
+module main
+
+fn main() {
+	mut s := 'ネコ'
+	println(s)
+}

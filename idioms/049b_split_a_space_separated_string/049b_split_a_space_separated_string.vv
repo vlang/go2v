@@ -1,0 +1,16 @@
+module main
+
+fn main() {
+	mut s := 'Un dos tres'
+	mut chunks := s.fields()
+	println(chunks.len)
+	println(chunks)
+	s = ' Un dos tres '
+	chunks = s.fields()
+	println(chunks.len)
+	println(chunks)
+	s = 'Un  dos'
+	chunks = s.fields()
+	println(chunks.len)
+	println(chunks)
+}

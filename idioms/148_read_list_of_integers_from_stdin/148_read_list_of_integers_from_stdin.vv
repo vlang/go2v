@@ -1,0 +1,33 @@
+module main
+
+import log
+import strconv
+
+fn main() {
+	mut ints := []isize{}
+
+	mut s := bufio.new_scanner(os_stdin)
+	s.split(bufio.scan_words)
+	for s.scan() {
+		mut err_ok := true
+		i := strconv.atoi(s.text()) or {
+			err_ok = false
+			0
+		}
+		err := if err_ok { none } else { error('conversion failed') }
+		if err == none {
+			ints << i
+		}
+	}
+	mut err_1 := s.err()
+	if err_1 != none {
+		log.fatal(err_1)
+	}
+	println(ints)
+}
+
+// osStdin simulates os.Stdin
+__global os_stdin = r'
+11
+22
+33  '.new_reader()

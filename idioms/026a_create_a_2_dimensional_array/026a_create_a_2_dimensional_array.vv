@@ -1,0 +1,8 @@
+module main
+
+fn main() {
+	mut x := [m][N]f64{}
+
+	x[1][2] = 8
+	println(x)
+}

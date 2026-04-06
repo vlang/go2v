@@ -1,0 +1,10 @@
+module main
+
+type TT = string
+
+fn main() {
+	mut items := ['a', 'b', 'c', 'd', 'e']
+	mut i, j := isize(2), isize(4)
+	items << items[j..]
+	print('"${items}"')
+}

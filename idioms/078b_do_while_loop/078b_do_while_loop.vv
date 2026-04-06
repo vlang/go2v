@@ -1,0 +1,15 @@
+module main
+
+import rand
+
+fn main() {
+	for done := false; !done; {
+		mut x := roll_dice()
+		println('Got ${x}')
+		done = x == 3
+	}
+}
+
+fn roll_dice() isize {
+	return 1 + rand.intn(6)
+}

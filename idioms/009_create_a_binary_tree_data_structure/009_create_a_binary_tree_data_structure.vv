@@ -1,0 +1,28 @@
+module main
+
+pub struct BinTree {
+pub mut:
+	value isize
+	left  &BinTree = unsafe { nil }
+	right &BinTree = unsafe { nil }
+}
+
+fn inorder(root &BinTree) {
+	if root == unsafe { nil } {
+		return
+	}
+	inorder(root.left)
+	print('${root.value:d} ')
+	inorder(root.right)
+}
+
+fn main() {
+	mut root := &BinTree{1, unsafe { nil }, unsafe { nil }}
+	root.left = &BinTree{2, unsafe { nil }, unsafe { nil }}
+	root.right = &BinTree{3, unsafe { nil }, unsafe { nil }}
+	root.left.left = &BinTree{4, unsafe { nil }, unsafe { nil }}
+	root.left.right = &BinTree{5, unsafe { nil }, unsafe { nil }}
+	root.right.right = &BinTree{6, unsafe { nil }, unsafe { nil }}
+	root.left.left.left = &BinTree{7, unsafe { nil }, unsafe { nil }}
+	inorder(root)
+}

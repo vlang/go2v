@@ -1,0 +1,11 @@
+module main
+
+import reflect
+
+fn main() {
+	mut x := isize(5)
+	mut y := f64(x)
+	println(y)
+	print('${y:.2f}\n')
+	println(reflect.type_of(y))
+}

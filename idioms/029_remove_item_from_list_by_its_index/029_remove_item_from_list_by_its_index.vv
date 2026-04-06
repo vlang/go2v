@@ -1,0 +1,9 @@
+module main
+
+fn main() {
+	mut items := ['a', 'b', 'c', 'd', 'e', 'f']
+	println(items)
+	mut i := isize(2)
+	items << items[i + 1..]
+	println(items)
+}

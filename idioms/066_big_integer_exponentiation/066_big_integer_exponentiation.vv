@@ -1,0 +1,18 @@
+module main
+
+import math.big
+
+fn exp(x &big.Int, n isize) &big.Int {
+	mut nb := big.new_int(i64(n))
+	mut z := big.Int{}
+
+	z.exp(x, nb, unsafe { nil })
+	return &z
+}
+
+fn main() {
+	mut x := big.new_int(3)
+	mut n := isize(5)
+	mut z := exp(x, n)
+	println(z)
+}

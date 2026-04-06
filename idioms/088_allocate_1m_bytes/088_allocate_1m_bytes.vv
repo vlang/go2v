@@ -1,0 +1,11 @@
+module main
+
+fn main() {
+	mut buf := []u8{len: 1000000}
+	for i, b in buf {
+		if b != 0 {
+			println('Found unexpected value ${b} at position ${i}')
+		}
+	}
+	println('Buffer was correctly initialized with zero values.')
+}

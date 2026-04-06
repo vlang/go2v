@@ -1,0 +1,15 @@
+module main
+
+fn main() {
+	control(greet)
+}
+
+fn control(f fn ()) {
+	println('Before f')
+	f()
+	println('After f')
+}
+
+fn greet() {
+	println('Hello, developers')
+}

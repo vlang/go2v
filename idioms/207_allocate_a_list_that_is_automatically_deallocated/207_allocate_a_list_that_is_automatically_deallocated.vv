@@ -1,0 +1,9 @@
+module main
+
+type TT = u8
+
+fn main() {
+	mut n := isize(10_000_000)
+	mut a := []TT{len: n}
+	println(a.len)
+}

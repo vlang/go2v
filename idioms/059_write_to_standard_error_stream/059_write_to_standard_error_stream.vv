@@ -1,0 +1,8 @@
+module main
+
+import os
+
+fn main() {
+	mut x := -2
+	(os.stderr()).write_string('${x} is negative\n') or { 0 }
+}

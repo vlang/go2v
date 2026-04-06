@@ -1,0 +1,12 @@
+module main
+
+import math.big
+
+fn main() {
+	mut a, b, gcd, x := &big.Int{}, &big.Int{}, &big.Int{}, &big.Int{}
+	a.set_string('6000000000000', 10)
+	b.set_string('9000000000000', 10)
+	gcd.gcd(unsafe { nil }, unsafe { nil }, a, b)
+	x.div(a, gcd).mul(x, b)
+	println(x)
+}

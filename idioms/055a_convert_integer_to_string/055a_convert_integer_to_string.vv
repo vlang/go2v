@@ -1,0 +1,9 @@
+module main
+
+import strconv
+
+fn main() {
+	mut i := isize(1234)
+	mut s := strconv.itoa(i)
+	println(s)
+}

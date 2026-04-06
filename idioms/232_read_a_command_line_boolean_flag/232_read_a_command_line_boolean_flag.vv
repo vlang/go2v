@@ -1,0 +1,10 @@
+module main
+
+import flag
+
+__global verbose = flag.bool_('v', false, 'verbose')
+
+fn main() {
+	flag.parse()
+	println('verbose is ${*verbose}')
+}

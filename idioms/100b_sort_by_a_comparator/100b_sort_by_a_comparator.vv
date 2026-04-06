@@ -1,0 +1,44 @@
+module main
+
+pub struct Item {
+pub mut:
+	label string
+	p     isize
+	lang  string
+}
+
+pub struct ItemsSorter {
+pub mut:
+	items []Item
+	c     fn (x Item, y Item) bool = unsafe { nil }
+}
+
+pub fn (s ItemsSorter) len() isize {
+	return s.items.len
+}
+
+pub fn (s ItemsSorter) less(i isize, j isize) bool {
+	return s.c(s.items[i], s.items[j])
+}
+
+pub fn (s ItemsSorter) swap(i isize, j isize) {
+	s.items[i], s.items[j] = s.items[j], s.items[i]
+}
+
+fn sort_items(items []Item, c fn (x Item, y Item) bool) {
+	mut sorter := ItemsSorter{items, c}
+	sorter.sort()
+}
+
+fn main() {
+	mut items := [Item{'twelve', 12, 'english'}, Item{'six', 6, 'english'},
+		Item{'eleven', 11, 'english'}, Item{'zero', 0, 'english'},
+		Item{'two', 2, 'english'}]
+	println('Unsorted:  ${items}')
+	mut c := fn (x Item, y Item) bool {
+		return x.p < y.p
+	}
+
+	sort_items(items, c)
+	println('Sorted:  ${items}')
+}

@@ -1,0 +1,8 @@
+module main
+
+fn main() {
+	mut list := ['a', 'b', 'c', 'd', 'e', 'f']
+	for i := isize(0); i + 1 < list.len; i += 2 {
+		println('${list[i]} ${list[i + 1]}')
+	}
+}

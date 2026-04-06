@@ -1,0 +1,12 @@
+module main
+
+import os
+import path.filepath
+
+fn main() {
+	mut s := ''
+
+	mut path := os.args[0]
+	s = filepath.base(path)
+	println(s)
+}

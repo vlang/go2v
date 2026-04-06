@@ -1,0 +1,7 @@
+module main
+
+const planet = 'Earth'
+
+fn main() {
+	println('We live on planet ${planet}')
+}

@@ -1,0 +1,16 @@
+module main
+
+import time
+
+fn main() {
+	println('Scheduling f(42)')
+	mut timer := time.after_func(3 * time.second, fn () {
+		f(42)
+	})
+	_ = timer
+	time.sleep(4 * time.second)
+}
+
+fn f(i isize) {
+	println('Received ${i}')
+}

@@ -1,0 +1,50 @@
+module main
+
+fn main() {
+	mut items := []&Image{}
+
+	{
+		mut red := new_uniform(Rgb{0xFF, 0, 0})
+		mut white := new_uniform(Rgb{0xFF, 0xFF, 0xFF})
+		items = [image(red), white, red]
+		println('items = ${items}')
+		mut x := red
+		mut j := isize(0)
+		for i, v in items {
+			if v != x {
+				items[j] = items[i]
+				j++
+			}
+		}
+		for k := j; k < items.len; k++ {
+			items[k] = unsafe { nil }
+		}
+		items = items[..j]
+	}
+	print_alloc_info()
+	println('items = ${items}')
+	println('items undelying = ${items[..3]}')
+}
+
+type Image = [1024][1024]Rgb
+type Rgb = [3]u8
+
+fn new_uniform(color Rgb) &Image {
+	mut im := &Image{}
+	for x, _ in im {
+		for y, _ in im[x] {
+			im[x][y] = color
+		}
+	}
+	return im
+}
+
+fn print_alloc_info() {
+	mut stats := runtime.MemStats
+	{}
+
+	runtime.gc()
+	runtime.read_mem_stats(&stats)
+	println('Bytes allocated (total): ${stats.total_alloc}')
+	println('Bytes still allocated:   ${stats.alloc}')
+}

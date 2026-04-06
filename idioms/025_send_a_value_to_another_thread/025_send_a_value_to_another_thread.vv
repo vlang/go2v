@@ -1,0 +1,13 @@
+module main
+
+import time
+
+fn main() {
+	mut ch := chan string{}
+	spawn fn [mut ch] () {
+		mut v := <-ch
+		print('Hello, ${v}\n')
+	}()
+	ch <- 'Alan'
+	time.sleep(time.second)
+}

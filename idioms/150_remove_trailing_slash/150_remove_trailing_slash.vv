@@ -1,0 +1,7 @@
+module main
+
+fn main() {
+	mut p := '/usr/bin/'
+	p = p.trim_right('/')
+	println(p)
+}
