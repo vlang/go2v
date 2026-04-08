@@ -480,7 +480,7 @@ fn go_fmt_to_v_interpolation_spec(flags string, width string, precision string, 
 	if width != '' {
 		spec += width
 	}
-	if precision!= '' {
+	if precision != '' {
 		spec += '.${precision}'
 	}
 	if verb == `b` || verb == `c` {
