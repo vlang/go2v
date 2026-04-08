@@ -1,0 +1,15 @@
+module main
+
+import math.big
+
+fn main() {
+	mut i := isize(1234)
+	mut s := '${i}'
+	println(s)
+	mut j := isize(5678)
+	s = '${j}'
+	println(s)
+	mut k := big.new_int(90123456)
+	s = '${k}'
+	println(s)
+}

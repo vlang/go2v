@@ -1,0 +1,18 @@
+module main
+
+type EE = string
+
+fn main() {
+	mut x := map[EE]bool{}
+	x['foo'] = true
+	{
+		mut e := EE('foo')
+		mut b := x[e]
+		print('x contains "${e}": ${b}\n')
+	}
+	{
+		mut e_1 := EE('barbaz')
+		mut b_1 := x[e_1]
+		print('x contains "${e_1}": ${b_1}\n')
+	}
+}

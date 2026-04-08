@@ -1,0 +1,27 @@
+module main
+
+import strconv
+
+fn compose(f fn (AA) BB, g fn (BB) CC) fn (AA) CC {
+	return fn [mut g, mut f] (x AA) CC {
+		return g(f(x))
+	}
+}
+
+fn main() {
+	mut square_from_str := compose(str2int, square)
+	println(square_from_str('12'))
+}
+
+type AA = string
+type BB = isize
+type CC = isize
+
+fn str2int(a AA) BB {
+	b := strconv.parse_int(a.str(), 10, 32) or { 0 }
+	return BB(b)
+}
+
+fn square(b BB) CC {
+	return CC(b * b)
+}

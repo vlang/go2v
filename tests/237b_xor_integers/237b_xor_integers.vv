@@ -1,0 +1,13 @@
+module main
+
+import math.big
+
+fn main() {
+	mut a, b := big.new_int(230), big.new_int(42)
+	mut c := &big.Int{}
+	c.xor(a, b)
+	print('a is ${a:12b}\n')
+	print('b is ${b:12b}\n')
+	print('c is ${c:12b}\n')
+	println('c == ${c}')
+}

@@ -1,0 +1,34 @@
+module main
+
+import io.util
+import log
+
+fn read_lines(path string) ([]string, IError) {
+	mut b, err := ioutil.read_file(path)
+	if !isnil(err) {
+		return unsafe { nil }, err
+	}
+	mut lines := b.str()
+		.split('\n')
+	return lines, unsafe { nil }
+}
+
+fn main() {
+	mut lines, err := read_lines('/tmp/file1')
+	if !isnil(err) {
+		log.fatalln(err)
+	}
+	for i, line in lines {
+		print('line ${i}: ${line}\n')
+	}
+}
+
+fn init() {
+	mut data := r'foo
+bar
+baz'.bytes()
+	mut err := ioutil.write_file('/tmp/file1', data, 644)
+	if !isnil(err) {
+		log.fatalln(err)
+	}
+}

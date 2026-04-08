@@ -1,0 +1,18 @@
+module main
+
+fn print_subtraction(a []isize, b []isize) {
+	mainloop: for v in a {
+		for w in b {
+			if v == w {
+				continue mainloop
+			}
+		}
+		println(v)
+	}
+}
+
+fn main() {
+	mut a := [isize(1), 2, 3, 4]
+	mut b := [isize(2), 4, 6, 8]
+	print_subtraction(a, b)
+}

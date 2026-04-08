@@ -1,0 +1,12 @@
+module main
+
+enum Suit {
+	spades
+	hearts
+	diamonds
+	clubs
+}
+
+fn main() {
+	print('Hearts has type ${typeof(.hearts).name} and value ${.hearts}')
+}

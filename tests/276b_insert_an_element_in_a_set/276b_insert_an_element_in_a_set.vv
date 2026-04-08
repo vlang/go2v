@@ -1,0 +1,12 @@
+module main
+
+type EE = string
+
+fn main() {
+	mut x := map[EE]bool{}
+	mut e := EE('foo')
+	x[e] = true
+	for t, _ in x {
+		print('x contains element "${t}" \n')
+	}
+}

@@ -1,0 +1,15 @@
+module main
+
+import encoding.utf8
+
+fn main() {
+	mut m := isize(3)
+	mut c := '-'
+	for mut s in ['', 'a', 'ab', 'abc', 'abcd', 'é'] {
+		mut n := utf8.rune_count_in_string(s)
+		if n < m {
+			s = c.repeat(m - n) + s
+		}
+		println(s)
+	}
+}

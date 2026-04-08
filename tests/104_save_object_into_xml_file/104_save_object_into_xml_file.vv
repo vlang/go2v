@@ -1,0 +1,40 @@
+module main
+
+import encoding.xml
+import io.util
+
+fn write_xml_file() IError {
+	mut x := Person{
+		first_name: 'Napoléon'
+		age:        51
+	}
+	mut buffer, err := xml.marshal_indent(x, '', '  ')
+	if !isnil(err) {
+		return err
+	}
+	return ioutil.write_file(filename, buffer, 644)
+}
+
+fn main() {
+	mut err := write_xml_file()
+	if !isnil(err) {
+		panic(err)
+	}
+	println('Done.')
+	mut read_back_buffer, err_1 := ioutil.read_file(filename)
+	if !isnil(err_1) {
+		panic(err_1)
+	}
+	mut read_back := read_back_buffer.str()
+
+	println('File ${filename} now contains:')
+	println(read_back)
+}
+
+pub struct Person {
+pub mut:
+	first_name string
+	age        isize
+}
+
+const filename = '/tmp/data.xml'

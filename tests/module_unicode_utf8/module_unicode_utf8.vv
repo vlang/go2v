@@ -20,5 +20,5 @@ fn main() {
 	println(utf8.rune_error)
 	println(utf8.rune_self)
 	println(utf8.max_rune)
-	println(utf8.utfm_ax)
+	println(utf8.utf_max)
 }

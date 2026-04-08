@@ -1,0 +1,76 @@
+module main
+
+import io
+import io.util
+import net
+import net.http
+import os
+
+fn main() {
+	mut err := save_get_response()
+	check(err)
+	err = read_file()
+	check(err)
+	println('Done.')
+}
+
+fn save_get_response() IError {
+	mut u := 'http://' + localhost + '/hello?name=Inigo+Montoya'
+	println('Making GET request')
+	mut resp, err := http.get(u)
+	if !isnil(err) {
+		return err
+	}
+	defer {
+		resp.body.close()
+	}
+	if resp.status_code != 200 {
+		return error('Status: ${resp.status}')
+	}
+	println('Saving data to file')
+	mut out, err_1 := os.create('/tmp/result.txt')
+	if !isnil(err_1) {
+		return err_1
+	}
+	defer {
+		out.close()
+	}
+	_, err = io.copy(out, resp.body)
+	if !isnil(err_1) {
+		return err_1
+	}
+	return unsafe { nil }
+}
+
+fn read_file() IError {
+	println('Reading file')
+	mut buffer, err := ioutil.read_file('/tmp/result.txt')
+	if !isnil(err) {
+		return err
+	}
+	print('Saved data is "${buffer.str()}"\n')
+	return unsafe { nil }
+}
+
+const localhost = '127.0.0.1:3000'
+
+fn init() {
+	http.handle_func('/hello', my_handler)
+	start_server()
+}
+
+fn my_handler(w http.ResponseWriter, r &http.Request) {
+	w.write_string('Hello ${r.form_value('name')}') or { 0 }
+}
+
+fn start_server() {
+	mut listener, err := net.listen('tcp', localhost)
+	check(err)
+	spawn http.serve(listener, unsafe { nil })
+}
+
+fn check(err IError) {
+	if !isnil(err) {
+		panic(err)
+	}
+}

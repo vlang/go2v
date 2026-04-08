@@ -1,7 +1,0 @@
-module main
-
-fn main() {
-	mut x := float(0.15625)
-	mut s := '${100.0 * x:.1f}%'
-	println(s)
-}

@@ -1,0 +1,15 @@
+module main
+
+import time
+
+fn main() {
+	mut t1 := time.now()
+	foo()
+	mut t := time.since(t1)
+	mut ns := i64(t / time.nanosecond)
+	print('${ns}ns\n')
+}
+
+fn foo() {
+	println('Hello')
+}

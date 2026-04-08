@@ -154,7 +154,20 @@ fn (mut app App) decl_stmt(d DeclStmt) {
 
 							cast := if spec.typ is Ident {
 								ident := spec.typ as Ident
-								go2v_type(ident.name.to_lower())
+								type_info := go2v_type_checked(ident.name)
+								if type_info.is_basic {
+									type_info.v_type
+								} else {
+									mut c := go2v_type(ident.name.to_lower())
+									for n in spec.names {
+										if app.go2v_ident(n.name) == c {
+											app.force_upper = true
+											c = app.go2v_ident(ident.name)
+											break
+										}
+									}
+									c
+								}
 							} else {
 								''
 							}
@@ -513,11 +526,27 @@ fn (mut app App) labeled_stmt(l LabeledStmt) {
 }
 
 fn (mut app App) range_stmt(node RangeStmt) {
-	// Check if key or value variables are reassigned in the loop body
-	key_is_mut := node.key.name != '' && app.is_assigned_in_block(node.key.name, node.body)
-	value_is_mut := node.value.name != '' && app.is_assigned_in_block(node.value.name, node.body)
+	value_is_mut := node.value.name != '' && node.value.name != '_'
+		&& app.is_assigned_in_block(node.value.name, node.body)
 
 	app.gen('for ')
+	if (node.key.name == '_' || node.key.name == '') && node.value.name != '' {
+		v_val := app.go2v_ident(node.value.name)
+		value_name := app.unique_name_anti_shadow(v_val)
+		app.cur_fn_names[value_name] = true
+		if value_name != v_val {
+			app.name_mapping[node.value.name] = value_name
+		}
+		if value_is_mut {
+			app.gen('mut ')
+		}
+		app.gen(value_name)
+		app.gen(' in ')
+		app.expr(node.x)
+		app.gen(' ')
+		app.block_stmt(node.body)
+		return
+	}
 	// Both key and value are present
 	// if node.key.name != node.value.name {
 	if node.key.name == '' {
@@ -530,9 +559,7 @@ fn (mut app App) range_stmt(node RangeStmt) {
 		if key_name != v_key {
 			app.name_mapping[node.key.name] = key_name
 		}
-		if key_is_mut {
-			app.gen('mut ')
-		}
+		// Do NOT add `mut` to the key — V forbids mut on map/array keys in for-range
 		app.gen(key_name)
 		app.gen(', ')
 		if node.value.name == '' {

@@ -1,8 +1,0 @@
-module main
-
-fn main() {
-	mut items := ['oranges', 'apples', 'bananas']
-	for i, x in items {
-		print('Item ${i:d} = ${x} \n')
-	}
-}

@@ -1,0 +1,12 @@
+module main
+
+fn main() {
+	mut items := ['a', 'b', 'b', 'aaa', 'c', 'a', 'd']
+	println('items has ${items.len} elements')
+	mut distinct := map[string]bool{}
+	for v in items {
+		distinct[v] = true
+	}
+	mut c := distinct.len
+	println('items has ${c} distinct elements')
+}

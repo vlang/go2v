@@ -1,0 +1,66 @@
+module main
+
+import io
+import io.util
+import log
+import os
+
+fn main() {
+	mut list := ['readme.txt', 'gopher.txt', 'todo.txt']
+	mut name := 'archive.zip'
+	mut err := make_zip(list, name)
+	if !isnil(err) {
+		log.fatal(err)
+	}
+}
+
+fn make_zip(list []string, name string) IError {
+	mut buf := &bytes.Buffer
+	{}
+	mut w := zip.new_writer(buf)
+	for filename in list {
+		mut input, err := os.open(filename)
+		if !isnil(err) {
+			return err
+		}
+		mut output, err_1 := w.create(filename)
+		if !isnil(err_1) {
+			return err_1
+		}
+		_, err = io.copy(output, input)
+		if !isnil(err_1) {
+			return err_1
+		}
+	}
+	mut err_2 := w.close()
+	if !isnil(err_2) {
+		return err_2
+	}
+	mut n := buf.len()
+	err = ioutil.write_file(name, buf.bytes(), 777)
+	if !isnil(err_2) {
+		return err_2
+	}
+	log.println('Written a ZIP file of', n, 'bytes')
+	return unsafe { nil }
+}
+
+fn init() {
+	mut files := [
+		Go2VInlineStruct{'readme.txt', 'This archive contains some text files.'},
+		Go2VInlineStruct{'gopher.txt', 'Gopher names:\nGeorge\nGeoffrey\nGonzo'},
+		Go2VInlineStruct{'todo.txt', 'Get animal handling licence.\nWrite more examples.'},
+	]
+	for file in files {
+		mut err := ioutil.write_file(file.name, file.body.bytes(), 777)
+		if !isnil(err) {
+			log.fatal(err)
+		}
+	}
+}
+
+pub struct Go2VInlineStruct {
+mut:
+	name string
+	body string
+}

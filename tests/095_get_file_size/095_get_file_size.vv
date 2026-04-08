@@ -1,0 +1,29 @@
+module main
+
+import io.util
+import os
+
+fn main() {
+	mut err := print_size('file.txt')
+	if !isnil(err) {
+		panic(err)
+	}
+}
+
+fn print_size(path string) IError {
+	mut info, err := os.stat(path)
+	if !isnil(err) {
+		return err
+	}
+	mut x := info.size()
+	println(x)
+	return unsafe { nil }
+}
+
+fn init() {
+	mut buffer := 'Hello'.bytes()
+	mut err := ioutil.write_file('file.txt', buffer, 644)
+	if !isnil(err) {
+		panic(err)
+	}
+}

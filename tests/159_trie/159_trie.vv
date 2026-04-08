@@ -1,0 +1,81 @@
+module main
+
+import string_helpers
+import encoding.utf8
+
+pub struct Trie {
+pub mut:
+	c        rune
+	children map[rune]&Trie
+	is_leaf  bool
+	value    VV
+}
+
+type VV = isize
+
+fn main() {
+	mut t := new_trie(0)
+	for s, v in {
+		'to':  7
+		'tea': 3
+		'ted': 4
+		'ten': 12
+		'A':   15
+		'i':   11
+		'in':  5
+		'inn': 9
+	} {
+		t.insert(s, v)
+	}
+	println(t.starts_with('te', ''))
+}
+
+pub fn new_trie(c rune) &Trie {
+	mut t := &Trie{}
+	t.c = c
+	t.children = map[rune]&Trie{}
+	return t
+}
+
+fn (mut t Trie) insert(s string, value VV) {
+	if s == '' {
+		t.is_leaf = true
+		t.value = value
+		return
+	}
+	mut c, tail := cut(s)
+	exists := c in t.children
+	child := t.children[c]
+	if !exists {
+		child = new_trie(c)
+		t.children[c] = child
+	}
+	child.insert(tail, value)
+}
+
+fn (mut t Trie) starts_with(p string, accu string) []string {
+	if isnil(t) {
+		return unsafe { nil }
+	}
+	if p == '' {
+		mut result := []string{}
+
+		if t.is_leaf {
+			result << accu
+		}
+		for c, child in t.children {
+			mut rec := child.starts_with('', accu + c.str())
+			result << rec
+		}
+		return result
+	}
+	mut c_1, tail := cut(p)
+	return t.children[c_1].starts_with(tail, accu + c_1.str())
+}
+
+fn cut(s string) (rune, string) {
+	mut head := rune(0)
+	mut tail := ''
+	mut r, size := string_helpers.decode_rune_in_string(s)
+	return r, s[size..]
+}

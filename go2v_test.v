@@ -16,12 +16,6 @@ fn test_all() {
 	test_names.sort()
 	tests_to_run['tests'] = test_names
 
-	mut idiom_names := os.ls('idioms') or { return }
-	if idiom_names.len > 0 {
-		idiom_names.sort()
-		tests_to_run['idioms'] = idiom_names
-	}
-
 	mut complex_names := os.ls('complex_tests/esbuild') or { return }
 	if complex_names.len > 0 {
 		complex_names.sort()

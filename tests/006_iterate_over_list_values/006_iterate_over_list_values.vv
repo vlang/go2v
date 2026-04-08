@@ -1,0 +1,12 @@
+module main
+
+fn main() {
+	mut items := [isize(11), 22, 33]
+	for x in items {
+		do_something(x)
+	}
+}
+
+fn do_something(i isize) {
+	println(i)
+}

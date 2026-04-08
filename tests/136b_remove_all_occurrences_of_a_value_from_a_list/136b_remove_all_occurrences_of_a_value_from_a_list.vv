@@ -1,0 +1,18 @@
+module main
+
+fn main() {
+	mut items := ['b', 'a', 'b', 'a', 'r']
+	println(items)
+	mut x := TT('b')
+	mut j := isize(0)
+	for i, v in items {
+		if v != x {
+			items[j] = items[i]
+			j++
+		}
+	}
+	items = items[..j]
+	println(items)
+}
+
+type TT = string

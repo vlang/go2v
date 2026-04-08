@@ -1,0 +1,47 @@
+module main
+
+pub struct Tree {
+pub mut:
+	key      Key
+	deco     Value
+	children []&Tree
+}
+
+type Key = string
+type Value = string
+
+pub fn (mut t Tree) str() string {
+	mut str := '('
+	str += t.deco.str()
+
+	if t.children.len == 0 {
+		return str + ')'
+	}
+	str += ' ('
+	for child in t.children {
+		str += child.str()
+	}
+	str += '))'
+	return str
+}
+
+pub fn (mut this Tree) add_child(x Key, v Value) &Tree {
+	mut child := &Tree{
+		key:  x
+		deco: v
+	}
+	this.children << child
+	return child
+}
+
+fn main() {
+	mut tree := &Tree{
+		key:  'Granpa'
+		deco: 'Abraham'
+	}
+	mut subtree := tree.add_child('Dad', 'Homer')
+	subtree.add_child('Kid 1', 'Bart')
+	subtree.add_child('Kid 2', 'Lisa')
+	subtree.add_child('Kid 3', 'Maggie')
+	println(tree)
+}

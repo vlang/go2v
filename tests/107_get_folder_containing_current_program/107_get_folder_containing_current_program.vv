@@ -1,0 +1,16 @@
+module main
+
+import os
+import path.filepath
+
+fn main() {
+	mut dir := ''
+
+	mut program_path := os.args[0]
+	mut absolute_path, err := filepath.abs(program_path)
+	if !isnil(err) {
+		panic(err)
+	}
+	dir = filepath.dir(absolute_path)
+	println(dir)
+}

@@ -1,0 +1,12 @@
+module main
+
+fn main() {
+	for s in ['123', '', 'abc123def', 'abc', '123.456', '123 456'] {
+		mut is_not_digit := fn (c rune) bool {
+			return c < `0` || c > `9`
+		}
+
+		mut b := s.index_func(is_not_digit) == -1
+		println('${s} => ${b}')
+	}
+}

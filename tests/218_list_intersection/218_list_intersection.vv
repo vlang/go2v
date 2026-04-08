@@ -1,0 +1,24 @@
+module main
+
+type TT = isize
+
+fn main() {
+	mut a := [4, 5, 6, 7, 8, 9, 10]
+	mut b := [1, 3, 9, 5, 7, 9, 7, 7]
+	mut seta := map[TT]bool{}
+	for x in a {
+		seta[x] = true
+	}
+	mut setb := map[TT]bool{}
+	for y in b {
+		setb[y] = true
+	}
+	mut c := []TT{}
+
+	for x_1, _ in seta {
+		if setb[x_1] {
+			c << x_1
+		}
+	}
+	println(c)
+}

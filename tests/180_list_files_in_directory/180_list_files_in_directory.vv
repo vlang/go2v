@@ -1,0 +1,15 @@
+module main
+
+import io.util
+import log
+
+fn main() {
+	mut d := '/'
+	mut x, err := ioutil.read_dir(d)
+	if !isnil(err) {
+		log.fatal(err)
+	}
+	for f in x {
+		println(f.name())
+	}
+}

@@ -1,0 +1,14 @@
+module main
+
+import encoding.hex
+import log
+
+fn main() {
+	mut s := '48656c6c6f'
+	mut a, err := hex.decode_string(s)
+	if !isnil(err) {
+		log.fatal(err)
+	}
+	println(a)
+	println(a.str())
+}

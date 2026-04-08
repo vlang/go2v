@@ -1,7 +1,0 @@
-module main
-
-fn main() {
-	mut x := float(3.14159)
-	mut s := '${x:.2f}'
-	println(s)
-}

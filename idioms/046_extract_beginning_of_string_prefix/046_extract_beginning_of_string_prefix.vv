@@ -1,7 +1,0 @@
-module main
-
-fn main() {
-	mut s := 'Привет'
-	mut t := s.runes[..5].str()
-	println(t)
-}

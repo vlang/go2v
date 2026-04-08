@@ -1,0 +1,26 @@
+module main
+
+import io.util
+import os
+
+pub const f = '/tmp/data.txt'
+
+fn init() {
+	mut err := ioutil.write_file(f, 'abcdefghij'.bytes(), 644)
+	if !isnil(err) {
+		panic(err)
+	}
+}
+
+fn main() {
+	mut position := i64(5)
+	mut err := os.truncate(f, position)
+	if !isnil(err) {
+		panic(err)
+	}
+	mut buffer, err_1 := ioutil.read_file(f)
+	if !isnil(err_1) {
+		panic(err_1)
+	}
+	print('${f} has length ${buffer.len} and contents "${buffer}"\n')
+}

@@ -1,0 +1,10 @@
+module main
+
+import math.bits
+
+fn main() {
+	for i := usize(0); i < 16; i++ {
+		mut c := bits.ones_count(i)
+		print('${i:4} ${i:04b} ${c}\n')
+	}
+}

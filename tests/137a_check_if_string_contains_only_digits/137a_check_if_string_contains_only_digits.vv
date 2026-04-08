@@ -1,0 +1,14 @@
+module main
+
+fn main() {
+	for s in ['123', '', 'abc123def', 'abc', '123.456', '123 456'] {
+		mut b := true
+		for c in s {
+			if c < `0` || c > `9` {
+				b = false
+				break
+			}
+		}
+		println('${s} => ${b}')
+	}
+}

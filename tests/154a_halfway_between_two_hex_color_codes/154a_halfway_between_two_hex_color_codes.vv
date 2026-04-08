@@ -1,0 +1,51 @@
+module main
+
+import strconv
+
+// For concision, halfway assume valid inputs.
+// Caller must have explicitly checked that c1, c2 are well-formed color codes.
+fn halfway(c1 string, c2 string) string {
+	r1 := strconv.parse_int(c1[1..3], 16, 0) or { 0 }
+	r2 := strconv.parse_int(c2[1..3], 16, 0) or { 0 }
+	mut r := (r1 + r2) / 2
+	g1 := strconv.parse_int(c1[3..5], 16, 0) or { 0 }
+	g2 := strconv.parse_int(c2[3..5], 16, 0) or { 0 }
+	mut g := (g1 + g2) / 2
+	b1 := strconv.parse_int(c1[5..7], 16, 0) or { 0 }
+	b2 := strconv.parse_int(c2[5..7], 16, 0) or { 0 }
+	mut b := (b1 + b2) / 2
+	mut c := '#${r.hex().to_upper():02}${g.hex().to_upper():02}${b.hex().to_upper():02}'
+	return c
+}
+
+fn main() {
+	mut c1 := '#15293E'
+	mut c2 := '#012549'
+	mut err := check_format(c1)
+	if !isnil(err) {
+		panic(error('Wrong input "${c1}": ${err}'))
+	}
+	mut err_1 := check_format(c2)
+	if !isnil(err_1) {
+		panic(error('Wrong input "${c2}": ${err_1}'))
+	}
+	mut c := halfway(c1, c2)
+	println('The average of ${c1} and ${c2} is ${c}')
+}
+
+fn check_format(color string) IError {
+	if color.len != 7 {
+		return error('Hex colors have exactly 7 chars')
+	}
+	if color[0] != `#` {
+		return error('Hex colors start with #')
+	}
+	mut is_not_digit := fn (c rune) bool {
+		return (c < `0` || c > `9`) && (c < `a` || c > `f`)
+	}
+
+	if color[1..].to_lower().index_func(is_not_digit) != -1 {
+		return error('Forbidden char')
+	}
+	return unsafe { nil }
+}

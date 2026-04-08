@@ -76,11 +76,12 @@ fn go2v_type_checked(typ string) TypeConversion {
 // V keywords that need escaping - split into regular keywords and literals
 // V keywords that need escaping in identifiers
 // Only include keywords that cause issues when used as variable/function names
-const v_keywords = ['match', 'in', 'fn', 'as', 'enum', 'typeof', 'or', 'and', 'is', 'not', 'error']
-const v_literals = ['true', 'false', 'none'] // These are only escaped when converted from different case
+const v_keywords = ['match', 'in', 'fn', 'as', 'enum', 'typeof', 'or', 'and', 'is', 'not', 'error',
+	'lock']!
+const v_literals = ['true', 'false', 'none']! // These are only escaped when converted from different case
 // V type names that conflict with field/method names (e.g., name.string would be interpreted as module access)
 const v_type_names = ['string', 'int', 'bool', 'f32', 'f64', 'i8', 'i16', 'i32', 'i64', 'u8', 'u16',
-	'u32', 'u64', 'isize', 'usize', 'rune', 'voidptr']
+	'u32', 'u64', 'isize', 'usize', 'rune', 'voidptr']!
 
 // Greek letters to ASCII equivalents for V compatibility
 const greek_to_ascii = {

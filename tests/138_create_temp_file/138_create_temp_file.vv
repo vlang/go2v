@@ -1,0 +1,35 @@
+module main
+
+import io.util
+import log
+import os
+
+fn main() {
+	mut content := 'Big bag of misc data'.bytes()
+	log.println('Opening new temp file')
+	mut tmpfile, err := ioutil.temp_file('', 'example')
+	if !isnil(err) {
+		log.fatal(err)
+	}
+	mut tmpfilename := tmpfile.name()
+	defer {
+		os.remove(tmpfilename)
+	}
+	log.println('Opened new file', tmpfilename)
+	log.println('Writing [[', content.str(), ']]')
+	_, err_1 := tmpfile.write(content)
+	if !isnil(err_1) {
+		log.fatal(err_1)
+	}
+	mut err_2 := tmpfile.close()
+	if !isnil(err_2) {
+		log.fatal(err_2)
+	}
+	log.println('Closed', tmpfilename)
+	log.println('Opening', tmpfilename)
+	mut buffer, err_3 := ioutil.read_file(tmpfilename)
+	if !isnil(err_3) {
+		log.fatal(err_3)
+	}
+	log.println('Read[[', buffer.str(), ']]')
+}

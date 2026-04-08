@@ -2,7 +2,7 @@ module main
 
 pub fn sum(nums ...isize) isize {
 	mut res := isize(0)
-	for _, n in nums {
+	for n in nums {
 		res += n
 	}
 	return res

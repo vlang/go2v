@@ -1,0 +1,12 @@
+module main
+
+fn main() {
+	mut items1 := ['a', 'b', 'c']
+	mut items2 := ['A', 'B', 'C']
+	for v in items1 {
+		println(v)
+	}
+	for v_1 in items2 {
+		println(v_1)
+	}
+}

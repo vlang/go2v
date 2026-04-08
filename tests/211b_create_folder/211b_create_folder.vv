@@ -1,0 +1,25 @@
+module main
+
+import os
+
+fn main() {
+	mut path := 'foo/bar'
+	_, err := os.stat(path)
+	mut b := !os.is_not_exist(err)
+	println('${path} exists: ${b}')
+	err = os.mkdir(path, os.mode_dir)
+	if !isnil(err) {
+		println('Could not create ${path} with os.Mkdir')
+	}
+	mut info, err2 := os.stat(path)
+	b = !os.is_not_exist(err2)
+	println('${path} exists: ${b}')
+	err = os.mkdir_all(path, os.mode_dir)
+	if !isnil(err) {
+		println('Could not create ${path} with os.MkdirAll')
+	}
+	info, err2 = os.stat(path)
+	b = !os.is_not_exist(err2)
+	println('${path} exists: ${b}')
+	println('${path} is a directory: ${info.is_dir()}')
+}

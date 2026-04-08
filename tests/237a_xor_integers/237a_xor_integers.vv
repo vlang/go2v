@@ -1,0 +1,10 @@
+module main
+
+fn main() {
+	mut a, b := isize(230), isize(42)
+	mut c := a ^ b
+	print('a is ${a:12b}\n')
+	print('b is ${b:12b}\n')
+	print('c is ${c:12b}\n')
+	println('c == ${c}')
+}

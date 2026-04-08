@@ -1,0 +1,24 @@
+module main
+
+type TT = isize
+
+fn main() {
+	mut x := [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+	mut p := fn (t TT) bool {
+		return t % 2 == 0
+	}
+
+	mut n := isize(0)
+	for v in x {
+		if p(v) {
+			n++
+		}
+	}
+	mut y := []TT{len: 0, cap: n}
+	for v_1 in x {
+		if p(v_1) {
+			y << v_1
+		}
+	}
+	println(y)
+}

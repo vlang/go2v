@@ -1,0 +1,10 @@
+module main
+
+fn main() {
+	mut x := [isize(1), 2, 3]
+	mut s := isize(0)
+	for v in x {
+		s += v
+	}
+	println(s)
+}

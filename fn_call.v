@@ -152,6 +152,14 @@ fn (mut app App) call_expr(call CallExpr) {
 				app.expr(call.args[0])
 			}
 			return
+		} else if call.args.len == 1 && fun.name in app.struct_or_alias {
+			// Type alias conversion, e.g. B(x) => BB(x)
+			app.force_upper = true
+			app.gen(app.go2v_ident(fun.name))
+			app.gen('(')
+			app.expr(call.args[0])
+			app.gen(')')
+			return
 		} else if fun.name != go2v_type(fun.name) {
 			app.gen(go2v_type(fun.name))
 			app.gen('(')

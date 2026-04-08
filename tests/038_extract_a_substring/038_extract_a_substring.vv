@@ -1,0 +1,9 @@
+module main
+
+fn main() {
+	mut s := 'hello, utf-8 문자들'
+	mut i, j := isize(7), isize(15)
+	mut t := s.runes[i..j].str()
+
+	println(t)
+}

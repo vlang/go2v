@@ -1,0 +1,48 @@
+module main
+
+import encoding.json
+import io.util
+import os
+
+fn read_json_file() IError {
+	mut x := Person{}
+
+	mut r, err := os.open(filename)
+	if !isnil(err) {
+		return err
+	}
+	mut decoder := json.new_decoder(r)
+	err = decoder.decode(&x)
+	if !isnil(err) {
+		return err
+	}
+	println(x)
+	return unsafe { nil }
+}
+
+fn main() {
+	mut err := read_json_file()
+	if !isnil(err) {
+		panic(err)
+	}
+}
+
+pub struct Person {
+pub mut:
+	first_name string
+	age        isize
+}
+
+const filename = '/tmp/data.json'
+
+fn init() {
+	mut err := ioutil.write_file(filename, r'
+		{
+			"FirstName":"Napoléon",
+			"Age": 51 
+		}'.bytes(),
+		644)
+	if !isnil(err) {
+		panic(err)
+	}
+}

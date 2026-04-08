@@ -1,0 +1,10 @@
+module main
+
+fn main() {
+	mut s := 'Résumé'
+	mut i := isize(0)
+	for c in s {
+		print('Char ${i} is ${c:c}\n')
+		i++
+	}
+}

@@ -1,0 +1,16 @@
+module main
+
+fn main() {
+	mut items := ['b', 'a', 'b', 'a', 'r']
+	println(items)
+	mut x := t('b')
+	mut items2 := []TT{len: 0, cap: items.len}
+	for v in items {
+		if v != x {
+			items2 << v
+		}
+	}
+	println(items2)
+}
+
+type TT = string

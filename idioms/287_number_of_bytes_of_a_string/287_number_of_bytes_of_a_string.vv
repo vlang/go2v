@@ -1,7 +1,0 @@
-module main
-
-fn main() {
-	mut s := 'Résumé'
-	mut n := s.len
-	print('"${s}" has ${n:d} bytes')
-}

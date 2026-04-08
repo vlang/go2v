@@ -1,0 +1,32 @@
+module main
+
+import io.util
+import log
+import os
+import path.filepath
+
+fn main() {
+	mut content := "temporary file's content".bytes()
+	mut dir, err := ioutil.temp_dir('', '')
+	if !isnil(err) {
+		log.fatal(err)
+	}
+	defer {
+		os.remove_all(dir)
+	}
+	inspect(dir)
+	mut tmpfn := filepath.join(dir, 'tmpfile')
+	err = ioutil.write_file(tmpfn, content, 666)
+	if !isnil(err) {
+		log.fatal(err)
+	}
+	inspect(dir)
+}
+
+fn inspect(dirpath string) {
+	mut files, err := ioutil.read_dir(dirpath)
+	if !isnil(err) {
+		log.fatal(err)
+	}
+	println('${dirpath} contains ${files.len} files')
+}

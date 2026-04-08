@@ -3,7 +3,7 @@ module main
 fn main() {
 	defer {
 		mut x := recover()
-		if x != unsafe { nil } {
+		if !isnil(x) {
 			mut e := x
 			match x.type_name() {
 				'IError' {

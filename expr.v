@@ -109,27 +109,53 @@ fn (mut app App) basic_lit(l BasicLit) {
 		app.gen(quoted_lit(l.value, '`'))
 	} else if l.kind == 'STRING' {
 		app.gen(quoted_lit(l.value, "'"))
+	} else if l.kind == 'IMAG' {
+		// V has no direct `3i` literal syntax; emit a numeric fallback.
+		mut numeric := l.value
+		if numeric.ends_with('i') {
+			numeric = numeric[..numeric.len - 1]
+		}
+		if numeric.len == 0 || numeric == '+' || numeric == '-' {
+			app.gen('0.0')
+		} else {
+			app.gen(numeric)
+		}
 	} else {
 		app.gen(l.value)
 	}
 }
 
 fn (mut app App) binary_expr(b BinaryExpr) {
-	if b.op == '+' && (b.x is BasicLit || b.y is BasicLit) {
+	mut normalized_op := b.op
+	if normalized_op.len == 0 || normalized_op.trim_space() == '' {
+		normalized_op = '||'
+	}
+	known_ops := ['+', '-', '*', '/', '%', '==', '!=', '<', '>', '<=', '>=', '&', '|', '^', '&^',
+		'<<', '>>', '&&', '||']
+	if normalized_op !in known_ops {
+		// asty can occasionally emit an empty/non-printable op for logical OR.
+		// Falling back to `||` avoids malformed infix expressions such as `a b`.
+		normalized_op = '||'
+	}
+	if normalized_op == '+' && (b.x is BasicLit || b.y is BasicLit) {
 		x := b.x
 		y := b.y
 		if x is BasicLit && x.kind == 'INT' && y is BasicLit && y.kind == 'INT' {
-			app.gen('${x.value}${b.op}${y.value}')
+			app.gen('${x.value}${normalized_op}${y.value}')
 		} else {
 			// Use regular concatenation to properly handle string escaping
 			app.expr(x)
 			app.gen('+')
 			app.expr(y)
 		}
-	} else if (b.op == '==' || b.op == '!=') && app.is_error_nil_comparison(b) {
+	} else if (normalized_op == '==' || normalized_op == '!=') && app.is_error_nil_comparison(b) {
 		// Handle error variable comparison with nil: err == nil => err == none
 		app.gen_error_nil_comparison(b)
-	} else if b.op in ['<', '>', '<=', '>='] && app.is_potential_enum_comparison(b) {
+	} else if (normalized_op == '==' || normalized_op == '!=') && app.is_generic_nil_comparison(b) {
+		// Prefer isnil(...) for pointer/interface nil checks to avoid unsafe{nil}
+		// infix expressions that can trigger vfmt panics on very large outputs.
+		app.gen_generic_nil_comparison(b, normalized_op)
+	} else if normalized_op in ['<', '>', '<=', '>='] && app.is_potential_enum_comparison(b) {
 		// V enums only support == and != directly, not ordering comparisons
 		// We need to cast both sides to int, but for enum values (Ident),
 		// we need to use the full qualified name (e.g., LogLevel.level_info)
@@ -137,7 +163,7 @@ fn (mut app App) binary_expr(b BinaryExpr) {
 		enum_type := app.infer_enum_type_from_comparison(b)
 		app.gen('int(')
 		app.gen_enum_expr_with_type(b.x, enum_type)
-		app.gen(') ${b.op} int(')
+		app.gen(') ${normalized_op} int(')
 		app.gen_enum_expr_with_type(b.y, enum_type)
 		app.gen(')')
 	} else {
@@ -153,12 +179,12 @@ fn (mut app App) binary_expr(b BinaryExpr) {
 		if x_needs_parens {
 			app.gen(')')
 		}
-		if b.op == '\u0026^' {
+		if normalized_op == '\u0026^' {
 			app.gen(' &~ ')
 		} else {
 			// Add spaces around operators for clarity and to avoid parsing issues
 			// e.g., `}&&` could be misinterpreted
-			app.gen(' ${b.op} ')
+			app.gen(' ${normalized_op} ')
 		}
 		if y_needs_parens {
 			app.gen('(')
@@ -167,6 +193,34 @@ fn (mut app App) binary_expr(b BinaryExpr) {
 		if y_needs_parens {
 			app.gen(')')
 		}
+	}
+}
+
+fn (app App) is_generic_nil_comparison(b BinaryExpr) bool {
+	return (b.x is Ident && b.x.name == 'nil') || (b.y is Ident && b.y.name == 'nil')
+}
+
+fn (mut app App) gen_generic_nil_comparison(b BinaryExpr, op string) {
+	if b.x is Ident && b.x.name == 'nil' {
+		if op == '==' {
+			app.gen('isnil(')
+			app.expr(b.y)
+			app.gen(')')
+		} else {
+			app.gen('!isnil(')
+			app.expr(b.y)
+			app.gen(')')
+		}
+		return
+	}
+	if op == '==' {
+		app.gen('isnil(')
+		app.expr(b.x)
+		app.gen(')')
+	} else {
+		app.gen('!isnil(')
+		app.expr(b.x)
+		app.gen(')')
 	}
 }
 
@@ -200,7 +254,7 @@ fn (mut app App) gen_error_nil_comparison(b BinaryExpr) {
 
 // Common field names that likely contain enum values
 const enum_field_names = ['kind', 'type', 'level', 'mode', 'state', 'status', 'op', 'opcode', 'flag',
-	'stage', 'log_level']
+	'stage', 'log_level']!
 
 // Check if this is an enum comparison that requires int() cast in V
 // V enums only support == and != operators, not < > <= >=
@@ -287,7 +341,12 @@ fn (mut app App) chan_type(node ChanType) {
 			return
 		}
 	}
+	// Channel element types are always type names, so use force_upper to get
+	// proper translation (e.g., Go `int` -> V `isize`, not `int_`)
+	saved_force_upper := app.force_upper
+	app.force_upper = true
 	app.expr(node.value)
+	app.force_upper = saved_force_upper
 }
 
 fn (mut app App) ident(node Ident) {
@@ -312,9 +371,13 @@ fn (mut app App) ident(node Ident) {
 fn (mut app App) index_expr(s IndexExpr) {
 	app.expr(s.x)
 	app.gen('[')
-	// If the index is a struct literal, convert to string for V map compatibility
-	// V doesn't support struct types as map keys, so we use string keys
-	if s.index is CompositeLit {
+	if s.x is Ident && (s.x as Ident).name in app.map_string_key_vars {
+		app.expr(s.index)
+		app.gen('.str()')
+	}
+	// If the index is a struct literal, convert to string for V map compatibility.
+	// V doesn't support struct types as map keys, so we use string keys.
+	else if s.index is CompositeLit {
 		app.expr(s.index)
 		app.gen('.str()')
 	} else {
@@ -337,14 +400,25 @@ fn (mut app App) map_type(node MapType) {
 	app.gen('map[')
 	match node.key {
 		Ident {
-			// Map keys must be capitalized in V for struct types
-			conversion := go2v_type_checked(node.key.name)
-			if conversion.is_basic {
-				app.gen(conversion.v_type)
-			} else {
-				// V doesn't support struct types as map keys
-				// Convert to string - the key will need .str() calls at access sites
+			if node.key.name in app.struct_types {
+				// V does not support struct keys in maps; map them to string keys.
 				app.gen('string')
+			}
+			// Preserve alias/type names for non-struct map keys when available.
+			else if node.key.name in app.struct_or_alias {
+				app.force_upper = true
+				app.gen(app.go2v_ident(node.key.name))
+				app.force_upper = false
+			} else {
+				// Map keys must be capitalized in V for struct types
+				conversion := go2v_type_checked(node.key.name)
+				if conversion.is_basic {
+					app.gen(conversion.v_type)
+				} else {
+					// V doesn't support struct types as map keys
+					// Convert to string - the key will need .str() calls at access sites
+					app.gen('string')
+				}
 			}
 		}
 		SelectorExpr {

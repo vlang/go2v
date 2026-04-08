@@ -89,6 +89,8 @@ fn (app App) expr_contains_ident(e Expr, name string) bool {
 }
 
 fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
+	app.track_string_key_map_vars(assign)
+
 	// Pre-extract temp vars for module-qualified composite literals in RHS call expressions
 	// This must be done BEFORE generating the assignment to avoid breaking the syntax
 	// We track extracted args so call_expr can use the temp var instead of re-extracting
@@ -303,6 +305,46 @@ fn (mut app App) assign_stmt(assign AssignStmt, no_mut bool) {
 		app.in_unsafe_block = false
 	}
 	app.genln('')
+}
+
+fn (mut app App) track_string_key_map_vars(assign AssignStmt) {
+	if assign.lhs.len != 1 || assign.rhs.len != 1 {
+		return
+	}
+	if assign.lhs[0] !is Ident {
+		return
+	}
+	var_name := (assign.lhs[0] as Ident).name
+	rhs_expr := assign.rhs[0]
+	if rhs_expr is CompositeLit {
+		cl := rhs_expr as CompositeLit
+		if cl.typ is MapType && app.map_key_forced_to_string(cl.typ as MapType) {
+			app.map_string_key_vars[var_name] = true
+		}
+		return
+	}
+	if rhs_expr is CallExpr {
+		call := rhs_expr as CallExpr
+		if call.fun is Ident && (call.fun as Ident).name == 'make' && call.args.len > 0 {
+			if call.args[0] is MapType && app.map_key_forced_to_string(call.args[0] as MapType) {
+				app.map_string_key_vars[var_name] = true
+			}
+		}
+	}
+}
+
+fn (app App) map_key_forced_to_string(map_type MapType) bool {
+	match map_type.key {
+		Ident {
+			return map_type.key.name in app.struct_types
+		}
+		SelectorExpr {
+			return true
+		}
+		else {
+			return false
+		}
+	}
 }
 
 fn (mut app App) is_append_call(assign AssignStmt) bool {

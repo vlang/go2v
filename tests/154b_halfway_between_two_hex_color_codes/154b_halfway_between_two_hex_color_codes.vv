@@ -1,0 +1,55 @@
+module main
+
+import strconv
+
+// For concision, halfway assume valid inputs.
+// Caller must have explicitly checked that c1, c2 are well-formed color codes.
+fn halfway(c1 string, c2 string) string {
+	mut buf := [7]u8{}
+
+	buf[0] = `#`
+	for i := isize(0); i < 3; i++ {
+		mut sub1 := c1[1 + 2 * i..3 + 2 * i]
+		mut sub2 := c2[1 + 2 * i..3 + 2 * i]
+		v1 := strconv.parse_int(sub1, 16, 0) or { 0 }
+		v2 := strconv.parse_int(sub2, 16, 0) or { 0 }
+		mut v := (v1 + v2) / 2
+		mut sub := '${v.hex().to_upper():02}'
+		copy(buf[1 + 2 * i..3 + 2 * i], sub)
+	}
+	mut c := buf[..].str()
+
+	return c
+}
+
+fn main() {
+	mut c1 := '#15293E'
+	mut c2 := '#012549'
+	mut err := check_format(c1)
+	if !isnil(err) {
+		panic(error('Wrong input "${c1}": ${err}'))
+	}
+	mut err_1 := check_format(c2)
+	if !isnil(err_1) {
+		panic(error('Wrong input "${c2}": ${err_1}'))
+	}
+	mut c := halfway(c1, c2)
+	println('The average of ${c1} and ${c2} is ${c}')
+}
+
+fn check_format(color string) IError {
+	if color.len != 7 {
+		return error('Hex colors have exactly 7 chars')
+	}
+	if color[0] != `#` {
+		return error('Hex colors start with #')
+	}
+	mut is_not_digit := fn (c rune) bool {
+		return (c < `0` || c > `9`) && (c < `a` || c > `f`)
+	}
+
+	if color[1..].to_lower().index_func(is_not_digit) != -1 {
+		return error('Forbidden char')
+	}
+	return unsafe { nil }
+}

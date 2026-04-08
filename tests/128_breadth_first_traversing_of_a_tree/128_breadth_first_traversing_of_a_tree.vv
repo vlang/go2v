@@ -1,0 +1,51 @@
+module main
+
+pub fn (mut root Tree) bfs(f fn (&Tree)) {
+	if isnil(root) {
+		return
+	}
+	mut queue := [root]
+	for queue.len > 0 {
+		mut t := queue[0]
+		queue = queue[1..]
+		f(t)
+		queue << t.children
+	}
+}
+
+type Key = string
+type Value = string
+
+pub struct Tree {
+pub mut:
+	key      Key
+	deco     Value
+	children []&Tree
+}
+
+pub fn (mut this Tree) add_child(x Key, v Value) {
+	mut child := &Tree{
+		key:  x
+		deco: v
+	}
+	this.children << child
+}
+
+pub fn node_print(node &Tree) {
+	print('${node.key} (${node.deco})\n')
+}
+
+fn main() {
+	mut tree := &Tree{
+		key:  'World'
+		deco: 'Our planet'
+	}
+	tree.add_child('Europe', 'A continent')
+	tree.children[0].add_child('Germany', 'A country')
+	tree.children[0].add_child('Ireland', 'A country')
+	tree.children[0].add_child('Mediterranean Sea', 'A sea')
+	tree.add_child('Asia', 'A continent')
+	tree.children[0].add_child('Japan', 'A country')
+	tree.children[0].add_child('Thailand', 'A country')
+	tree.bfs(node_print)
+}

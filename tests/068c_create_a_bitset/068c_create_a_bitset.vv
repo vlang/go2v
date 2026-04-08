@@ -1,0 +1,35 @@
+module main
+
+fn main() {
+	mut x := new_bitset(n)
+	x.set_bit(13)
+	x.set_bit(42)
+	x.clear_bit(13)
+	for y in [isize(13), 42] {
+		println('x has bit ${y} set to ${x.get_bit(y)}')
+	}
+}
+
+type Bitset = []u64
+
+pub fn new_bitset(n isize) Bitset {
+	return Bitset{}
+}
+
+pub fn (b Bitset) get_bit(index isize) bool {
+	mut pos := index / 64
+	mut j := index % 64
+	return (b[pos] & (u64(1) << j)) != 0
+}
+
+pub fn (mut b Bitset) set_bit(index isize) {
+	mut pos := index / 64
+	mut j := index % 64
+	b[pos] |= (u64(1) << j)
+}
+
+pub fn (mut b Bitset) clear_bit(index isize) {
+	mut pos := index / 64
+	mut j := index % 64
+	b[pos] ^= (u64(1) << j)
+}

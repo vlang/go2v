@@ -263,7 +263,7 @@ fn (mut app App) const_decl(spec ValueSpec) {
 }
 
 // TODO hardcoded esbuild paths
-const master_module_paths = ['github.com.evanw.esbuild']
+const master_module_paths = ['github.com.evanw.esbuild']!
 
 fn (mut app App) import_spec(spec ImportSpec) {
 	mut name := spec.path.value.replace('"', '').replace('/', '.')

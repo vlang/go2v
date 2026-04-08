@@ -1,0 +1,21 @@
+module main
+
+import reflect
+
+fn main() {
+	mut t := TT{}
+
+	mut t_type := reflect.type_of(t)
+	mut n := t_type.size()
+	println('A ${t_type} object is ${n} bytes.')
+}
+
+pub struct Person {
+pub mut:
+	first_name string
+	age        isize
+}
+
+// T is a type alias, to stick to the idiom statement.
+// T has the same memory footprint per value as Person.
+type TT = Person

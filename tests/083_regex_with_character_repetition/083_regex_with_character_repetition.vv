@@ -1,0 +1,11 @@
+module main
+
+import regex as regexp
+
+fn main() {
+	mut r := regexp.must_compile('htt+p')
+	for s in ['hp', 'htp', 'http', 'htttp', 'httttp', 'htttttp', 'htttttp',
+		'word htttp in a sentence'] {
+		println('${s} => ${r.match_string(s)}')
+	}
+}

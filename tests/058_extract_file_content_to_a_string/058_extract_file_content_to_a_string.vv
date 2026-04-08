@@ -1,0 +1,24 @@
+module main
+
+import io.util
+
+fn main() {
+	mut f := 'data.txt'
+	mut b, err := ioutil.read_file(f)
+	if !isnil(err) {
+		panic(err)
+	}
+	mut lines := b.str()
+
+	println(lines)
+}
+
+// Create file in fake FS of the Playground. init is executed before main.
+fn init() {
+	mut err := ioutil.write_file('data.txt', r'Un
+Dos
+Tres'.bytes(), 644)
+	if !isnil(err) {
+		panic(err)
+	}
+}

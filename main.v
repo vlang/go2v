@@ -37,6 +37,8 @@ mut:
 	enum_types              map[string]bool   // types that will become enums (detected by pre-scan)
 	enum_values             map[string]bool   // enum constant values (for adding . prefix in match)
 	array_type_aliases      map[string]bool   // type aliases to array types (for correct composite lit handling)
+	struct_types            map[string]bool   // declared struct type names (for map key compatibility handling)
+	map_string_key_vars     map[string]bool   // map vars whose keys are translated to string
 	fmt_needs_closing_paren bool              // for wrapping printf in print(strconv.v_sprintf(...))
 	at_stmt_level           bool              // true when we can safely emit temp var declarations
 	error_vars              map[string]bool   // variables that hold error/option types (for nil -> none translation)
@@ -49,6 +51,8 @@ mut:
 	in_unsafe_block         bool              // true when generating inside unsafe {} block
 	imported_modules        map[string]bool   // track already imported modules to avoid duplicates
 	required_imports        map[string]bool   // imports required based on actual code usage (added at end)
+	pending_sum_types       []string          // sum type declarations to insert before functions
+	pending_sum_type_names  map[string]string // maps elem-type signature to sum type name
 }
 
 fn (mut app App) genln(s string) {
@@ -67,6 +71,9 @@ fn (mut app App) require_import(mod string) {
 fn (mut app App) generate_v_code(go_file GoFile) string {
 	// Pre-scan to identify enum types (types used with iota in const blocks)
 	app.scan_for_enum_types(go_file.decls)
+	// Pre-scan type names so forward references in function signatures/conversions
+	// are treated as types even when declarations appear later in the file.
+	app.scan_for_type_names(go_file.decls)
 
 	app.genln('module ${app.go2v_ident(go_file.package_name.name)}\n')
 
@@ -96,7 +103,7 @@ fn (mut app App) generate_v_code(go_file GoFile) string {
 				imports_str += 'import ${imp}\n'
 			}
 		}
-		if imports_str.len > 0 {
+		if imports_str != '' {
 			// Find the end of the module line and insert imports there
 			if idx := result.index('\n\n') {
 				result = result[..idx + 1] + imports_str + result[idx + 1..]
@@ -104,7 +111,47 @@ fn (mut app App) generate_v_code(go_file GoFile) string {
 		}
 	}
 
+	// Insert pending sum type declarations before the first function
+	if app.pending_sum_types.len > 0 {
+		mut sum_types_str := ''
+		for decl in app.pending_sum_types {
+			sum_types_str += decl
+		}
+		if idx := result.index('\nfn ') {
+			result = result[..idx + 1] + sum_types_str + '\n' + result[idx + 1..]
+		}
+	}
+
 	return result
+}
+
+fn (mut app App) scan_for_type_names(decls []Decls) {
+	for decl in decls {
+		if decl is GenDecl && decl.tok == 'type' {
+			for spec in decl.specs {
+				if spec is TypeSpec {
+					name := spec.name.name
+					if name == '' {
+						continue
+					}
+					mut v_name := name.capitalize()
+					if v_name.len == 1 {
+						v_name += v_name
+					}
+					if name !in app.struct_or_alias {
+						app.struct_or_alias << name
+					}
+					if v_name !in app.struct_or_alias {
+						app.struct_or_alias << v_name
+					}
+					if spec.typ is StructType {
+						app.struct_types[name] = true
+						app.struct_types[v_name] = true
+					}
+				}
+			}
+		}
+	}
 }
 
 // scan_for_enum_types pre-scans declarations to identify types that will become enums
@@ -290,6 +337,7 @@ fn (mut app App) run_test(subdir string, test_name string) ! {
 			println(term.green('OK (translation + vfmt)'))
 		} else {
 			println('Test ${test_name} failed: vfmt returned non-zero exit code')
+			app.tests_ok = false
 		}
 		return
 	}
@@ -298,9 +346,6 @@ fn (mut app App) run_test(subdir string, test_name string) ! {
 	expected_v_code_path := '${subdir}/${test_name}/${test_name}.vv'
 
 	mut formatted_v_code := os.read_file(v_path) or { panic(err) }
-	formatted_v_code = formatted_v_code.replace('\n\n\tprint', '\n\tprint') // TODO
-	// println('formatted:')
-	// println(formatted_v_code)
 
 	expected_v_code := os.read_file(expected_v_code_path) or {
 		eprintln('Failed to read expected V code: ${err}')

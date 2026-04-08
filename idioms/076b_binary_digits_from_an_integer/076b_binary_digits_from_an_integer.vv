@@ -1,9 +1,0 @@
-module main
-
-import math.big
-
-fn main() {
-	mut x := big.new_int(13)
-	mut s := '${x}'
-	println(s)
-}

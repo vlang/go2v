@@ -1,0 +1,8 @@
+module main
+
+type Any = f32 | string | chan isize
+
+fn main() {
+	mut t := [Any(2.5), 'hello', chan isize{}]
+	println(t)
+}

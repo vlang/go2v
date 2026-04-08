@@ -1,0 +1,11 @@
+module main
+
+import math.big
+
+fn main() {
+	mut a, _, err := big.parse_float('123456789.123456789123465789', 10, 200, big.to_zero)
+	if !isnil(err) {
+		panic(err)
+	}
+	println(a)
+}

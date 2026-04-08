@@ -1,0 +1,32 @@
+module main
+
+pub fn pop_count_ui_nt64(i u64) isize {
+	mut c := 0
+	i -= (i >> 1) & 0x5555555555555555
+	i = (i >> 2) & 0x3333333333333333 + i & 0x3333333333333333
+	i += i >> 4
+	i &= 0x0f0f0f0f0f0f0f0f
+	i *= 0x0101010101010101
+	return isize(i >> 56)
+}
+
+pub fn pop_count_ui_nt32(i u32) isize {
+	mut n := 0
+	i -= (i >> 1) & 0x55555555
+	i = (i >> 2) & 0x33333333 + i & 0x33333333
+	i += i >> 4
+	i &= 0x0f0f0f0f
+	i *= 0x01010101
+	return isize(i >> 24)
+}
+
+fn main() {
+	for i := u64(0); i < 16; i++ {
+		mut c := pop_count_ui_nt64(i)
+		print('${i:4} ${i:04b} ${c}\n')
+	}
+	for i := u32(0); i < 16; i++ {
+		mut c_1 := pop_count_ui_nt32(i)
+		print('${i:4} ${i:04b} ${c_1}\n')
+	}
+}

@@ -8,7 +8,7 @@ module main
 
 // Modules that don't exist in V at all and shouldn't be imported
 // Note: 'strings' and 'bytes' have special handling in import_spec
-const nonexistent_modules = ['fmt', 'path', 'atomic', 'unsafe']
+const nonexistent_modules = ['fmt', 'path', 'atomic', 'unsafe']!
 
 // Type names that conflict with V's standard library and need renaming
 // These types exist in V's stdlib (e.g., log.Log) and cause conflicts
@@ -18,7 +18,7 @@ const conflicting_type_names = {
 
 // Modules that need function call translation (includes nonexistent + some that exist but need mapping)
 const modules_needing_call_translation = ['fmt', 'path', 'strings', 'atomic', 'unsafe', 'os', 'bytes',
-	'user', 'sort', 'utf8', 'bits', 'errors']
+	'user', 'sort', 'utf8', 'bits', 'errors']!
 
 // Maps Go strings function names to V string method names
 const go_strings_to_v = {
@@ -362,6 +362,18 @@ fn (mut app App) gen_fmt_from_decoded_text(format_text string, args []Expr, trai
 			precision = format_text[precision_start + 1..i]
 			directive += format_text[precision_start..i]
 		}
+		mut explicit_arg_idx := -1
+		if i < format_text.len && format_text[i] == `[` {
+			mut j := i + 1
+			for j < format_text.len && go_fmt_is_digit(format_text[j]) {
+				j++
+			}
+			if j < format_text.len && format_text[j] == `]` && j > i + 1 {
+				idx_text := format_text[i + 1..j]
+				explicit_arg_idx = idx_text.int() - 1
+				i = j + 1
+			}
+		}
 		if i >= format_text.len {
 			app.gen(go_fmt_escape_v_interpolation_text(directive))
 			break
@@ -369,12 +381,17 @@ fn (mut app App) gen_fmt_from_decoded_text(format_text string, args []Expr, trai
 		verb := format_text[i]
 		i++
 		directive += verb.ascii_str()
-		if arg_idx >= args.len {
+		mut use_arg_idx := arg_idx
+		if explicit_arg_idx >= 0 {
+			use_arg_idx = explicit_arg_idx
+		} else {
+			arg_idx++
+		}
+		if use_arg_idx < 0 || use_arg_idx >= args.len {
 			app.gen(go_fmt_escape_v_interpolation_text(directive))
 			continue
 		}
-		app.gen_fmt_placeholder(args[arg_idx], flags, width, precision, verb)
-		arg_idx++
+		app.gen_fmt_placeholder(args[use_arg_idx], flags, width, precision, verb)
 	}
 	if trailing_newline {
 		app.gen(r'\n')
@@ -427,7 +444,7 @@ fn (mut app App) gen_fmt_placeholder(arg Expr, flags string, width string, preci
 			}
 			app.gen('}')
 		}
-		`d`, `i`, `u`, `c`, `f`, `F`, `e`, `E`, `g`, `G`, `s` {
+		`d`, `i`, `u`, `b`, `c`, `f`, `F`, `e`, `E`, `g`, `G`, `s` {
 			app.gen(r'${')
 			app.expr(arg)
 			spec := go_fmt_to_v_interpolation_spec(flags, width, precision, verb)
@@ -460,22 +477,16 @@ fn go_fmt_to_v_interpolation_spec(flags string, width string, precision string, 
 	} else if flags.contains('0') {
 		spec += '0'
 	}
-	spec += width
-	if precision.len > 0 {
+	if width != '' {
+		spec += width
+	}
+	if precision!= '' {
 		spec += '.${precision}'
 	}
-	match verb {
-		`i`, `u` {
-			spec += 'd'
-		}
-		`F` {
-			spec += 'f'
-		}
-		else {
-			spec += verb.ascii_str()
-		}
+	if verb == `b` || verb == `c` {
+		spec += verb.ascii_str()
 	}
-	return if spec == 's' { '' } else { spec }
+	return spec
 }
 
 fn go_fmt_decode_string_lit(lit string) string {

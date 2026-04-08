@@ -1,0 +1,12 @@
+module main
+
+fn main() {
+	mut x := ['b', 'a', 'b', 'c']
+	println('x = ${x}')
+	mut y := map[string]_VAnonStruct1{}
+	for v in x {
+		y[v] = struct {}
+		{}
+	}
+	println('y = ${y}')
+}
