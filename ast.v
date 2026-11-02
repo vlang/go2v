@@ -1,6 +1,6 @@
 // Copyright (c) 2024 Alexander Medvednikov. All rights reserved.
 // Use of this source code is governed by a GPL license that can be found in the LICENSE file.
-import json
+import json2
 import os
 
 type Decls = FuncDecl | GenDecl
@@ -75,9 +75,9 @@ type Type = InvalidExpr
 	| StructType
 
 struct ArrayType {
-	node_type string @[json: '_type']
-	len       Expr   @[json: 'Len']
-	elt       Expr   @[json: 'Elt']
+	node_type string                       @[json: '_type']
+	len       &Expr = &Expr(InvalidExpr{}) @[json: 'Len']
+	elt       &Expr = &Expr(InvalidExpr{}) @[json: 'Elt']
 }
 
 struct AssignStmt {
@@ -94,10 +94,10 @@ struct BasicLit {
 }
 
 struct BinaryExpr {
-	node_type string @[json: '_type']
-	x         Expr   @[json: 'X']
-	op        string @[json: 'Op']
-	y         Expr   @[json: 'Y']
+	node_type string                       @[json: '_type']
+	x         &Expr = &Expr(InvalidExpr{}) @[json: 'X']
+	op        string                       @[json: 'Op']
+	y         &Expr = &Expr(InvalidExpr{}) @[json: 'Y']
 }
 
 struct BlockStmt {
@@ -112,9 +112,9 @@ struct BranchStmt {
 }
 
 struct CallExpr {
-	node_type string @[json: '_type']
-	fun       Expr   @[json: 'Fun']
-	args      []Expr @[json: 'Args']
+	node_type string                       @[json: '_type']
+	fun       &Expr = &Expr(InvalidExpr{}) @[json: 'Fun']
+	args      []Expr                       @[json: 'Args']
 }
 
 struct CaseClause {
@@ -124,15 +124,15 @@ struct CaseClause {
 }
 
 struct ChanType {
-	node_type string @[json: '_type']
-	dir       string @[json: 'Dir']
-	value     Expr   @[json: 'Value']
+	node_type string                       @[json: '_type']
+	dir       string                       @[json: 'Dir']
+	value     &Expr = &Expr(InvalidExpr{}) @[json: 'Value']
 }
 
 struct CompositeLit {
-	node_type string @[json: '_type']
-	typ       Expr   @[json: 'Type']
-	elts      []Expr @[json: 'Elts']
+	node_type string                       @[json: '_type']
+	typ       &Expr = &Expr(InvalidExpr{}) @[json: 'Type']
+	elts      []Expr                       @[json: 'Elts']
 }
 
 struct DeclStmt {
@@ -141,8 +141,8 @@ struct DeclStmt {
 }
 
 struct DeferStmt {
-	node_type string @[json: '_type']
-	call      Expr   @[json: 'Call']
+	node_type string                       @[json: '_type']
+	call      &Expr = &Expr(InvalidExpr{}) @[json: 'Call']
 }
 
 struct Doc {
@@ -157,15 +157,15 @@ struct Ellipsis {
 }
 
 struct ExprStmt {
-	node_type string @[json: '_type']
-	x         Expr   @[json: 'X']
+	node_type string                       @[json: '_type']
+	x         &Expr = &Expr(InvalidExpr{}) @[json: 'X']
 }
 
 struct Field {
-	node_type string  @[json: '_type']
-	names     []Ident @[json: 'Names']
-	typ       Type    @[json: 'Type']
-	doc       Doc     @[json: 'Doc']
+	node_type string                       @[json: '_type']
+	names     []Ident                      @[json: 'Names']
+	typ       &Type = &Type(InvalidExpr{}) @[json: 'Type']
+	doc       Doc @[json: 'Doc']
 }
 
 struct FieldList {
@@ -173,11 +173,11 @@ struct FieldList {
 }
 
 struct ForStmt {
-	node_type string     @[json: '_type']
-	init      AssignStmt @[json: 'Init']
-	cond      Expr       @[json: 'Cond']
-	post      Stmt       @[json: 'Post']
-	body      BlockStmt  @[json: 'Body']
+	node_type string                       @[json: '_type']
+	init      AssignStmt                   @[json: 'Init']
+	cond      &Expr = &Expr(InvalidExpr{}) @[json: 'Cond']
+	post      &Stmt = &Stmt(InvalidStmt{}) @[json: 'Post']
+	body      BlockStmt                    @[json: 'Body']
 }
 
 struct FuncDecl {
@@ -214,8 +214,8 @@ struct GoFile {
 }
 
 struct GoStmt {
-	node_type string @[json: '_type']
-	call      Expr   @[json: 'Call']
+	node_type string                       @[json: '_type']
+	call      &Expr = &Expr(InvalidExpr{}) @[json: 'Call']
 }
 
 struct Ident {
@@ -224,11 +224,11 @@ struct Ident {
 }
 
 struct IfStmt {
-	node_type string     @[json: '_type']
-	cond      Expr       @[json: 'Cond']
-	init      AssignStmt @[json: 'Init']
-	body      BlockStmt  @[json: 'Body']
-	else_     Stmt       @[json: 'Else']
+	node_type string                       @[json: '_type']
+	cond      &Expr = &Expr(InvalidExpr{}) @[json: 'Cond']
+	init      AssignStmt                   @[json: 'Init']
+	body      BlockStmt                    @[json: 'Body']
+	else_     &Stmt = &Stmt(InvalidStmt{}) @[json: 'Else']
 }
 
 struct ImportSpec {
@@ -238,15 +238,15 @@ struct ImportSpec {
 }
 
 struct IncDecStmt {
-	node_type string @[json: '_type']
-	tok       string @[json: 'Tok']
-	x         Expr   @[json: 'X']
+	node_type string                       @[json: '_type']
+	tok       string                       @[json: 'Tok']
+	x         &Expr = &Expr(InvalidExpr{}) @[json: 'X']
 }
 
 struct IndexExpr {
-	node_type string @[json: '_type']
-	x         Expr   @[json: 'X']
-	index     Expr   @[json: 'Index']
+	node_type string                       @[json: '_type']
+	x         &Expr = &Expr(InvalidExpr{}) @[json: 'X']
+	index     &Expr = &Expr(InvalidExpr{}) @[json: 'Index']
 }
 
 struct InterfaceType {
@@ -255,36 +255,36 @@ struct InterfaceType {
 }
 
 struct KeyValueExpr {
-	key       Expr   @[json: 'Key']
-	value     Expr   @[json: 'Value']
-	node_type string @[json: '_type']
+	key       &Expr = &Expr(InvalidExpr{}) @[json: 'Key']
+	value     &Expr = &Expr(InvalidExpr{}) @[json: 'Value']
+	node_type string                       @[json: '_type']
 }
 
 struct LabeledStmt {
-	node_type string @[json: '_type']
-	label     Ident  @[json: 'Label']
-	stmt      Stmt   @[json: 'Stmt']
+	node_type string                       @[json: '_type']
+	label     Ident                        @[json: 'Label']
+	stmt      &Stmt = &Stmt(InvalidStmt{}) @[json: 'Stmt']
 }
 
 struct MapType {
-	node_type string @[json: '_type']
-	key       Expr   @[json: 'Key']
-	val       MapVal @[json: 'Value']
+	node_type string                         @[json: '_type']
+	key       &Expr   = &Expr(InvalidExpr{}) @[json: 'Key']
+	val       &MapVal = &MapVal(Ident{})     @[json: 'Value']
 }
 
 struct ParenExpr {
-	node_type string @[json: '_type']
-	x         Expr   @[json: 'X']
+	node_type string                       @[json: '_type']
+	x         &Expr = &Expr(InvalidExpr{}) @[json: 'X']
 }
 
 // `for ... := range` loop
 struct RangeStmt {
-	node_type string    @[json: '_type']
-	key       Ident     @[json: 'Key']
-	value     Ident     @[json: 'Value']
-	tok       string    @[json: 'Tok']
-	x         Expr      @[json: 'X']
-	body      BlockStmt @[json: 'Body']
+	node_type string                       @[json: '_type']
+	key       Ident                        @[json: 'Key']
+	value     Ident                        @[json: 'Value']
+	tok       string                       @[json: 'Tok']
+	x         &Expr = &Expr(InvalidExpr{}) @[json: 'X']
+	body      BlockStmt                    @[json: 'Body']
 }
 
 struct ReturnStmt {
@@ -293,27 +293,27 @@ struct ReturnStmt {
 }
 
 struct SelectorExpr {
-	node_type string @[json: '_type']
-	sel       Ident  @[json: 'Sel']
-	x         Expr   @[json: 'X']
+	node_type string                       @[json: '_type']
+	sel       Ident                        @[json: 'Sel']
+	x         &Expr = &Expr(InvalidExpr{}) @[json: 'X']
 }
 
 struct SendStmt {
-	node_type string @[json: '_type']
-	chan_     Expr   @[json: 'Chan']
-	value     Expr   @[json: 'Value']
+	node_type string                       @[json: '_type']
+	chan_     &Expr = &Expr(InvalidExpr{}) @[json: 'Chan']
+	value     &Expr = &Expr(InvalidExpr{}) @[json: 'Value']
 }
 
 struct SliceExpr {
-	node_type string @[json: '_type']
-	x         Expr   @[json: 'X']
-	low       Expr   @[json: 'Low']
-	high      Expr   @[json: 'High']
+	node_type string                       @[json: '_type']
+	x         &Expr = &Expr(InvalidExpr{}) @[json: 'X']
+	low       &Expr = &Expr(InvalidExpr{}) @[json: 'Low']
+	high      &Expr = &Expr(InvalidExpr{}) @[json: 'High']
 }
 
 struct StarExpr {
-	node_type string @[json: '_type']
-	x         Expr   @[json: 'X']
+	node_type string                       @[json: '_type']
+	x         &Expr = &Expr(InvalidExpr{}) @[json: 'X']
 }
 
 struct StructType {
@@ -323,48 +323,48 @@ struct StructType {
 }
 
 struct SwitchStmt {
-	node_type string     @[json: '_type']
-	init      AssignStmt @[json: 'Init']
-	tag       Expr       @[json: 'Tag']
-	body      BlockStmt  @[json: 'Body']
+	node_type string                       @[json: '_type']
+	init      AssignStmt                   @[json: 'Init']
+	tag       &Expr = &Expr(InvalidExpr{}) @[json: 'Tag']
+	body      BlockStmt                    @[json: 'Body']
 }
 
 struct TypeAssertExpr {
-	node_type string @[json: '_type']
-	x         Expr   @[json: 'X']
-	typ       Type   @[json: 'Type']
+	node_type string                       @[json: '_type']
+	x         &Expr = &Expr(InvalidExpr{}) @[json: 'X']
+	typ       &Type = &Type(InvalidExpr{}) @[json: 'Type']
 }
 
 struct TypeSpec {
-	node_type string    @[json: '_type']
-	name      Ident     @[json: 'Name']
-	params    FieldList @[json: 'TypeParams']
-	typ       Type      @[json: 'Type']
+	node_type string                       @[json: '_type']
+	name      Ident                        @[json: 'Name']
+	params    FieldList                    @[json: 'TypeParams']
+	typ       &Type = &Type(InvalidExpr{}) @[json: 'Type']
 }
 
 struct TypeSwitchStmt {
-	node_type string @[json: '_type']
-	assign    Stmt   @[json: 'Assign'] // Can be AssignStmt or ExprStmt
+	node_type string                       @[json: '_type']
+	assign    &Stmt = &Stmt(InvalidStmt{}) @[json: 'Assign'] // Can be AssignStmt or ExprStmt
 	// tag       Expr       @[json: 'Tag']
 	body BlockStmt @[json: 'Body']
 }
 
 struct UnaryExpr {
-	node_type string @[json: '_type']
-	x         Expr   @[json: 'X']
-	op        string @[json: 'Op']
+	node_type string                       @[json: '_type']
+	x         &Expr = &Expr(InvalidExpr{}) @[json: 'X']
+	op        string                       @[json: 'Op']
 }
 
 struct ValueSpec {
-	node_type string  @[json: '_type']
-	names     []Ident @[json: 'Names']
-	typ       Type    @[json: 'Type']
-	values    []Expr  @[json: 'Values']
+	node_type string                       @[json: '_type']
+	names     []Ident                      @[json: 'Names']
+	typ       &Type = &Type(InvalidExpr{}) @[json: 'Type']
+	values    []Expr                       @[json: 'Values']
 }
 
 fn parse_go_ast(file_path string) !GoFile {
 	data := os.read_file(file_path)!
-	return json.decode(GoFile, data)!
+	return json2.decode[GoFile](data)!
 }
 
 fn (e Expr) node_type() string {

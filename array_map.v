@@ -146,7 +146,7 @@ fn (mut app App) array_init(c CompositeLit) {
 							elt_is_selector = true
 						}
 						else {
-							app.gen('>> unhandled array type "${x.node_type}"')
+							app.gen('>> unhandled array type "${x.node_type()}"')
 						}
 					}
 				}
